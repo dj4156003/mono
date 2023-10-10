@@ -1237,23 +1237,3 @@ mono_dump_complete (void)
 {
 	return (mono_atomic_xchg_i32(&dump_status, 0) == 1);  // return true if we completed the dump
 }
-
-static char *saved_failfast_msg;
-
-/**
- * mono_crash_save_failfast_msg:
- * \param msg the message to save.  Takes ownership, caller shouldn't free
- *
- * \returns the previous message - caller is responsible for freeing.
- */
-char*
-mono_crash_save_failfast_msg (char *msg)
-{
-	return (char*) mono_atomic_xchg_ptr ((gpointer*)&saved_failfast_msg, (void*)msg);
-}
-
-const char*
-mono_crash_get_failfast_msg (void)
-{
-	return saved_failfast_msg;
-}
