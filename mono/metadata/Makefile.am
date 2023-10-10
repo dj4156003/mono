@@ -129,8 +129,6 @@ libmonoruntime_support_la_SOURCES = support.c
 libmonoruntime_support_la_LDFLAGS = $(Z_LIBS)
 libmonoruntime_support_la_CFLAGS = $(filter-out @CXX_REMOVE_CFLAGS@, @CFLAGS@) @ZLIB_CFLAGS@
 
-endif # HAVE_SYS_ICU
-endif # ENABLE_NETCORE
 
 if !ENABLE_NETCORE
 culture_libraries = ../culture/libmono-culture.la
