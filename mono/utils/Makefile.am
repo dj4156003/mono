@@ -98,7 +98,6 @@ monoutils_sources = \
 	mono-mmap-wasm.c  		\
 	mono-mmap.h  		\
 	mono-mmap-internals.h	\
-	mono-mmap-windows-internals.h	\
 	mono-os-mutex.h		\
 	mono-os-mutex.c		\
 	mono-flight-recorder.h		\
@@ -161,6 +160,8 @@ monoutils_sources = \
 	mono-stack-unwinding.h	\
 	hazard-pointer.c	\
 	hazard-pointer.h	\
+	lifo-semaphore.c	\
+	lifo-semaphore.h	\
 	lock-free-queue.c	\
 	lock-free-queue.h	\
 	lock-free-alloc.c	\
@@ -184,6 +185,7 @@ monoutils_sources = \
 	mono-threads-haiku.c	\
 	mono-threads-aix.c	\
 	mono-threads-wasm.c	\
+	mono-threads-sunos.c	\
 	mono-threads.h	\
 	mono-threads-debug.h	\
 	mono-threads-api.h	\
@@ -229,8 +231,13 @@ monoutils_sources = \
 	os-event.h \
 	refcount.h	\
 	w32api.h	\
+	w32subset.h	\
 	unlocked.h	\
-	ward.h
+	ward.h \
+	options.h \
+	options-def.h \
+	options.c \
+	ftnptr.h
 
 arch_sources = 
 
@@ -341,6 +348,7 @@ libmonoutilsinclude_HEADERS = 	\
 	mono-publib.h		\
 	mono-jemalloc.h		\
 	mono-dl-fallback.h	\
+	mono-private-unstable.h	\
 	mono-counters.h
 
 EXTRA_DIST = mono-errno.h mono-embed.h mono-embed.c ../../support/libm/complex.c mono-experiments.def

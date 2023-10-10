@@ -40,8 +40,10 @@ MONO_API void mono_thread_new_init (intptr_t tid, void* stack_start,
 MONO_API MONO_RT_EXTERNAL_ONLY void
 mono_thread_create (MonoDomain *domain, void* func, void* arg);
 
-MONO_API MonoThread *mono_thread_attach (MonoDomain *domain);
-MONO_API void mono_thread_detach (MonoThread *thread);
+MONO_API MONO_RT_EXTERNAL_ONLY MonoThread *
+mono_thread_attach (MonoDomain *domain);
+MONO_API MONO_RT_EXTERNAL_ONLY void
+mono_thread_detach (MonoThread *thread);
 MONO_API void mono_thread_exit (void);
 
 MONO_API MONO_RT_EXTERNAL_ONLY void
@@ -61,6 +63,8 @@ MONO_API mono_bool mono_thread_is_foreign (MonoThread *thread);
 
 MONO_API MONO_RT_EXTERNAL_ONLY mono_bool
 mono_thread_detach_if_exiting (void);
+
+MONO_API mono_bool mono_thread_has_sufficient_execution_stack (void);
 
 MONO_END_DECLS
 

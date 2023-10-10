@@ -761,9 +761,10 @@ mono_marshal_get_xappdomain_dispatch (MonoMethod *method, int *marshal_types, in
 
 	mono_mb_emit_ldarg (mb, 1);
 	mono_mb_emit_byte (mb, CEE_LDIND_REF);
-	mono_mb_emit_byte (mb, CEE_DUP);
 	pos = mono_mb_emit_short_branch (mb, CEE_BRFALSE_S);
 	
+	mono_mb_emit_ldarg (mb, 1);
+	mono_mb_emit_byte (mb, CEE_LDIND_REF);
 	mono_marshal_emit_xdomain_copy_value (mb, byte_array_class);
 	mono_mb_emit_managed_call (mb, method_rs_deserialize, NULL);
 	
@@ -2092,7 +2093,7 @@ mono_marshal_xdomain_copy_value_handle (MonoObjectHandle val, MonoError *error)
 	case MONO_TYPE_U8:
 	case MONO_TYPE_R4:
 	case MONO_TYPE_R8: {
-		uint32_t gchandle = mono_gchandle_from_handle (val, TRUE);
+		MonoGCHandle gchandle = mono_gchandle_from_handle (val, TRUE);
 		MonoObjectHandle res = MONO_HANDLE_NEW (MonoObject, mono_value_box_checked (domain, klass, ((char*)MONO_HANDLE_RAW (val)) + sizeof(MonoObject), error)); /* FIXME use handles in mono_value_box_checked */
 		mono_gchandle_free_internal (gchandle);
 		goto_if_nok (error, leave);
@@ -2101,7 +2102,7 @@ mono_marshal_xdomain_copy_value_handle (MonoObjectHandle val, MonoError *error)
 	}
 	case MONO_TYPE_STRING: {
 		MonoStringHandle str = MONO_HANDLE_CAST (MonoString, val);
-		uint32_t gchandle = mono_gchandle_from_handle (val, TRUE);
+		MonoGCHandle gchandle = mono_gchandle_from_handle (val, TRUE);
 		MonoStringHandle res = mono_string_new_utf16_handle (domain, mono_string_chars_internal (MONO_HANDLE_RAW (str)), mono_string_handle_length (str), error);
 		mono_gchandle_free_internal (gchandle);
 		goto_if_nok (error, leave);

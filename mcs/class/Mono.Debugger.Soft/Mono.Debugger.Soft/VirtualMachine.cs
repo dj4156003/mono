@@ -171,8 +171,7 @@ namespace Mono.Debugger.Soft
 
 		HashSet<ThreadMirror> threadsToInvalidate = new HashSet<ThreadMirror> ();
 		ThreadMirror[] threadCache;
-		object threadCacheLocker = new object ();
-
+		
 		void InvalidateThreadAndFrameCaches () {
 			lock (threadsToInvalidate) {
 				foreach (var thread in threadsToInvalidate)
@@ -200,7 +199,7 @@ namespace Mono.Debugger.Soft
 				var fetchingEvent = new ManualResetEvent (false);
 				vm.conn.VM_GetThreads ((threadsIds) => {
 					ids = threadsIds;
-					threadCache = threads = new ThreadMirror [threadsIds.Length];
+					threads = new ThreadMirror [threadsIds.Length];
 					fetchingEvent.Set ();
 				});
 				if (WaitHandle.WaitAny (new []{ vm.conn.DisconnectedEvent, fetchingEvent }) == 0) {
@@ -215,6 +214,8 @@ namespace Mono.Debugger.Soft
 				//if (threadCache != threads) {//While fetching threads threadCache was invalidated(thread was created/destoyed)
 				//	return GetThreads ();
 				//}
+				Thread.MemoryBarrier ();
+				threadCache = threads;
 				return threads;
 			} else {
 				return threads;
@@ -669,7 +670,7 @@ namespace Mono.Debugger.Soft
 
 		internal Value DecodeValue (ValueImpl v, Dictionary<int, Value> parent_vtypes) {
 			if (v.Value != null) {
-				if (Version.AtLeast (2, 46) && v.Type == ElementType.Ptr)
+				if (Version.AtLeast (2, 46) && (v.Type == ElementType.Ptr || v.Type == ElementType.FnPtr))
 					return new PointerValue(this, GetType(v.Klass), (long)v.Value);
 				return new PrimitiveValue (this, v.Value);
 			}

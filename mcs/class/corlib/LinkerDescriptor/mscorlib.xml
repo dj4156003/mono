@@ -302,6 +302,11 @@
 			<method signature="System.Void .ctor(System.String)" />
 		</type>
 
+		<type fullname="System.PlatformNotSupportedException">
+		  <!-- mono_error_set_platform_not_supported -->
+			<method signature="System.Void .ctor(System.String)" />
+		</type>
+
 		<!-- mono-error.c (mono_error_set_ambiguous_implementation) -->
 		<type fullname="System.Runtime.AmbiguousImplementationException">
 			<!-- mono_error_set_ambiguous_implementation -->
@@ -851,5 +856,16 @@
 		<type fullname="Mono.ValueTuple`3" preserve="fields"/>
 		<type fullname="Mono.ValueTuple`4" preserve="fields"/>
 		<type fullname="Mono.ValueTuple`5" preserve="fields"/>
+
+		<!-- IL2CPP enum sharing -->
+		<type fullname="System.SByteEnum" />
+		<type fullname="System.Int16Enum" />
+		<type fullname="System.Int32Enum" />
+		<type fullname="System.Int64Enum" />
+		
+		<type fullname="System.ByteEnum" />
+		<type fullname="System.UInt16Enum" />
+		<type fullname="System.UInt32Enum" />
+		<type fullname="System.UInt64Enum" />
 	</assembly>
 </linker>

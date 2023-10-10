@@ -2425,7 +2425,7 @@ create_map (MonoCompile *cfg)
 		encoded_size = endbuf - buf;
 		alloc_size = sizeof (GCEncodedMap) + ALIGN_TO (encoded_size, map->callsite_entry_size) + (map->callsite_entry_size * map->ncallsites) + bitmaps_size;
 
-		emap = mono_domain_alloc0 (cfg->domain, alloc_size);
+		emap = mono_mem_manager_alloc0 (cfg->mem_manager, alloc_size);
 		//emap->ref_slots = map->ref_slots;
 
 		/* Encoded fixed fields */
@@ -2647,7 +2647,7 @@ mini_gc_set_slot_type_from_cfa (MonoCompile *cfg, int slot_offset, GCSlotType ty
 void
 mini_gc_init_cfg (MonoCompile *cfg)
 {
-	if (mono_gc_is_moving ()) {
+	if (mono_gc_needs_write_barriers()) {
 		cfg->disable_ref_noref_stack_slot_share = TRUE;
 		cfg->gen_write_barriers = TRUE;
 	}

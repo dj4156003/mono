@@ -246,19 +246,6 @@ mono_arch_cpu_optimizations (guint32 *exclude_mask)
 	return opts;
 }
 
-/*
- * This function test for all SIMD functions supported.
- *
- * Returns a bitmask corresponding to all supported versions.
- *
- */
-guint32
-mono_arch_cpu_enumerate_simd_versions (void)
-{
-	/* SIMD is currently unimplemented */
-	return 0;
-}
-
 #ifdef __GNUC__
 #define flushi(addr)    __asm__ __volatile__ ("iflush %0"::"r"(addr):"memory")
 #else /* assume Sun's compiler */
@@ -2291,10 +2278,12 @@ mono_arch_build_imt_trampoline (MonoVTable *vtable, MonoDomain *domain, MonoIMTC
 		}
 		size += item->chunk_size;
 	}
-	if (fail_tramp)
-		code = mono_method_alloc_generic_virtual_trampoline (domain, size * 4);
-	else
-		code = mono_domain_code_reserve (domain, size * 4);
+	if (fail_tramp) {
+		code = mono_method_alloc_generic_virtual_trampoline (mono_domain_ambient_memory_manager (domain), size * 4);
+	} else {
+		MonoMemoryManager *mem_manager = m_class_get_mem_manager (domain, vtable->klass);
+		code = mono_mem_manager_code_reserve (mem_manager, size * 4);
+	}
 	start = code;
 	for (i = 0; i < count; ++i) {
 		MonoIMTCheckItem *item = imt_entries [i];

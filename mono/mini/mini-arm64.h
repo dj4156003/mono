@@ -19,6 +19,11 @@
 
 #define MONO_MAX_IREGS 32
 #define MONO_MAX_FREGS 32
+#define MONO_MAX_XREGS 32
+
+#if !defined(DISABLE_SIMD) && defined(ENABLE_NETCORE)
+#define MONO_ARCH_SIMD_INTRINSICS 1
+#endif
 
 #define MONO_CONTEXT_SET_LLVM_EXC_REG(ctx, exc) do { (ctx)->regs [0] = (gsize)exc; } while (0)
 
@@ -40,6 +45,10 @@
 #define MONO_ARCH_CALLEE_FREGS 0xfffc00ff
 /* v8..v15 */
 #define MONO_ARCH_CALLEE_SAVED_FREGS 0xff00
+
+#define MONO_ARCH_CALLEE_SAVED_XREGS 0
+
+#define MONO_ARCH_CALLEE_XREGS MONO_ARCH_CALLEE_FREGS
 
 #define MONO_ARCH_USE_FPSTACK FALSE
 
@@ -176,7 +185,7 @@ typedef struct {
 // can pass context to generics or interfaces?
 #define MONO_ARCH_HAVE_VOLATILE_NON_PARAM_REGISTER 1
 
-#ifdef TARGET_IOS
+#if defined(TARGET_IOS) || defined(TARGET_OSX)
 
 #define MONO_ARCH_REDZONE_SIZE 128
 
@@ -186,7 +195,7 @@ typedef struct {
 
 #endif
 
-#if defined(TARGET_IOS) || defined(TARGET_WATCHOS)
+#if defined(TARGET_IOS) || defined(TARGET_WATCHOS) || defined(TARGET_OSX)
 #define MONO_ARCH_HAVE_UNWIND_BACKTRACE 1
 #endif
 
@@ -274,6 +283,10 @@ guint8* mono_arm_emit_load_regarray (guint8 *code, guint64 regs, int basereg, in
 
 /* MonoJumpInfo **ji */
 guint8* mono_arm_emit_aotconst (gpointer ji, guint8 *code, guint8 *code_start, int dreg, guint32 patch_type, gconstpointer data);
+
+guint8* mono_arm_emit_brx (guint8 *code, int reg);
+
+guint8* mono_arm_emit_blrx (guint8 *code, int reg);
 
 void mono_arm_patch (guint8 *code, guint8 *target, int relocation);
 

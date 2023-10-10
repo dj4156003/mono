@@ -100,7 +100,7 @@ MonoReflectionTypeBuilderHandle
 mono_class_get_ref_info (MonoClass *klass)
 {
 	MONO_REQ_GC_UNSAFE_MODE;
-	guint32 ref_info_handle = mono_class_get_ref_info_handle (klass);
+	MonoGCHandle ref_info_handle = mono_class_get_ref_info_handle (klass);
 
 	if (ref_info_handle == 0)
 		return MONO_HANDLE_NEW (MonoReflectionTypeBuilder, NULL);
@@ -119,7 +119,7 @@ mono_class_get_ref_info_raw (MonoClass *klass)
 {
 	/* FIXME callers of mono_class_get_ref_info_raw should use handles */
 	MONO_REQ_GC_UNSAFE_MODE;
-	guint32 ref_info_handle = mono_class_get_ref_info_handle (klass);
+	MonoGCHandle ref_info_handle = mono_class_get_ref_info_handle (klass);
 
 	if (ref_info_handle == 0)
 		return NULL;
@@ -131,8 +131,8 @@ mono_class_set_ref_info (MonoClass *klass, MonoObjectHandle obj)
 {
 	MONO_REQ_GC_UNSAFE_MODE;
 
-	guint32 candidate = mono_gchandle_from_handle (obj, FALSE);
-	guint32 handle = mono_class_set_ref_info_handle (klass, candidate);
+	MonoGCHandle candidate = mono_gchandle_from_handle (obj, FALSE);
+	MonoGCHandle handle = mono_class_set_ref_info_handle (klass, candidate);
 	++class_ref_info_handle_count;
 
 	if (handle != candidate)
@@ -143,7 +143,7 @@ void
 mono_class_free_ref_info (MonoClass *klass)
 {
 	MONO_REQ_GC_NEUTRAL_MODE;
-	guint32 handle = mono_class_get_ref_info_handle (klass);
+	MonoGCHandle handle = mono_class_get_ref_info_handle (klass);
 
 	if (handle) {
 		mono_gchandle_free_internal (handle);
@@ -184,36 +184,22 @@ mono_reflected_hash (gconstpointer a) {
 static void
 clear_cached_object (MonoDomain *domain, gpointer o, MonoClass *klass)
 {
-	mono_domain_lock (domain);
-	if (domain->refobject_hash) {
-        ReflectedEntry pe;
-		gpointer orig_pe, orig_value;
+	MonoMemoryManager *memory_manager = mono_domain_ambient_memory_manager (domain);
 
-		pe.item = o;
-		pe.refclass = klass;
+	mono_mem_manager_lock (memory_manager);
 
-		if (mono_conc_g_hash_table_lookup_extended (domain->refobject_hash, &pe, &orig_pe, &orig_value)) {
-			mono_conc_g_hash_table_remove (domain->refobject_hash, &pe);
-			free_reflected_entry ((ReflectedEntry*)orig_pe);
-		}
+	gpointer orig_pe, orig_value;
+	ReflectedEntry pe;
+	pe.item = o;
+	pe.refclass = klass;
+
+
+	if (mono_conc_g_hash_table_lookup_extended (memory_manager->refobject_hash, &pe, &orig_pe, &orig_value)) {
+		mono_conc_g_hash_table_remove (memory_manager->refobject_hash, &pe);
+		free_reflected_entry ((ReflectedEntry *)orig_pe);
 	}
-	mono_domain_unlock (domain);
-}
 
-static void
-cleanup_refobject_hash (gpointer key, gpointer value, gpointer user_data)
-{
-	free_reflected_entry ((ReflectedEntry*)key);
-}
-
-void
-mono_reflection_cleanup_domain (MonoDomain *domain)
-{
-	if (domain->refobject_hash) {
-		mono_conc_g_hash_table_foreach (domain->refobject_hash, cleanup_refobject_hash, NULL);
-		mono_conc_g_hash_table_destroy (domain->refobject_hash);
-		domain->refobject_hash = NULL;
-	}
+	mono_mem_manager_unlock (memory_manager);
 }
 
 /**
@@ -459,6 +445,7 @@ mono_type_get_object_checked (MonoDomain *domain, MonoType *type, MonoError *err
 
 	g_assert (type != NULL);
 	klass = mono_class_from_mono_type_internal (type);
+	MonoMemoryManager *memory_manager = mono_domain_ambient_memory_manager (domain);
 
 	/*we must avoid using @type as it might have come
 	 * from a mono_metadata_type_dup and the caller
@@ -500,15 +487,9 @@ mono_type_get_object_checked (MonoDomain *domain, MonoType *type, MonoError *err
 	}
 
 	mono_loader_lock (); /*FIXME mono_class_init_internal and mono_class_vtable acquire it*/
-	mono_domain_lock (domain);
-	if (!domain->type_hash)
-		domain->type_hash = mono_g_hash_table_new_type_internal ((GHashFunc)mono_metadata_type_hash, 
-				(GCompareFunc)mono_metadata_type_equal, MONO_HASH_VALUE_GC, MONO_ROOT_SOURCE_DOMAIN, domain, "Domain Reflection Type Table");
-	if ((res = (MonoReflectionType *)mono_g_hash_table_lookup (domain->type_hash, type))) {
-		mono_domain_unlock (domain);
-		mono_loader_unlock ();
-		return res;
-	}
+	mono_mem_manager_lock (memory_manager);
+	if ((res = (MonoReflectionType *)mono_g_hash_table_lookup (memory_manager->type_hash, type)))
+		goto leave;
 
 	/*Types must be normalized so a generic instance of the GTD get's the same inner type.
 	 * For example in: Foo<A,B>; Bar<A> : Foo<A, Bar<A>>
@@ -520,15 +501,10 @@ mono_type_get_object_checked (MonoDomain *domain, MonoType *type, MonoError *err
 	norm_type = mono_type_normalize (type);
 	if (norm_type != type) {
 		res = mono_type_get_object_checked (domain, norm_type, error);
-		if (!is_ok (error)) {
-			mono_domain_unlock (domain);
-			mono_loader_unlock ();
-			return NULL;
-		}
-		mono_g_hash_table_insert_internal (domain->type_hash, type, res);
-		mono_domain_unlock (domain);
-		mono_loader_unlock ();
-		return res;
+		goto_if_nok (error, leave);
+
+		mono_g_hash_table_insert_internal (memory_manager->type_hash, type, res);
+		goto leave;
 	}
 
 	if ((type->type == MONO_TYPE_GENERICINST) && type->data.generic_class->is_dynamic && !m_class_was_typebuilder (type->data.generic_class->container_class)) {
@@ -549,31 +525,29 @@ mono_type_get_object_checked (MonoDomain *domain, MonoType *type, MonoError *err
 		/* I would have expected ReflectionTypeLoadException, but evidently .NET throws TLE in this case. */
 		mono_error_set_type_load_class (error, klass, "TypeBuilder.CreateType() not called for generic class %s", full_name);
 		g_free (full_name);
-		mono_domain_unlock (domain);
-		mono_loader_unlock ();
-		return NULL;
+		res = NULL;
+		goto leave;
 	}
 
 	if (mono_class_has_ref_info (klass) && !m_class_was_typebuilder (klass) && !type->byref) {
-		mono_domain_unlock (domain);
-		mono_loader_unlock ();
-		return &mono_class_get_ref_info_raw (klass)->type; /* FIXME use handles */
+		res = &mono_class_get_ref_info_raw (klass)->type; /* FIXME use handles */
+		goto leave;
 	}
 	/* This is stored in vtables/JITted code so it has to be pinned */
 	res = (MonoReflectionType *)mono_object_new_pinned (domain, mono_defaults.runtimetype_class, error);
-	if (!is_ok (error)) {
-		mono_domain_unlock (domain);
-		mono_loader_unlock ();
-		return NULL;
-	}
+	goto_if_nok (error, leave);
 
 	res->type = type;
-	mono_g_hash_table_insert_internal (domain->type_hash, type, res);
+	mono_g_hash_table_insert_internal (memory_manager->type_hash, type, res);
 
-	if (type->type == MONO_TYPE_VOID)
+	if (type->type == MONO_TYPE_VOID && !type->byref)
+	{
 		domain->typeof_void = (MonoObject*)res;
+		mono_gc_wbarrier_generic_nostore_internal (&domain->typeof_void);
+	}
 
-	mono_domain_unlock (domain);
+leave:
+	mono_mem_manager_unlock (memory_manager);
 	mono_loader_unlock ();
 	return res;
 }
@@ -992,7 +966,8 @@ add_parameter_object_to_array (MonoDomain *domain, MonoMethod *method, MonoObjec
 
 	MonoObjectHandle def_value;
 
-	if (!(sig_param->attrs & PARAM_ATTRIBUTE_HAS_DEFAULT)) {
+	if (!(sig_param->attrs & PARAM_ATTRIBUTE_HAS_DEFAULT) ||
+	    (method->wrapper_type != MONO_WRAPPER_NONE && method->wrapper_type != MONO_WRAPPER_DYNAMIC_METHOD)) {
 		if (sig_param->attrs & PARAM_ATTRIBUTE_OPTIONAL)
 			def_value = get_reflection_missing (domain, missing);
 		else
@@ -1085,10 +1060,12 @@ param_objects_construct (MonoDomain *domain, MonoClass *refclass, MonoMethodSign
 
 	gboolean any_default_value;
 	any_default_value = FALSE;
-	for (i = 0; i < sig->param_count; ++i) {
-		if ((sig->params [i]->attrs & PARAM_ATTRIBUTE_HAS_DEFAULT) != 0) {
-			any_default_value = TRUE;
-			break;
+	if (method->wrapper_type == MONO_WRAPPER_NONE || method->wrapper_type == MONO_WRAPPER_DYNAMIC_METHOD ) {
+		for (i = 0; i < sig->param_count; ++i) {
+			if ((sig->params [i]->attrs & PARAM_ATTRIBUTE_HAS_DEFAULT) != 0) {
+				any_default_value = TRUE;
+				break;
+			}
 		}
 	}
 	if (any_default_value) {
@@ -1312,7 +1289,7 @@ method_body_object_construct (MonoDomain *domain, MonoClass *unused_class, MonoM
 	MonoArrayHandle il_arr;
 	il_arr = mono_array_new_handle (domain, mono_defaults.byte_class, header->code_size, error);
 	goto_if_nok (error, fail);
-	uint32_t il_gchandle;
+	MonoGCHandle il_gchandle;
 	guint8* il_data;
 	il_data = MONO_ARRAY_HANDLE_PIN (il_arr, guint8, 0, &il_gchandle);
 	memcpy (il_data, header->code, header->code_size);
@@ -1503,6 +1480,9 @@ assembly_name_to_aname (MonoAssemblyName *assembly, char *p) {
 	gboolean quoted = FALSE;
 
 	memset (assembly, 0, sizeof (MonoAssemblyName));
+	assembly->without_version = TRUE;
+	assembly->without_culture = TRUE;
+	assembly->without_public_key_token = TRUE;
 	assembly->culture = "";
 	memset (assembly->public_key_token, 0, MONO_PUBLIC_KEY_TOKEN_LENGTH);
 
@@ -1511,6 +1491,7 @@ assembly_name_to_aname (MonoAssemblyName *assembly, char *p) {
 		p++;
 	}
 	assembly->name = p;
+	s = p;
 	while (*p && (isalnum (*p) || *p == '.' || *p == '-' || *p == '_' || *p == '$' || *p == '@' || g_ascii_isspace (*p)))
 		p++;
 	if (quoted) {
@@ -1519,8 +1500,13 @@ assembly_name_to_aname (MonoAssemblyName *assembly, char *p) {
 		*p = 0;
 		p++;
 	}
-	if (*p != ',')
+	g_strchomp (s);
+	assembly->name = s;
+	if (*p != ',') {
+		g_strchomp (s);
+		assembly->name = s;
 		return 1;
+	}
 	*p = 0;
 	/* Remove trailing whitespace */
 	s = p - 1;
@@ -1530,8 +1516,14 @@ assembly_name_to_aname (MonoAssemblyName *assembly, char *p) {
 	while (g_ascii_isspace (*p))
 		p++;
 	while (*p) {
-		if ((*p == 'V' || *p == 'v') && g_ascii_strncasecmp (p, "Version=", 8) == 0) {
-			p += 8;
+		if ((*p == 'V' || *p == 'v') && g_ascii_strncasecmp (p, "Version", 7) == 0) {
+			assembly->without_version = FALSE;
+			p += 7;
+			while (*p && *p != '=')
+				p++;
+			p++;
+			while (*p && g_ascii_isspace (*p))
+				p++;
 			assembly->major = strtoul (p, &s, 10);
 			if (s == p || *s != '.')
 				return 1;
@@ -1548,19 +1540,33 @@ assembly_name_to_aname (MonoAssemblyName *assembly, char *p) {
 			if (s == p)
 				return 1;
 			p = s;
-		} else if ((*p == 'C' || *p == 'c') && g_ascii_strncasecmp (p, "Culture=", 8) == 0) {
-			p += 8;
-			if (g_ascii_strncasecmp (p, "neutral", 7) == 0) {
+		} else if ((*p == 'C' || *p == 'c') && g_ascii_strncasecmp (p, "Culture", 7) == 0) {
+			assembly->without_culture = FALSE;
+			p += 7;
+			while (*p && *p != '=')
+				p++;
+			p++;
+			while (*p && g_ascii_isspace (*p))
+				p++;
+			if ((g_ascii_strncasecmp (p, "neutral", 7) == 0) && (p [7] == ' ' || p [7] == ',')) {
 				assembly->culture = "";
 				p += 7;
 			} else {
 				assembly->culture = p;
 				while (*p && *p != ',') {
+					if (*p == ' ')
+						*p = 0;
 					p++;
 				}
 			}
-		} else if ((*p == 'P' || *p == 'p') && g_ascii_strncasecmp (p, "PublicKeyToken=", 15) == 0) {
-			p += 15;
+		} else if ((*p == 'P' || *p == 'p') && g_ascii_strncasecmp (p, "PublicKeyToken", 14) == 0) {
+			assembly->without_public_key_token = FALSE;
+			p += 14;
+			while (*p && *p != '=')
+				p++;
+			p++;
+			while (*p && g_ascii_isspace (*p))
+				p++;
 			if (strncmp (p, "null", 4) == 0) {
 				p += 4;
 			} else {
@@ -3131,7 +3137,11 @@ mono_reflection_call_is_assignable_to (MonoClass *klass, MonoClass *oklass, Mono
 	error_init (error);
 
 	if (method == NULL) {
+#ifdef ENABLE_NETCORE
+		method = mono_class_get_method_from_name_checked (mono_class_get_type_builder_class (), "IsAssignableToInternal", 1, 0, error);
+#else
 		method = mono_class_get_method_from_name_checked (mono_class_get_type_builder_class (), "IsAssignableTo", 1, 0, error);
+#endif		
 		mono_error_assert_ok (error);
 		g_assert (method);
 	}

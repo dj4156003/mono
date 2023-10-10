@@ -1,7 +1,6 @@
 /*
  * Licensed to the .NET Foundation under one or more agreements.
  * The .NET Foundation licenses this file to you under the MIT license.
- * See the LICENSE file in the project root for more information.
  */
 
 #ifndef __MONO_PROFILER_H__
@@ -51,12 +50,21 @@ typedef struct {
 	uint32_t column;
 } MonoProfilerCoverageData;
 
+typedef struct _MonoDomainCoverage MonoDomainCoverage;
+
 typedef mono_bool (*MonoProfilerCoverageFilterCallback) (MonoProfiler *prof, MonoMethod *method);
 typedef void (*MonoProfilerCoverageCallback) (MonoProfiler *prof, const MonoProfilerCoverageData *data);
 
 MONO_API mono_bool mono_profiler_enable_coverage (void);
 MONO_API void mono_profiler_set_coverage_filter_callback (MonoProfilerHandle handle, MonoProfilerCoverageFilterCallback cb);
+#ifndef RUNTIME_IL2CPP
 MONO_API mono_bool mono_profiler_get_coverage_data (MonoProfilerHandle handle, MonoMethod *method, MonoProfilerCoverageCallback cb);
+
+MONO_API mono_bool mono_profiler_get_all_coverage_data (MonoProfilerHandle handle, MonoProfilerCoverageCallback cb);
+
+MONO_API mono_bool mono_profiler_reset_coverage (MonoMethod* method);
+MONO_API void mono_profiler_reset_all_coverage (void);
+#endif
 
 typedef enum {
 	/**

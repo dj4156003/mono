@@ -57,6 +57,9 @@
 
 #endif
 
+#if _MSC_VER
+#pragma warning(disable:4293) // FIXME negative shift is undefined
+#endif
 
 /* If the bank is mirrored return the true logical bank that the register in the
  * physical register bank is allocated to.
@@ -694,7 +697,7 @@ mono_print_ins_index_strbuf (int i, MonoInst *ins)
 		break;
 	case OP_IL_SEQ_POINT:
 	case OP_SEQ_POINT:
-		g_string_append_printf (sbuf, " il: 0x%x%s", (int)ins->inst_imm, ins->flags & MONO_INST_NONEMPTY_STACK ? ", nonempty-stack" : "");
+		g_string_append_printf (sbuf, "%s il: 0x%x%s", (ins->flags & MONO_INST_SINGLE_STEP_LOC) ? " intr" : "", (int)ins->inst_imm, ins->flags & MONO_INST_NONEMPTY_STACK ? ", nonempty-stack" : "");
 		break;
 	case OP_COND_EXC_EQ:
 	case OP_COND_EXC_GE:
@@ -1741,7 +1744,8 @@ mono_local_regalloc (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 
 		if (spec [MONO_INST_CLOB] == 'c') {
-			int j, s, dreg, dreg2, cur_bank;
+			int j, dreg, dreg2, cur_bank;
+			regmask_t s;
 			guint64 clob_mask;
 
 			clob_mask = MONO_ARCH_CALLEE_REGS;

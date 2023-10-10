@@ -59,12 +59,12 @@ class C
 			Crashers.Add(new Crasher ("MerpCrashSnprintf", MerpCrashSnprintf));
 			Crashers.Add(new Crasher ("MerpCrashDomainUnload", MerpCrashDomainUnload));
 			Crashers.Add(new Crasher ("MerpCrashUnbalancedGCSafe", MerpCrashUnbalancedGCSafe));
-			Crashers.Add(new Crasher  ("MerpCrashSignalTerm", MerpCrashSignalTerm));
-			Crashers.Add(new Crasher  ("MerpCrashSignalTerm", MerpCrashSignalAbrt));
-			Crashers.Add(new Crasher  ("MerpCrashSignalKill", MerpCrashSignalFpe));
-			Crashers.Add(new Crasher  ("MerpCrashSignalKill", MerpCrashSignalBus));
-			Crashers.Add(new Crasher  ("MerpCrashSignalSegv", MerpCrashSignalSegv));
-			Crashers.Add(new Crasher  ("MerpCrashSignalIll", MerpCrashSignalIll));
+			Crashers.Add(new Crasher ("MerpCrashSignalTerm", MerpCrashSignalTerm));
+			Crashers.Add(new Crasher ("MerpCrashSignalTerm", MerpCrashSignalAbrt));
+			Crashers.Add(new Crasher ("MerpCrashSignalKill", MerpCrashSignalFpe));
+			Crashers.Add(new Crasher ("MerpCrashSignalKill", MerpCrashSignalBus));
+			Crashers.Add(new Crasher ("MerpCrashSignalSegv", MerpCrashSignalSegv));
+			Crashers.Add(new Crasher ("MerpCrashSignalIll", MerpCrashSignalIll));
 			Crashers.Add(new Crasher ("MerpCrashTestBreadcrumbs", MerpCrashTestBreadcrumbs, validator: ValidateBreadcrumbs));
 		}
 

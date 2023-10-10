@@ -38,6 +38,7 @@
 #include "w32semaphore.h"
 #include "w32socket.h"
 #include "mono/utils/mono-proclib.h"
+#include <mono/metadata/unity-utils.h>
 
 /* From MonoProperty.cs */
 typedef enum {
@@ -77,7 +78,7 @@ ICALL_EXPORT MonoAssemblyName* ves_icall_System_Reflection_AssemblyName_GetNativ
 ICALL_EXPORT MonoBoolean ves_icall_RuntimeTypeHandle_is_subclass_of (MonoType*, MonoType*);
 ICALL_EXPORT MonoBoolean ves_icall_System_Environment_GetIs64BitOperatingSystem (void);
 ICALL_EXPORT MonoBoolean ves_icall_System_Environment_get_HasShutdownStarted (void);
-ICALL_EXPORT MonoBoolean ves_icall_System_GCHandle_CheckCurrentDomain (guint32 gchandle);
+ICALL_EXPORT MonoBoolean ves_icall_System_GCHandle_CheckCurrentDomain (MonoGCHandle gchandle);
 ICALL_EXPORT MonoBoolean ves_icall_System_IO_DriveInfo_GetDiskFreeSpace (const gunichar2*, gint32, guint64*, guint64*, guint64*, gint32*);
 ICALL_EXPORT MonoBoolean ves_icall_System_Reflection_AssemblyName_ParseAssemblyName (const char*, MonoAssemblyName*, MonoBoolean*, MonoBoolean* is_token_defined_arg);
 ICALL_EXPORT MonoBoolean ves_icall_System_Runtime_CompilerServices_RuntimeHelpers_SufficientExecutionStack (void);
@@ -139,11 +140,9 @@ ICALL_EXPORT float ves_icall_System_Math_Abs_single (float);
 #if ENABLE_NETCORE
 ICALL_EXPORT gint32 ves_icall_System_Math_ILogB (double);
 ICALL_EXPORT double ves_icall_System_Math_Log2 (double);
-ICALL_EXPORT double ves_icall_System_Math_ScaleB (double, gint32);
 ICALL_EXPORT double ves_icall_System_Math_FusedMultiplyAdd (double, double, double);
 ICALL_EXPORT gint32 ves_icall_System_MathF_ILogB (float);
 ICALL_EXPORT float ves_icall_System_MathF_Log2 (float);
-ICALL_EXPORT float ves_icall_System_MathF_ScaleB (float, gint32);
 ICALL_EXPORT float ves_icall_System_MathF_FusedMultiplyAdd (float, float, float);
 #endif
 ICALL_EXPORT gint ves_icall_System_Runtime_CompilerServices_RuntimeHelpers_GetOffsetToStringData (void);
@@ -157,9 +156,11 @@ ICALL_EXPORT gint64 ves_icall_System_Diagnostics_Process_GetProcessData (int, gi
 ICALL_EXPORT gint64 ves_icall_System_Diagnostics_Stopwatch_GetTimestamp (void);
 ICALL_EXPORT gint64 ves_icall_System_GC_GetTotalMemory (MonoBoolean forceCollection);
 ICALL_EXPORT gint64 ves_icall_System_Threading_Timer_GetTimeMonotonic (void);
-ICALL_EXPORT gpointer ves_icall_System_GCHandle_GetAddrOfPinnedObject (guint32 handle);
+ICALL_EXPORT gpointer ves_icall_System_GCHandle_GetAddrOfPinnedObject (MonoGCHandle handle);
 ICALL_EXPORT int ves_icall_Interop_Sys_DoubleToString (double, char*, char*, int);
+#if !ENABLE_NETCORE
 ICALL_EXPORT int ves_icall_System_Environment_get_Platform (void);
+#endif
 ICALL_EXPORT int ves_icall_System_GC_GetCollectionCount (int);
 ICALL_EXPORT int ves_icall_System_GC_GetMaxGeneration (void);
 ICALL_EXPORT gint64 ves_icall_System_GC_GetAllocatedBytesForCurrentThread (void);
@@ -171,7 +172,7 @@ ICALL_EXPORT void ves_icall_System_Array_GetGenericValue_icall (MonoArray**, gui
 ICALL_EXPORT void ves_icall_System_Array_SetGenericValue_icall (MonoArray**, guint32, gpointer);
 ICALL_EXPORT void ves_icall_System_Buffer_MemcpyInternal (gpointer dest, gconstpointer src, gint32 count);
 ICALL_EXPORT void ves_icall_System_Environment_Exit (int);
-ICALL_EXPORT void ves_icall_System_GCHandle_FreeHandle (guint32 handle);
+ICALL_EXPORT void ves_icall_System_GCHandle_FreeHandle (MonoGCHandle handle);
 ICALL_EXPORT void ves_icall_System_GC_InternalCollect (int generation);
 ICALL_EXPORT void ves_icall_System_GC_RecordPressure (gint64);
 ICALL_EXPORT void ves_icall_System_GC_WaitForPendingFinalizers (void);
@@ -183,7 +184,7 @@ ICALL_EXPORT void ves_icall_System_IO_LogcatTextWriter_Log (const char*, gint32,
 ICALL_EXPORT void ves_icall_System_NumberFormatter_GetFormatterTables (guint64 const**, gint32 const**, gunichar2 const**, gunichar2 const**, gint64 const**, gint32 const**);
 #if ENABLE_NETCORE
 ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_Memmove (guint8*, guint8*, size_t);
-ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_RhBulkMoveWithWriteBarrier (guint8*, guint8*, size_t);
+ICALL_EXPORT void ves_icall_System_Buffer_BulkMoveWithWriteBarrier (guint8 *, guint8 *, size_t, MonoType *);
 #else
 ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_Memmove (guint8*, guint8*, guint);
 ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_Memmove_wbarrier (guint8*, guint8*, guint, MonoType*);
@@ -195,6 +196,7 @@ ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_ZeroMemory (guint8*, g
 #endif
 ICALL_EXPORT void ves_icall_System_Runtime_RuntimeImports_ecvt_s(char*, size_t, double, int, int*, int*);
 
+#if !defined(ENABLE_NETCORE)
 #if defined(ENABLE_MONODROID) || defined(ENABLE_MONOTOUCH) || defined(TARGET_WASM)
 ICALL_EXPORT gpointer ves_icall_System_IO_Compression_DeflateStreamNative_CreateZStream (gint32 compress, MonoBoolean gzip, gpointer feeder, gpointer data);
 ICALL_EXPORT gint32 ves_icall_System_IO_Compression_DeflateStreamNative_CloseZStream (gpointer stream);
@@ -203,10 +205,15 @@ ICALL_EXPORT gint32 ves_icall_System_IO_Compression_DeflateStreamNative_ReadZStr
 ICALL_EXPORT gint32 ves_icall_System_IO_Compression_DeflateStreamNative_WriteZStream (gpointer stream, gpointer buffer, gint32 length);
 #endif
 
+#if defined(TARGET_WASM)
+ICALL_EXPORT void ves_icall_System_TimeZoneInfo_mono_timezone_get_local_name (MonoString **result);
+#endif
+
 #if defined(ENABLE_MONODROID)
 ICALL_EXPORT gpointer ves_icall_System_Net_NetworkInformation_LinuxNetworkChange_CreateNLSocket (void);
 ICALL_EXPORT gint32 ves_icall_System_Net_NetworkInformation_LinuxNetworkChange_ReadEvents (gpointer sock, gpointer buffer, gint32 count, gint32 size);
 ICALL_EXPORT gpointer ves_icall_System_Net_NetworkInformation_LinuxNetworkChange_CloseNLSocket (gpointer sock);
+#endif
 #endif
 
 ICALL_EXPORT MonoBoolean ves_icall_Microsoft_Win32_NativeMethods_CloseProcess (gpointer handle);
@@ -234,6 +241,19 @@ ICALL_EXPORT MonoBoolean ves_icall_System_Array_CanChangePrimitive (MonoReflecti
 ICALL_EXPORT MonoBoolean ves_icall_System_Diagnostics_Debugger_IsAttached_internal (void);
 ICALL_EXPORT MonoBoolean ves_icall_System_Diagnostics_Debugger_IsLogging (void);
 ICALL_EXPORT void ves_icall_System_Diagnostics_Debugger_Log (int level, MonoString *volatile* category, MonoString *volatile* message);
+
+#ifdef ENABLE_NETCORE
+ICALL_EXPORT intptr_t ves_icall_System_Diagnostics_Tracing_EventPipeInternal_DefineEvent (intptr_t prov_handle, uint32_t event_id, int64_t keywords, uint32_t event_version, uint32_t level, const uint8_t *metadata, uint32_t metadata_len);
+ICALL_EXPORT void ves_icall_System_Diagnostics_Tracing_EventPipeInternal_DeleteProvider (intptr_t prov_handle);
+ICALL_EXPORT void ves_icall_System_Diagnostics_Tracing_EventPipeInternal_Disable (uint64_t session_id);
+ICALL_EXPORT uint64_t ves_icall_System_Diagnostics_Tracing_EventPipeInternal_Enable (const_gunichar2_ptr output_file, int32_t format, uint32_t circular_buffer_size_mb, const void *providers, uint32_t num_providers);
+ICALL_EXPORT int32_t ves_icall_System_Diagnostics_Tracing_EventPipeInternal_EventActivityIdControl (uint32_t control_code, uint8_t *activity_id);
+ICALL_EXPORT MonoBoolean ves_icall_System_Diagnostics_Tracing_EventPipeInternal_GetNextEvent (uint64_t session_id, void *instance);
+ICALL_EXPORT intptr_t ves_icall_System_Diagnostics_Tracing_EventPipeInternal_GetProvider (const_gunichar2_ptr provider_name);
+ICALL_EXPORT MonoBoolean ves_icall_System_Diagnostics_Tracing_EventPipeInternal_GetSessionInfo (uint64_t session_id, void *session_info);
+ICALL_EXPORT intptr_t ves_icall_System_Diagnostics_Tracing_EventPipeInternal_GetWaitHandle (uint64_t session_id);
+ICALL_EXPORT void ves_icall_System_Diagnostics_Tracing_EventPipeInternal_WriteEventData (intptr_t event_handle, void *event_data, uint32_t event_data_len, const uint8_t *activity_id, const uint8_t *related_activity_id);
+#endif
 
 ICALL_EXPORT void ves_icall_Mono_RuntimeGPtrArrayHandle_GPtrArrayFree (GPtrArray *ptr_array);
 ICALL_EXPORT void ves_icall_Mono_RuntimeMarshal_FreeAssemblyName (MonoAssemblyName *aname, MonoBoolean free_struct);
@@ -275,5 +295,20 @@ ICALL_EXPORT gunichar2*	ves_icall_System_Runtime_InteropServices_Marshal_StringT
 ICALL_EXPORT gpointer    ves_icall_System_Threading_Semaphore_CreateSemaphore_icall     (gint32 initialCount, gint32 maximumCount, const gunichar2 *name, gint32 name_length, gint32 *win32error);
 ICALL_EXPORT gpointer    ves_icall_System_Threading_Semaphore_OpenSemaphore_icall       (const gunichar2 *name, gint32 name_length, gint32 rights, gint32 *win32error);
 ICALL_EXPORT MonoBoolean ves_icall_System_Threading_Semaphore_ReleaseSemaphore_internal (gpointer handle, gint32 releaseCount, gint32 *prevcount);
+
+#ifdef ENABLE_NETCORE
+ICALL_EXPORT gpointer ves_icall_System_Threading_LowLevelLifoSemaphore_InitInternal (void);
+ICALL_EXPORT void     ves_icall_System_Threading_LowLevelLifoSemaphore_DeleteInternal (gpointer sem_ptr);
+ICALL_EXPORT gint32   ves_icall_System_Threading_LowLevelLifoSemaphore_TimedWaitInternal (gpointer sem_ptr, gint32 timeout_ms);
+ICALL_EXPORT void     ves_icall_System_Threading_LowLevelLifoSemaphore_ReleaseInternal (gpointer sem_ptr, gint32 count);
+#endif
+
+#if defined(ENABLE_NETCORE) && defined(TARGET_AMD64)
+ICALL_EXPORT void ves_icall_System_Runtime_Intrinsics_X86_X86Base___cpuidex (int abcd[4], int function_id, int subfunction_id);
+#endif
+
+#if defined(ENABLE_NETCORE) && defined(ENABLE_METADATA_UPDATE)
+ICALL_EXPORT void ves_icall_Mono_Runtime_LoadMetadataUpdate (MonoAssembly *assm, gconstpointer dmeta_bytes, int32_t dmeta_len, gconstpointer dil_bytes, int32_t dil_len);
+#endif
 
 #endif // __MONO_METADATA_ICALL_DECL_H__

@@ -148,7 +148,9 @@ namespace System.Net.Sockets
 					this.DontFragment = false;
 					if (protocolType == ProtocolType.Tcp)
 						this.NoDelay = false;
-				} else if (addressFamily == AddressFamily.InterNetworkV6) {
+				// The socket was created successfully; enable IPV6_V6ONLY by default for normal AF_INET6 sockets.
+				// This fails on raw sockets so we just let them be in default state.
+				} else if (addressFamily == AddressFamily.InterNetworkV6 && socketType != SocketType.Raw) {
 					this.DualMode = true;
 				}
 
@@ -3033,9 +3035,16 @@ namespace System.Net.Sockets
 			}
 		}
 
+#if UNITY
+		[MethodImplAttribute(MethodImplOptions.InternalCall)]
+		extern static bool IsProtocolSupported_internal(NetworkInterfaceComponent networkInterface);
+#endif
+
 		static bool IsProtocolSupported (NetworkInterfaceComponent networkInterface)
 		{
-#if MOBILE
+#if UNITY
+			return IsProtocolSupported_internal(networkInterface);
+#elif MOBILE
 			return true;
 #else
 			var nics = NetworkInterface.GetAllNetworkInterfaces ();

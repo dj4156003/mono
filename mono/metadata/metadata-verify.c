@@ -623,6 +623,10 @@ verify_import_table (VerifyContext *ctx)
 	const char *ptr = ctx->data + offset;
 	guint32 name_rva, ilt_rva, iat_rva;
 
+	// Having no import table is structurally valid
+	if (it.rva == 0 && it.size == 0)
+		return;
+
 	g_assert (offset != INVALID_OFFSET);
 
 	if (it.size < 40)
@@ -3967,7 +3971,7 @@ mono_verifier_verify_pe_data (MonoImage *image, MonoError *error)
 
 	error_init (error);
 
-	if (!mono_verifier_is_enabled_for_image (image))
+	if (!mono_verifier_is_enabled_for_image (image) && !mono_verifier_is_enabled_for_pe_only())
 		return TRUE;
 
 	init_verify_context (&ctx, image);

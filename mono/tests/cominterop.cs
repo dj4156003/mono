@@ -345,6 +345,9 @@ public class Tests
 	public static extern int mono_test_marshal_safearray_in_ccw([MarshalAs (UnmanagedType.Interface)] ITest itest);
 
 	[DllImport("libtest")]
+	public static extern int mono_test_marshal_lparray_out_ccw([MarshalAs (UnmanagedType.Interface)] ITest itest);
+
+	[DllImport("libtest")]
 	public static extern int mono_test_default_interface_ccw([MarshalAs (UnmanagedType.Interface)] ITest itest);
 
 	[DllImport("libtest")]
@@ -826,6 +829,8 @@ public class Tests
 				}
 				if (mono_test_marshal_safearray_in_ccw(test) != 0)
 					return 97;
+				if (mono_test_marshal_lparray_out_ccw(test) != 0)
+					return 98;
 			}
 			#endregion // SafeArray Tests
 
@@ -938,6 +943,8 @@ public class Tests
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
 		void ArrayIn3 (object[] array);
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
+		int ArrayOut ([Out, MarshalAs (UnmanagedType.LPArray, SizeConst=1)] int[] array);
+		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
 		[return: MarshalAs (UnmanagedType.Interface)]
 		TestDefaultInterfaceClass1 GetDefInterface1();
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
@@ -1005,6 +1012,9 @@ public class Tests
 		int ArrayIn2 ([In] object[] array);
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
 		int ArrayIn3 (object[] array);
+		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
+		[PreserveSig]
+		int ArrayOut ([Out, MarshalAs (UnmanagedType.LPArray, SizeConst=1)] int[] array, out int result);
 	}
 
 	[System.Runtime.InteropServices.GuidAttribute ("00000000-0000-0000-0000-000000000002")]
@@ -1054,6 +1064,8 @@ public class Tests
 		public virtual extern void ArrayIn2 ([In] object[] array);
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
 		public virtual extern void ArrayIn3 (object[] array);
+		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
+		public virtual extern int ArrayOut ([Out, MarshalAs (UnmanagedType.LPArray, SizeConst=1)] int[] array);
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
 		public virtual extern TestDefaultInterfaceClass1 GetDefInterface1();
 		[MethodImplAttribute (MethodImplOptions.InternalCall, MethodCodeType = MethodCodeType.Runtime)]
@@ -1246,6 +1258,18 @@ public class Tests
 		{
 			return ArrayIn(array);
 		}
+
+		public int ArrayOut (int[] array, out int result)
+		{
+			if (array == null)
+				result = 0;
+			else
+			{
+				array[0] = 55;
+				result = 1;
+			}
+			return 0;
+		}
 	}
 
 	public class ManagedTest : ITest
@@ -1378,6 +1402,14 @@ public class Tests
 		public void ArrayIn3(object[] array)
 		{
 			ArrayIn(array);
+		}
+
+		public int ArrayOut (int[] array)
+		{
+			if (array == null)
+				return 0;
+			array[0] = 55;
+			return 1;
 		}
 
 		public TestDefaultInterfaceClass1 GetDefInterface1()
@@ -1633,55 +1665,6 @@ public class Tests
                 return 2;
             return 0;
         }
-
-	// Doesn't matter what this is
-	internal class CallableWrapperLeakTestClass {
-	}
-
-	public static int CallableWrapperLeakTest () {
-		bool ok = true;
-		GCHandle h = HideFromGC (() => {
-			var o = new CallableWrapperLeakTestClass();
-			var weakHandle = GCHandle.Alloc (o, GCHandleType.Weak);
-			var pUnk = Marshal.GetIUnknownForObject (o);
-			int c = Marshal.Release(pUnk);
-			o = null;
-			if (c != 0) {
-				Console.Error.WriteLine ("Expected IUnknown refcount on a CCW to be 0 after Release, was {0}", c);
-				ok = false;
-			}
-			return weakHandle;
-		});
-		if (!ok)
-			return 1;
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
-		HideFromGC(() => {
-			var o = h.Target;
-			if (o != null) {
-				Console.Error.WriteLine ("Expected weak handle to be null after GC, but the object (of type {0}) was retained", o.GetType());
-				ok = false;
-			}
-			return "done"; // doesn't matter
-		});
-		if (!ok)
-			return 2;
-		return 0;
-	}
-
-	[MethodImpl (MethodImplOptions.NoInlining)]
-	private static T HideFromGC<T> (Func<T> f) => HideFromGC (20, f);
-
-	[MethodImpl (MethodImplOptions.NoInlining)]
-	private static T HideFromGC<T> (int rec, Func<T> f) {
-		if (rec <= 0)
-			return f ();
-		else
-			return HideFromGC (rec - 1, f);
-	}
-
 }
 
 public class TestVisible

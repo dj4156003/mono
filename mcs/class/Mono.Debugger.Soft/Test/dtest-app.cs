@@ -19,6 +19,9 @@ using System.Collections;
 using MonoTests.Helpers;
 #endif
 
+[assembly: A]
+[assembly: B]
+
 public class TestsBase
 {
 #pragma warning disable 0414
@@ -471,6 +474,14 @@ public class Tests : TestsBase, ITest2
 
 #pragma warning restore 0414
 
+	public string BreakInField
+	{
+		get {
+			Debugger.Break ();
+			return "Foo";
+		}
+	}
+
 	public class NestedClass {
 	}
 
@@ -618,6 +629,7 @@ public class Tests : TestsBase, ITest2
 			return 0;
 		}
 		test_invalid_argument_assembly_get_type ();
+		frame_setvalue_withlist ();
 		return 3;
 	}
 
@@ -649,6 +661,17 @@ public class Tests : TestsBase, ITest2
 	public static void test_invalid_argument_assembly_get_type () {
 
 	}
+
+	public static void frame_setvalue_withlist () {
+		string someLocalString = "Hello";
+		string someLocalString2 = "Hello";
+		var aList = new List<string>();
+		aList.Add("a");
+		aList.Add("B");
+		aList.Add("c");
+		someLocalString2 = someLocalString;
+	}
+	
 
 	public static void breakpoints () {
 		/* Call these early so it is JITted by the time a breakpoint is placed on it */
@@ -2221,7 +2244,11 @@ public class Tests : TestsBase, ITest2
 	{
 	}
 
-	public static unsafe void pointer_arguments (int* a, BlittableStruct* s) {
+#if __MonoCS__
+	public static unsafe void pointer_arguments (int* a, BlittableStruct* s, int *del) {
+#else
+	public static unsafe void pointer_arguments (int* a, BlittableStruct* s, delegate*<int> del) {
+#endif
 		*a = 0;
 	}
 
@@ -2230,7 +2257,7 @@ public class Tests : TestsBase, ITest2
 		int[] a = new [] {1,2,3};
 		BlittableStruct s = new BlittableStruct () { i = 2, d = 3.0 };
 		fixed (int* pa = a)
-			pointer_arguments (pa, &s);
+			pointer_arguments (pa, &s, null);
 	}
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]

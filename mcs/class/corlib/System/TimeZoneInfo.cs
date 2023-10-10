@@ -122,6 +122,13 @@ namespace System
 		private static bool TryGetNameFromPath (string path, out string name)
 		{
 			name = null;
+
+#if UNITY
+			//Avoids calling readlink on webgl, which causes abort due to dlopen
+			if(!File.Exists(path))
+				return false;
+#endif
+
 			var linkPath = readlink (path);
 			if (linkPath != null) {
 				if (Path.IsPathRooted(linkPath))
@@ -149,7 +156,11 @@ namespace System
 			return true;
 		}
 
-#if (!MONODROID && !MONOTOUCH && !XAMMAC && !WASM) || MOBILE_DESKTOP_HOST
+#if (!MONODROID && !MONOTOUCH && !XAMMAC) || MOBILE_DESKTOP_HOST
+#if WASM
+		[MethodImplAttribute(MethodImplOptions.InternalCall)]
+		extern static void mono_timezone_get_local_name (ref string name);
+#endif
 		static TimeZoneInfo CreateLocal ()
 		{
 #if WIN_PLATFORM
@@ -164,15 +175,42 @@ namespace System
 				return GetLocalTimeZoneInfoWinRTFallback ();
 			}
 #endif
+#if WASM
+			string localName = null;
+			mono_timezone_get_local_name (ref localName);
+			try {
+				return FindSystemTimeZoneByFileName (localName, Path.Combine (TimeZoneDirectory, localName));
+			} catch {
+				return Utc;
+			}
+#else
+#if UNITY
+			TimeZoneInfo localTimeZoneFallback = null;
+			try {
+				localTimeZoneFallback = CreateLocalUnity();
+			} catch {
+				localTimeZoneFallback = null;
+			}
 
+			if (localTimeZoneFallback == null)
+				localTimeZoneFallback = Utc;
+#endif
 			var tz = Environment.GetEnvironmentVariable ("TZ");
 			if (tz != null) {
 				if (tz == String.Empty)
+#if UNITY
+					return localTimeZoneFallback;
+#else
 					return Utc;
+#endif
 				try {
 					return FindSystemTimeZoneByFileName (tz, Path.Combine (TimeZoneDirectory, tz));
 				} catch {
+#if UNITY
+					return localTimeZoneFallback;
+#else
 					return Utc;
+#endif
 				}
 			}
 
@@ -191,7 +229,12 @@ namespace System
 				}
 			}
 
+#if UNITY
+			return localTimeZoneFallback;
+#else
 			return Utc;
+#endif
+#endif			
 		}
 
 		static TimeZoneInfo FindSystemTimeZoneByIdCore (string id)
@@ -266,7 +309,11 @@ namespace System
 			}
 		}
 #if LIBC
+#if WASM
+		const string DefaultTimeZoneDirectory = "/zoneinfo";
+#else		
 		const string DefaultTimeZoneDirectory = "/usr/share/zoneinfo";
+#endif
 		static string timeZoneDirectory;
 		static string TimeZoneDirectory {
 			get {
@@ -891,7 +938,33 @@ namespace System
 			AdjustmentRule rule = GetApplicableRule (dateTime);
 			if (rule != null) {
 				DateTime tpoint = TransitionPoint (rule.DaylightTransitionEnd, dateTime.Year);
-				if (dateTime > tpoint - rule.DaylightDelta && dateTime <= tpoint)
+				if (dateTime >= tpoint - rule.DaylightDelta && dateTime < tpoint)
+					return true;
+			}
+				
+			return false;
+		}
+        
+		private bool IsAmbiguousLocalDstFromUtc (DateTime dateTime) 
+		{
+			// This method determines if a dateTime in UTC falls into the Dst side
+			// of the ambiguous local time (the local time that occurs twice).
+            
+			if (dateTime.Kind == DateTimeKind.Local)
+				return false;
+
+			if (this == TimeZoneInfo.Utc)
+				return false;
+
+			AdjustmentRule rule = GetApplicableRule (dateTime);
+			if (rule != null) {
+				DateTime tpoint = TransitionPoint (rule.DaylightTransitionEnd, dateTime.Year);
+				// tpoint is the local time in daylight savings time when daylight savings time will end, convert it to UTC
+				DateTime tpointUtc;
+				if (!TryAddTicks(tpoint, -(BaseUtcOffset.Ticks + rule.DaylightDelta.Ticks), out tpointUtc, DateTimeKind.Utc))
+					return false;
+
+				if (dateTime >= tpointUtc - rule.DaylightDelta && dateTime < tpointUtc)
 					return true;
 			}
 				
@@ -910,7 +983,18 @@ namespace System
 				return true;
 
 			// We might be in the dateTime previous year's DST period
-			return dateTime.Year > 1 && IsInDSTForYear (rule, dateTime, dateTime.Year - 1);
+			if (dateTime.Year > 1 && IsInDSTForYear(rule, dateTime, dateTime.Year - 1))
+				return true;
+            
+			// If we are checking an ambiguous local time, that is the local time that occurs twice during a DST "fall back"
+			// check if it was marked as being in the DST side of the ambiguous time when it was created
+			// We need to re-check IsAmbiguousTime because the IsAmbiguousDaylightSavingTime flag is not cleared when using DateTime.Add/Subtract
+			if (dateTime.Kind == DateTimeKind.Local && IsAmbiguousTime(dateTime))
+			{
+				return dateTime.IsAmbiguousDaylightSavingTime();
+			}
+
+			return false;
 		}
 
 		bool IsInDSTForYear (AdjustmentRule rule, DateTime dateTime, int year)
@@ -1245,6 +1329,15 @@ namespace System
 						offset = baseUtcOffset;
 						isDst = false;
 					}
+					
+					// If we are checking an ambiguous local time, that is the local time that occurs twice during a DST "fall back"
+					// check if it was marked as being in the DST side of the ambiguous time when it was created
+					// We need to re-check IsAmbiguousTime because the IsAmbiguousDaylightSavingTime flag is not cleared when using DateTime.Add/Subtract
+					if (!isDst && dateTime.Kind == DateTimeKind.Local && IsAmbiguousTime(dateTime) && dateTime.IsAmbiguousDaylightSavingTime())
+					{
+						offset += current.DaylightDelta;
+						isDst = true;
+					}
 
 					return true;
 				}
@@ -1578,7 +1671,7 @@ namespace System
 			isAmbiguousLocalDst = false;
 			TimeSpan baseOffset = zone.BaseUtcOffset;
 
-			if (zone.IsAmbiguousTime (time)) {
+			if (zone.IsAmbiguousLocalDstFromUtc (time)) {
 				isAmbiguousLocalDst = true;
 //				return baseOffset;
 			}

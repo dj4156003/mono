@@ -78,10 +78,6 @@ verify_cprop_ldloc_stloc (TransformData *td)
 		return 1;
 	if (expect (&ins, NULL, MINT_CALL))
 		return 2;
-	if (expect (&ins, NULL, MINT_STLOC_NP_I4))
-		return 3;
-	if (expect (&ins, NULL, MINT_LDLOC_I4))
-		return 4;
 	if (expect (&ins, NULL, MINT_ADD_I4))
 		return 5;
 	if (expect (&ins, NULL, MINT_RET))
@@ -143,10 +139,8 @@ determine_verbose_level (TransformData *td)
 		mono_method_desc_free (desc);
 		if (match)
 			return 4;
-	} else {
-		if (strcmp (method->name, name) == 0)
-			return 4;
-	}
+	} else if (!strcmp (method->name, name))
+		return 4;
 
 	return 0;
 }
@@ -169,9 +163,7 @@ transform_method (MonoDomain *domain, MonoImage *image, TestItem *ti)
 	td->verbose_level = determine_verbose_level (td);
 	td->mempool = mp;
 	td->rtm = rtm;
-	td->stack_height = (int*)g_malloc(header->code_size * sizeof(int));
 	td->clause_indexes = (int*)g_malloc (header->code_size * sizeof (int));
-	td->is_bb_start = (guint8*)g_malloc0(header->code_size);
 	td->data_items = NULL;
 	td->data_hash = g_hash_table_new (NULL, NULL);
 	/* TODO: init more fields of `td` */
@@ -223,7 +215,7 @@ main (int argc, char* argv[])
 		g_print ("test \"%s\": %d\n", ti->test_name, result);
 		free (td);
 
-		if (!!result)
+		if (result)
 			test_failed++;
 		else
 			test_success++;

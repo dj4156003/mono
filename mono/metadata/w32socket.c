@@ -108,9 +108,6 @@
 #define getifaddrs Qp2getifaddrs
 #endif
 
-#if defined(_MSC_VER) && G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT | HAVE_UWP_WINAPI_SUPPORT)
-#include <MSWSock.h>
-#endif
 #include "icall-decl.h"
 
 #define LOGDEBUG(...)  
@@ -386,6 +383,7 @@ convert_proto (MonoProtocolType mono_proto)
 	case ProtocolType_Pup:
 	case ProtocolType_Udp:
 	case ProtocolType_Idp:
+	case ProtocolType_IcmpV6:
 		/* These protocols are known (on my system at least) */
 		return mono_proto;
 	case ProtocolType_ND:
@@ -679,8 +677,8 @@ convert_sockopt_level_and_name (MonoSocketOptionLevel mono_level, MonoSocketOpti
 			*system_name = TCP_NODELAY;
 			break;
 #if 0
-			/* The documentation is talking complete
-			 * bollocks here: rfc-1222 is titled
+			/* The documentation is
+			 * very vague here: rfc-1222 is titled
 			 * 'Advancing the NSFNET Routing Architecture'
 			 * and doesn't mention either of the words
 			 * "expedite" or "urgent".
@@ -1127,7 +1125,7 @@ create_sockaddr_from_handle (MonoObjectHandle saddr_obj, socklen_t *sa_size, gin
 	len = MONO_HANDLE_GET_FIELD_VAL (saddr_obj, int, domain->sockaddr_data_length_field);
 	g_assert (len >= 2);
 
-	uint32_t gchandle;
+	MonoGCHandle gchandle;
 	guint8 *buf = MONO_ARRAY_HANDLE_PIN (data, guint8, 0, &gchandle);
 	family = convert_family ((MonoAddressFamily)(buf[0] + (buf[1] << 8)));
 	if (family == AF_INET) {
@@ -1341,8 +1339,6 @@ ves_icall_System_Net_Sockets_Socket_Connect_icall (gsize sock, MonoObjectHandle 
 	g_free (sa);
 }
 
-#if G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT | HAVE_UWP_WINAPI_SUPPORT)
-
 void
 ves_icall_System_Net_Sockets_Socket_Disconnect_icall (gsize sock, MonoBoolean reuse, gint32 *werror)
 {
@@ -1350,8 +1346,6 @@ ves_icall_System_Net_Sockets_Socket_Disconnect_icall (gsize sock, MonoBoolean re
 
 	*werror = mono_w32socket_disconnect (sock, reuse);
 }
-
-#endif /* G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT | HAVE_UWP_WINAPI_SUPPORT) */
 
 MonoBoolean
 ves_icall_System_Net_Sockets_Socket_Duplicate_icall (gpointer handle, gint32 targetProcessId, gpointer *duplicate_handle, gint32 *werror)
@@ -1901,7 +1895,7 @@ ves_icall_System_Net_Sockets_Socket_GetSocketOption_arr_icall (gsize sock, gint3
 
 	valsize = mono_array_handle_length (byte_val);
 
-	uint32_t gchandle;
+	MonoGCHandle gchandle;
 	guchar *buf = MONO_ARRAY_HANDLE_PIN (byte_val, guchar, 0, &gchandle);
 
 	ret = mono_w32socket_getsockopt (sock, system_level, system_name, buf, &valsize);
@@ -2137,7 +2131,7 @@ ves_icall_System_Net_Sockets_Socket_SetSocketOption_icall (gsize sock, gint32 le
 		}
 	} else if (!MONO_HANDLE_IS_NULL (byte_val)) {
 		int valsize = mono_array_handle_length (byte_val);
-		uint32_t gchandle;
+		MonoGCHandle gchandle;
 		guchar *buf = MONO_ARRAY_HANDLE_PIN (byte_val, guchar, 0, &gchandle);
 		
 		switch(name) {
@@ -2254,8 +2248,8 @@ ves_icall_System_Net_Sockets_Socket_IOControl_icall (gsize sock, gint32 code, Mo
 #endif
 	gchar *i_buffer, *o_buffer;
 	gint i_len, o_len;
-	uint32_t i_gchandle = 0;
-	uint32_t o_gchandle = 0;
+	MonoGCHandle i_gchandle = 0;
+	MonoGCHandle o_gchandle = 0;
 	gint ret;
 
 	error_init (error);
@@ -2294,6 +2288,12 @@ ves_icall_System_Net_Sockets_Socket_IOControl_icall (gsize sock, gint32 code, Mo
 	}
 
 	return (gint)output_bytes;
+}
+
+MonoBoolean
+ves_icall_System_Net_Sockets_Socket_IsProtocolSupported_internal (gint32 networkInterface)
+{
+	return TRUE;
 }
 
 static gboolean
@@ -2559,16 +2559,14 @@ ves_icall_System_Net_Dns_GetHostName (MonoStringHandleOut h_name, MonoError *err
 	return TRUE;
 }
 
-#if G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT | HAVE_UWP_WINAPI_SUPPORT)
-
 MonoBoolean
 ves_icall_System_Net_Sockets_Socket_SendFile_icall (gsize sock, MonoStringHandle filename, MonoArrayHandle pre_buffer, MonoArrayHandle post_buffer, gint flags, gint32 *werror, MonoBoolean blocking, MonoError *error)
 {
 	HANDLE file;
 	gboolean ret;
 	TRANSMIT_FILE_BUFFERS buffers;
-	uint32_t pre_buffer_gchandle = 0;
-	uint32_t post_buffer_gchandle = 0;
+	MonoGCHandle pre_buffer_gchandle = 0;
+	MonoGCHandle post_buffer_gchandle = 0;
 
 	error_init (error);
 	*werror = 0;
@@ -2578,7 +2576,7 @@ ves_icall_System_Net_Sockets_Socket_SendFile_icall (gsize sock, MonoStringHandle
 
 	/* FIXME: replace file by a proper fd that we can call open and close on, as they are interruptible */
 
-	uint32_t filename_gchandle;
+	MonoGCHandle filename_gchandle;
 	gunichar2 *filename_chars = mono_string_handle_pin_chars (filename, &filename_gchandle);
 	file = mono_w32file_create (filename_chars, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, 0);
 	mono_gchandle_free_internal (filename_gchandle);
@@ -2614,8 +2612,6 @@ ves_icall_System_Net_Sockets_Socket_SendFile_icall (gsize sock, MonoStringHandle
 
 	return ret;
 }
-
-#endif /* G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT | HAVE_UWP_WINAPI_SUPPORT) */
 
 void
 mono_network_init (void)

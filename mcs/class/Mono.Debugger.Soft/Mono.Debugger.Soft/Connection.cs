@@ -216,7 +216,7 @@ namespace Mono.Debugger.Soft
 		public bool IsEnum; // For ElementType.ValueType
 		public long Id; /* For VALUE_TYPE_ID_TYPE */
 		public int Index; /* For VALUE_TYPE_PARENT_VTYPE */
-		public int FixedSize; 
+		public int FixedSize;
 	}
 
 	class ModuleInfo {
@@ -314,7 +314,6 @@ namespace Mono.Debugger.Soft
 			get; set;
 		}
 	}
-
 
 	class AssemblyModifier : Modifier {
 		public long[] Assemblies {
@@ -439,7 +438,7 @@ namespace Mono.Debugger.Soft
 		 * with newer runtimes, and vice versa.
 		 */
 		internal const int MAJOR_VERSION = 2;
-		internal const int MINOR_VERSION = 57;
+		internal const int MINOR_VERSION = 58;
 
 		enum WPSuspendPolicy {
 			NONE = 0,
@@ -563,10 +562,12 @@ namespace Mono.Debugger.Soft
 			GET_TYPE_FROM_TOKEN = 11,
 			GET_METHOD_FROM_TOKEN = 12,
 			HAS_DEBUG_INFO = 13,
+			GET_CATTRS = 14,
 		}
 
 		enum CmdModule {
 			GET_INFO = 1,
+			APPLY_CHANGES = 2,
 		}
 
 		enum CmdMethod {
@@ -807,6 +808,10 @@ namespace Mono.Debugger.Soft
 				get; set;
 			}
 
+			public string ErrorMsg {
+				get; internal set;
+			}
+
 			public int Command {
 				get; set;
 			}
@@ -873,6 +878,7 @@ namespace Mono.Debugger.Soft
 
 			public ValueImpl ReadValue () {
 				ElementType etype = (ElementType)ReadByte ();
+
 				switch (etype) {
 				case ElementType.Void:
 					return new ValueImpl { Type = etype };
@@ -905,6 +911,7 @@ namespace Mono.Debugger.Soft
 					// FIXME: The client and the debuggee might have different word sizes
 					return new ValueImpl { Type = etype, Value = ReadLong () };
 				case ElementType.Ptr:
+				case ElementType.FnPtr:
 					long value = ReadLong ();
 					if (connection.Version.AtLeast (2, 46)) {
 						long pointerClass = ReadId ();
@@ -1322,7 +1329,7 @@ namespace Mono.Debugger.Soft
 				}
 			}
 		}
-		
+
 		protected abstract int TransportReceive (byte[] buf, int buf_offset, int len);
 		protected abstract int TransportSend (byte[] buf, int buf_offset, int len);
 		protected abstract void TransportSetTimeouts (int send_timeout, int receive_timeout);
@@ -2356,6 +2363,11 @@ namespace Mono.Debugger.Soft
 			return info;
 		}
 
+
+		internal void Module_ApplyChanges (long id, long dmeta_id, long dil_id, long dpdb_id) {
+			SendReceive (CommandSet.MODULE, (int)CmdModule.APPLY_CHANGES, new PacketWriter().WriteId (id).WriteId (dmeta_id).WriteId (dil_id).WriteId (dpdb_id));
+		}
+
 		/*
 		 * ASSEMBLY
 		 */
@@ -2410,6 +2422,11 @@ namespace Mono.Debugger.Soft
 
 		internal bool Assembly_HasDebugInfo (long id) {
 			return SendReceive (CommandSet.ASSEMBLY, (int)CmdAssembly.HAS_DEBUG_INFO, new PacketWriter ().WriteId (id)).ReadBool ();
+		}
+
+		internal CattrInfo[] Assembly_GetCustomAttributes (long id, long attr_type_id) {
+			PacketReader r = SendReceive (CommandSet.ASSEMBLY, (int)CmdAssembly.GET_CATTRS, new PacketWriter ().WriteId (id).WriteId (attr_type_id));
+			return ReadCattrs (r);
 		}
 
 		/*
@@ -2751,6 +2768,21 @@ namespace Mono.Debugger.Soft
 
 		internal void Array_SetValues (long id, int index, ValueImpl[] values) {
 			SendReceive (CommandSet.ARRAY_REF, (int)CmdArrayRef.SET_VALUES, new PacketWriter ().WriteId (id).WriteInt (index).WriteInt (values.Length).WriteValues (values));
+		}
+
+		// This is a special case when setting values of an array that
+		// consists of a large number of bytes. This saves much time and
+		// cost than we create ValueImpl object for each byte.
+		internal void ByteArray_SetValues (long id, byte [] bytes)
+		{
+			int index = 0;
+			var typ = (byte)ElementType.U1;
+			var w = new PacketWriter ().WriteId (id).WriteInt (index).WriteInt (bytes.Length);
+			for (int i = 0; i < bytes.Length; i++) {
+				w.WriteByte (typ);
+				w.WriteInt (bytes [i]);
+			}
+			SendReceive (CommandSet.ARRAY_REF, (int)CmdArrayRef.SET_VALUES, w);
 		}
 
 		/*

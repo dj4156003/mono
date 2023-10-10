@@ -9,14 +9,18 @@
 #include <glib.h>
 
 #if defined(HOST_WIN32)
-
+#include <mono/utils/mono-compiler.h>
+MONO_PRAGMA_WARNING_PUSH()
+MONO_PRAGMA_WARNING_DISABLE (4115) // warning C4115: 'IRpcStubBuffer': named type definition in parentheses
 #include <winsock2.h>
 #include <windows.h>
 #include <objbase.h>
-#include "mono/metadata/marshal-windows-internals.h"
+MONO_PRAGMA_WARNING_POP()
+#include "mono/metadata/marshal-internals.h"
+#include <mono/utils/w32subset.h>
 #include "icall-decl.h"
 
-#if G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT)
+#if HAVE_API_SUPPORT_WIN32_GLOBAL_ALLOC_FREE
 
 void*
 mono_marshal_alloc_hglobal (size_t size)
@@ -35,8 +39,25 @@ mono_marshal_free_hglobal (gpointer ptr)
 {
 	GlobalFree (ptr);
 }
+#elif !HAVE_EXTERN_DEFINED_WIN32_GLOBAL_ALLOC_FREE
+void *
+mono_marshal_alloc_hglobal (size_t size)
+{
+	return HeapAlloc (GetProcessHeap (), 0, size);
+}
 
-#endif /* G_HAVE_API_SUPPORT(HAVE_CLASSIC_WINAPI_SUPPORT) */
+gpointer
+mono_marshal_realloc_hglobal (gpointer ptr, size_t size)
+{
+	return HeapReAlloc (GetProcessHeap (), 0, ptr, size);
+}
+
+void
+mono_marshal_free_hglobal (gpointer ptr)
+{
+	HeapFree (GetProcessHeap (), 0, ptr);
+}
+#endif /* HAVE_API_SUPPORT_WIN32_GLOBAL_ALLOC_FREE */
 
 void*
 mono_marshal_alloc_co_task_mem (size_t size)
@@ -107,7 +128,7 @@ mono_string_to_utf8str_impl (MonoStringHandle s, MonoError *error)
 
 	// FIXME pass g_utf16_to_utf8 an allocator to avoid double alloc/copy.
 
-	uint32_t gchandle = 0;
+	MonoGCHandle gchandle = NULL;
 	tmp = g_utf16_to_utf8 (mono_string_handle_pin_chars (s, &gchandle), mono_string_handle_length (s), NULL, &len, &gerror);
 	mono_gchandle_free_internal (gchandle);
 	if (gerror) {

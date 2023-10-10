@@ -267,11 +267,7 @@ MONO_LIB=libmonoboehm-2.0.la
 MONO_SGEN_LIB=libmonosgen-2.0.la
 endif
 
-if LOADED_LLVM
-LLVMMONOF=
-else
 LLVMMONOF=$(LLVM_LIBS) $(LLVM_LDFLAGS)
-endif
 
 mono_boehm_LDADD = \
 	libmain_a-main.$(OBJEXT) \
@@ -339,6 +335,9 @@ monow_LDFLAGS = $(mono_sgen_LDFLAGS) -mwindows
 monow_SOURCES = $(mono_sgen_SOURCES)
 endif
 endif
+
+unity_sources = \
+	mini-unity.c
 
 wasm_sources = \
 	mini-wasm.c		\
@@ -427,22 +426,18 @@ posix_sources = \
 	mini-posix.c
 
 if ENABLE_LLVM
-if LOADED_LLVM
-llvm_sources = \
-	mini-llvm-loaded.c
-else
 llvm_sources = \
 	mini-llvm.c		\
-	mini-llvm-loaded.c \
 	mini-llvm-cpp.cpp \
 	llvm-jit.cpp
-endif
 endif
 
 interp_sources =	\
 	interp/interp.h	\
 	interp/interp-internals.h	\
 	interp/interp.c	\
+	interp/interp-intrins.h	\
+	interp/interp-intrins.c	\
 	interp/mintops.h	\
 	interp/mintops.def	\
 	interp/mintops.c	\
@@ -540,10 +535,13 @@ common_sources = \
 	mini-cross-helpers.c \
 	arch-stubs.c		\
 	llvm-runtime.h	\
+	llvm-intrinsics.h	\
 	type-checking.c \
 	calls.c			\
 	lldb.h			\
 	lldb.c	\
+	mixed_callstack_plugin.h	\
+	mixed_callstack_plugin.c	\
 	memory-access.c	\
 	intrinsics.c \
 	mini-profiler.c	\
@@ -554,7 +552,9 @@ common_sources = \
 	ee.h \
 	tiered.h \
 	tiered.c \
-	mini-runtime.h
+	mini-runtime.h \
+	monovm.h \
+	monovm.c
 
 endif # !ENABLE_MSVC_ONLY
 
@@ -765,7 +765,7 @@ endif
 # This library is shared between mono and mono-sgen, since the code in mini/ doesn't contain
 # compile time dependencies on boehm/sgen.
 #
-libmini_la_SOURCES = $(common_sources) $(llvm_sources) $(llvm_runtime_sources) $(arch_sources) $(os_sources) $(netcore_sources)
+libmini_la_SOURCES = $(common_sources) $(llvm_sources) $(llvm_runtime_sources) $(arch_sources) $(os_sources) $(netcore_sources) $(unity_sources)
 libmini_la_CFLAGS = $(AM_CFLAGS) @CXX_ADD_CFLAGS@
 
 libmonoboehm_2_0_la_SOURCES =
@@ -801,7 +801,9 @@ libmonoincludedir = $(includedir)/mono-$(API_VER)/mono/jit
 # These are public headers.
 # They should not use glib.h, G_BEGIN_DECLS, guint, etc.
 # They should be wrapped in MONO_BEGIN_DECLS / MONO_END_DECLS.
-libmonoinclude_HEADERS = jit.h
+libmonoinclude_HEADERS = \
+	jit.h		\
+	mono-private-unstable.h
 
 CSFLAGS = -unsafe -nowarn:0219,0169,0414,0649,0618
 

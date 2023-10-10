@@ -78,6 +78,7 @@ mobile_common_dirs_parallel := \
 	System.Numerics.Vectors		\
 	System.Data	\
 	System.Data.DataSetExtensions \
+	System.Web \
 	Mono.Data.Sqlite	\
 	System.Data.Services.Client \
 	System.IO.Compression \
@@ -90,7 +91,6 @@ mobile_common_dirs_parallel := \
 	System.Xml.Serialization \
 	Microsoft.CSharp \
 	System.Reflection.Context	\
-	System.Net.Http.WinHttpHandler \
 	System.Runtime.CompilerServices.Unsafe
 
 testing_aot_full_dirs_parallel := \

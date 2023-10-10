@@ -296,6 +296,9 @@ namespace System.Drawing
 		{
 			Status status;
 			if (! disposed) {
+				if (deviceContextHdc != IntPtr.Zero)
+					ReleaseHdc ();
+
 				if (GDIPlus.UseCarbonDrawable || GDIPlus.UseCocoaDrawable) {
 					Flush ();
 					if (maccontext != null)

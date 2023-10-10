@@ -75,24 +75,6 @@ typedef ptrdiff_t ssize_t;
 #define MONO_RESTORE_WARNING
 #endif
 
-// If MONO_LLVM_INTERNAL changes, update mono_debug_method_lookup_location declaration.
-#if !defined(_MSC_VER) && !defined(HOST_SOLARIS) && !defined(_WIN32) && !defined(__CYGWIN__) && !defined(MONOTOUCH) && HAVE_VISIBILITY_HIDDEN && MONO_LLVM_LOADED
-
-// Normally use this.
-#define MONO_LLVM_INTERNAL			MONO_API
-
-// Use these for extern data.
-#define MONO_LLVM_INTERNAL_NO_EXTERN_C		MONO_API_NO_EXTERN_C
-#define MONO_LLVM_INTERNAL_EXTERN_C_BEGIN	G_BEGIN_DECLS
-#define MONO_LLVM_INTERNAL_EXTERN_C_END		G_END_DECLS
-
-#else
-#define MONO_LLVM_INTERNAL			/* nothing */
-#define MONO_LLVM_INTERNAL_NO_EXTERN_C		/* nothing */
-#define MONO_LLVM_INTERNAL_EXTERN_C_BEGIN	/* nothing */
-#define MONO_LLVM_INTERNAL_EXTERN_C_END		/* nothing */
-#endif
-
 /* Used to mark internal functions used by the profiler modules */
 #define MONO_PROFILER_API MONO_API
 
@@ -186,6 +168,11 @@ typedef int32_t __mono_off32_t;
 extern "C" {
 #endif
 
+/* The `mmap` definition problem only occurs with the GCC toolchain. With the
+ * clang toolchain we should not redefine `mmap`, and instead use the
+ * definition from the NDK headers.
+ */
+#if !defined(__clang__)
 /* Unified headers before API 21 do not declare mmap when LARGE_FILES are used (via -D_FILE_OFFSET_BITS=64)
  * which is always the case when Mono build targets Android. The problem here is that the unified headers
  * map `mmap` to `mmap64` if large files are enabled but this api exists only in API21 onwards. Therefore
@@ -199,6 +186,7 @@ void* mmap (void*, size_t, int, int, int, __mono_off32_t);
 #endif
 
 #endif /* __NDK_MAJOR__ < 18 */
+#endif /* !__clang__ */
 
 #ifdef HAVE_SYS_SENDFILE_H
 #include <sys/sendfile.h>

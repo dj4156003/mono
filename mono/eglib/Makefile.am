@@ -6,16 +6,17 @@ SUBDIRS = . test
 
 noinst_LTLIBRARIES = libeglib.la
 
-AM_CFLAGS = $(WERROR_CFLAGS)
+AM_CFLAGS = $(SHARED_CFLAGS)
 
 win_files  = \
 	eglib-config.hw \
 	gdate-win32.c gdir-win32.c gfile-win32.c gmisc-win32.c \
-	gmodule-win32.c gmodule-win32-internals.h gtimer-win32.c gunicode-win32.c
+	gmodule-win32.c gtimer-win32.c gunicode-win32.c
 
 unix_files = \
 	gdate-unix.c  gdir-unix.c  gfile-unix.c  gmisc-unix.c	\
-	gmodule-unix.c gtimer-unix.c gmodule-aix.c gclock-nanosleep.c
+	gmodule-unix.c gtimer-unix.c gmodule-aix.c \
+	gspawn.c gclock-nanosleep.c
 
 if HOST_WIN32
 os_files = $(win_files)
@@ -44,7 +45,6 @@ libeglib_la_SOURCES = \
 	gqueue.c	\
 	gpath.c		\
 	gshell.c	\
-	gspawn.c	\
 	gfile.c		\
 	gfile-posix.c	\
 	gpattern.c	\

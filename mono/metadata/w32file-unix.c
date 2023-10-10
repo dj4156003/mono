@@ -1845,6 +1845,23 @@ static mode_t convert_perms(guint32 sharemode)
 }
 #endif
 
+static gboolean already_shared(gboolean file_alread_shared, ino_t inode)
+{
+#if HOST_DARWIN
+	/* On macOS and FAT32 partitions, we will sometimes get an inode value
+	 * of 999999999 (or 1 on exFAT partitions) for more than one file. It
+	 * means the file is empty (FILENO_EMPTY is defined in an internal
+	 * header).  When this happens, the hash table of file shares becomes
+	 * corrupt, since more then one file has the same inode. Instead, let's
+	 * assume it is always fine to share empty files.
+	 * (Unity case 950616 or case 1253812).
+	 */
+	return file_alread_shared && inode != 999999999 && inode != 1;
+#else
+	return file_alread_shared;
+#endif
+}
+
 static gboolean share_allows_open (struct stat *statbuf, guint32 sharemode,
 				   guint32 fileaccess,
 				   FileShare **share_info)
@@ -1854,7 +1871,7 @@ static gboolean share_allows_open (struct stat *statbuf, guint32 sharemode,
 
 	file_already_shared = file_share_get (statbuf->st_dev, statbuf->st_ino, sharemode, fileaccess, &file_existing_share, &file_existing_access, share_info);
 	
-	if (file_already_shared) {
+	if (already_shared (file_already_shared, statbuf->st_ino)) {
 		/* The reference to this share info was incremented
 		 * when we looked it up, so be careful to put it back
 		 * if we conclude we can't use this file.
@@ -2536,7 +2553,7 @@ CopyFile (const gunichar2 *name, const gunichar2 *dest_name, gboolean fail_if_ex
 	if (fail_if_exists) {
 		dest_fd = _wapi_open (utf8_dest, O_WRONLY | O_CREAT | O_EXCL, st.st_mode);
 	} else {
-		/* FIXME: it kinda sucks that this code path potentially scans
+		/* FIXME: it's bad that this code path potentially scans
 		 * the directory twice due to the weird mono_w32error_set_last()
 		 * behavior. */
 		dest_fd = _wapi_open (utf8_dest, O_WRONLY | O_TRUNC, st.st_mode);
@@ -3842,7 +3859,7 @@ mono_w32file_create_pipe (gpointer *readpipe, gpointer *writepipe, guint32 size)
 #ifdef HAVE_GETFSSTAT
 /* Darwin has getfsstat */
 gint32
-mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf)
+mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf, MonoError *error)
 {
 	struct statfs *stats;
 	gint size, n, i;
@@ -3883,7 +3900,7 @@ mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf)
 }
 #elif _AIX
 gint32
-mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf)
+mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf, MonoError *error)
 {
 	struct vmount *mounts;
 	// ret will first be the errno cond, then no of structs
@@ -3984,7 +4001,7 @@ static void append_to_mountpoint (LinuxMountInfoParseState *state);
 static gboolean add_drive_string (guint32 len, gunichar2 *buf, LinuxMountInfoParseState *state);
 
 gint32
-mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf)
+mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf, MonoError *error)
 {
 	gint fd;
 	gint32 ret = 0;
@@ -4256,7 +4273,7 @@ add_drive_string (guint32 len, gunichar2 *buf, LinuxMountInfoParseState *state)
 }
 #else
 gint32
-mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf)
+mono_w32file_get_logical_drive (guint32 len, gunichar2 *buf, MonoError *error)
 {
 	return GetLogicalDriveStrings_Mtab (len, buf);
 }
@@ -4736,7 +4753,7 @@ GetDriveTypeFromPath (const gchar *utf8_root_path_name)
 
 #ifndef ENABLE_NETCORE
 guint32
-ves_icall_System_IO_DriveInfo_GetDriveType (const gunichar2 *root_path_name, gint32 root_path_name_length, MonoError *error)
+mono_w32file_get_drive_type (const gunichar2 *root_path_name, gint32 root_path_name_length, MonoError *error)
 {
 	// FIXME Check for embedded nuls here or in managed.
 

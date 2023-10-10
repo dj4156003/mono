@@ -51,7 +51,7 @@ typedef void	    (*MonoMainThreadFunc)    (void* user_data);
         mono_gc_wbarrier_generic_store (&((s)->field), (MonoObject*)(value)); \
     } while (0)
 
-#define mono_array_addr(array,type,index) ((type*)mono_array_addr_with_size ((array), sizeof (type), (index)))
+#define mono_array_addr(array,type,index) ((type*)mono_array_addr_with_size_internal ((array), sizeof (type), (index)))
 #define mono_array_get(array,type,index) ( *(type*)mono_array_addr ((array), type, (index)) ) 
 #define mono_array_set(array,type,index,value)	\
 	do {	\
@@ -61,7 +61,7 @@ typedef void	    (*MonoMainThreadFunc)    (void* user_data);
 #define mono_array_setref(array,index,value)	\
 	do {	\
 		void **__p = (void **) mono_array_addr ((array), void*, (index));	\
-		mono_gc_wbarrier_set_arrayref ((array), __p, (MonoObject*)(value));	\
+		mono_gc_wbarrier_set_arrayref_internal ((array), __p, (MonoObject*)(value));	\
 		/* *__p = (value);*/	\
 	} while (0)
 #define mono_array_memcpy_refs(dest,destidx,src,srcidx,count)	\
@@ -371,6 +371,11 @@ MONO_API MONO_RT_EXTERNAL_ONLY uint32_t     mono_gchandle_new         (MonoObjec
 MONO_API MONO_RT_EXTERNAL_ONLY uint32_t     mono_gchandle_new_weakref (MonoObject *obj, mono_bool track_resurrection);
 MONO_API MONO_RT_EXTERNAL_ONLY MonoObject*  mono_gchandle_get_target  (uint32_t gchandle);
 MONO_API MONO_RT_EXTERNAL_ONLY void         mono_gchandle_free        (uint32_t gchandle);
+
+MONO_API MONO_RT_EXTERNAL_ONLY MonoGCHandle mono_gchandle_new_v2         (MonoObject *obj, mono_bool pinned);
+MONO_API MONO_RT_EXTERNAL_ONLY MonoGCHandle mono_gchandle_new_weakref_v2 (MonoObject *obj, mono_bool track_resurrection);
+MONO_API MONO_RT_EXTERNAL_ONLY MonoObject*  mono_gchandle_get_target_v2  (MonoGCHandle gchandle);
+MONO_API MONO_RT_EXTERNAL_ONLY void         mono_gchandle_free_v2        (MonoGCHandle gchandle);
 
 /* Reference queue support
  *

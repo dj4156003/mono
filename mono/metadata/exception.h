@@ -106,8 +106,7 @@ mono_get_exception_argument_null       (const char *arg);
 MONO_API MonoException *
 mono_get_exception_argument            (const char *arg, const char *msg);
 
-MONO_API MONO_RT_EXTERNAL_ONLY
-MonoException *
+MONO_API MonoException *
 mono_get_exception_argument_out_of_range (const char *arg);
 
 MONO_API MONO_RT_EXTERNAL_ONLY
@@ -172,6 +171,9 @@ mono_get_exception_runtime_wrapped (MonoObject *wrapped_exception);
 typedef void  (*MonoUnhandledExceptionFunc)         (MonoObject *exc, void *user_data);
 MONO_API void mono_install_unhandled_exception_hook (MonoUnhandledExceptionFunc func, void *user_data);
 void          mono_invoke_unhandled_exception_hook  (MonoObject *exc);
+
+void
+ves_icall_System_Exception_ReportUnhandledException (MonoObject *exc);
 
 MONO_END_DECLS
 

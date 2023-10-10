@@ -114,6 +114,7 @@
 ICALL_TYPE(CLR_INTEROP_SYS, "Interop/Sys", CLR_INTEROP_SYS_1)
 NOHANDLES(ICALL(CLR_INTEROP_SYS_1, "DoubleToString", ves_icall_Interop_Sys_DoubleToString))
 
+#ifndef DISABLE_PROCESSES
 ICALL_TYPE(NATIVEMETHODS, "Microsoft.Win32.NativeMethods", NATIVEMETHODS_1)
 NOHANDLES(ICALL(NATIVEMETHODS_1, "CloseProcess", ves_icall_Microsoft_Win32_NativeMethods_CloseProcess))
 NOHANDLES(ICALL(NATIVEMETHODS_2, "GetCurrentProcess", ves_icall_Microsoft_Win32_NativeMethods_GetCurrentProcess))
@@ -126,6 +127,10 @@ NOHANDLES(ICALL(NATIVEMETHODS_8, "SetPriorityClass", ves_icall_Microsoft_Win32_N
 NOHANDLES(ICALL(NATIVEMETHODS_9, "SetProcessWorkingSetSize", ves_icall_Microsoft_Win32_NativeMethods_SetProcessWorkingSetSize))
 NOHANDLES(ICALL(NATIVEMETHODS_10, "TerminateProcess", ves_icall_Microsoft_Win32_NativeMethods_TerminateProcess))
 NOHANDLES(ICALL(NATIVEMETHODS_11, "WaitForInputIdle", ves_icall_Microsoft_Win32_NativeMethods_WaitForInputIdle))
+#else
+ICALL_TYPE(NATIVEMETHODS, "Microsoft.Win32.NativeMethods", NATIVEMETHODS_11)
+NOHANDLES(ICALL(NATIVEMETHODS_11, "WaitForInputIdle", ves_icall_Microsoft_Win32_NativeMethods_WaitForInputIdle))
+#endif
 
 #ifndef DISABLE_COM
 ICALL_TYPE(COMPROX, "Mono.Interop.ComInteropProxy", COMPROX_1)
@@ -173,6 +178,9 @@ NOHANDLES(ICALL(KPAIR_3, "_IsUserProtected", ves_icall_Mono_Security_Cryptograph
 NOHANDLES(ICALL(KPAIR_4, "_ProtectMachine", ves_icall_Mono_Security_Cryptography_KeyPairPersistence_ProtectMachine))
 NOHANDLES(ICALL(KPAIR_5, "_ProtectUser", ves_icall_Mono_Security_Cryptography_KeyPairPersistence_ProtectUser))
 #endif /* !PLATFORM_RO_FS */
+
+ICALL_TYPE(UNITYTLS, "Mono.Unity.UnityTls", UNITYTLS_1)
+ICALL(UNITYTLS_1, "GetUnityTlsInterface", mono_unity_get_unitytls_interface)
 
 ICALL_TYPE(APPDOM, "System.AppDomain", APPDOM_23)
 HANDLES(APPDOM_23, "DoUnhandledException", ves_icall_System_AppDomain_DoUnhandledException, void, 2, (MonoAppDomain, MonoException))
@@ -244,6 +252,9 @@ HANDLES(CONSOLE_3, "SetBreak", ves_icall_System_ConsoleDriver_SetBreak, MonoBool
 HANDLES(CONSOLE_4, "SetEcho", ves_icall_System_ConsoleDriver_SetEcho, MonoBoolean, 1, (MonoBoolean))
 HANDLES(CONSOLE_5, "TtySetup", ves_icall_System_ConsoleDriver_TtySetup, MonoBoolean, 4, (MonoString, MonoString, MonoArrayOut, int_ptr_ref))
 
+ICALL_TYPE(TZONE, "System.CurrentSystemTimeZone", TZONE_1)
+ICALL(TZONE_1, "GetTimeZoneData", ves_icall_System_CurrentSystemTimeZone_GetTimeZoneData)
+
 ICALL_TYPE(DTIME, "System.DateTime", DTIME_1)
 NOHANDLES(ICALL(DTIME_1, "GetSystemTimeAsFileTime", ves_icall_System_DateTime_GetSystemTimeAsFileTime))
 
@@ -280,6 +291,7 @@ HANDLES(PERFCTRCAT_6, "GetCounterNames_icall", mono_perfcounter_counter_names, M
 HANDLES(PERFCTRCAT_7, "GetInstanceNames_icall", mono_perfcounter_instance_names, MonoArray, 2, (const_gunichar2_ptr, gint32))
 HANDLES(PERFCTRCAT_8, "InstanceExistsInternal_icall", mono_perfcounter_instance_exists, MonoBoolean, 4, (const_gunichar2_ptr, gint32, const_gunichar2_ptr, gint32))
 
+#ifndef DISABLE_PROCESSES
 ICALL_TYPE(PROCESS, "System.Diagnostics.Process", PROCESS_1)
 HANDLES(PROCESS_1, "CreateProcess_internal", ves_icall_System_Diagnostics_Process_CreateProcess_internal,
 	MonoBoolean, 5, (MonoW32ProcessStartInfo, gpointer, gpointer, gpointer, MonoW32ProcessInfo_ref))
@@ -287,8 +299,10 @@ HANDLES(PROCESS_4, "GetModules_icall", ves_icall_System_Diagnostics_Process_GetM
 NOHANDLES(ICALL(PROCESS_5H, "GetProcessData", ves_icall_System_Diagnostics_Process_GetProcessData))
 HANDLES(PROCESS_6, "GetProcess_internal", ves_icall_System_Diagnostics_Process_GetProcess_internal, gpointer, 1, (guint32))
 HANDLES(PROCESS_7, "GetProcesses_internal", ves_icall_System_Diagnostics_Process_GetProcesses_internal, MonoArray, 0, ())
+HANDLES(PROCESS_14, "MainWindowHandle_icall", ves_icall_System_Diagnostics_Process_MainWindowHandle_internal, gpointer, 1, (guint32))
 HANDLES(PROCESS_10, "ProcessName_icall", ves_icall_System_Diagnostics_Process_ProcessName_internal, MonoString, 1, (PROCESS_HANDLE))
 HANDLES(PROCESS_13, "ShellExecuteEx_internal", ves_icall_System_Diagnostics_Process_ShellExecuteEx_internal, MonoBoolean, 2, (MonoW32ProcessStartInfo, MonoW32ProcessInfo_ref))
+#endif
 
 ICALL_TYPE(STOPWATCH, "System.Diagnostics.Stopwatch", STOPWATCH_1)
 NOHANDLES(ICALL(STOPWATCH_1, "GetTimestamp", ves_icall_System_Diagnostics_Stopwatch_GetTimestamp))
@@ -329,6 +343,10 @@ HANDLES(ENV_17, "internalGetEnvironmentVariable_native", ves_icall_System_Enviro
 HANDLES(ENV_18, "internalGetGacPath", ves_icall_System_Environment_GetGacPath, MonoString, 0, ())
 HANDLES(ENV_19, "internalGetHome", ves_icall_System_Environment_InternalGetHome, MonoString, 0, ())
 NOHANDLES(ICALL(ENV_20, "set_ExitCode", mono_environment_exitcode_set))
+
+ICALL_TYPE(EXCEPTION, "System.Exception", EXCEPTION_1)
+NOHANDLES(ICALL(EXCEPTION_1, "ReportUnhandledException", ves_icall_System_Exception_ReportUnhandledException))
+
 ICALL_TYPE(GC, "System.GC", GC_10)
 NOHANDLES(ICALL(GC_10, "GetAllocatedBytesForCurrentThread", ves_icall_System_GC_GetAllocatedBytesForCurrentThread))
 NOHANDLES(ICALL(GC_0, "GetCollectionCount", ves_icall_System_GC_GetCollectionCount))
@@ -427,6 +445,7 @@ NOHANDLES(ICALL(MONOIO_15, "MoveFile(char*,char*,System.IO.MonoIOError&)", ves_i
 #endif /* !PLATFORM_RO_FS */
 NOHANDLES(ICALL(MONOIO_16, "Open(char*,System.IO.FileMode,System.IO.FileAccess,System.IO.FileShare,System.IO.FileOptions,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_Open))
 HANDLES(MONOIO_17, "Read(intptr,byte[],int,int,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_Read, gint32, 5, (gpointer, MonoArray, gint32, gint32, gint32_ref))
+NOHANDLES(ICALL(MONOIO_40, "RemapPath(string,string&)", ves_icall_System_IO_MonoIO_RemapPath))
 #ifndef PLATFORM_RO_FS
 NOHANDLES(ICALL(MONOIO_18, "RemoveDirectory(char*,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_RemoveDirectory))
 NOHANDLES(ICALL(MONOIO_18M, "ReplaceFile(char*,char*,char*,bool,System.IO.MonoIOError&)", ves_icall_System_IO_MonoIO_ReplaceFile))
@@ -545,6 +564,7 @@ NOHANDLES(ICALL(SOCK_6b, "Duplicate_icall", ves_icall_System_Net_Sockets_Socket_
 HANDLES(SOCK_7, "GetSocketOption_arr_icall", ves_icall_System_Net_Sockets_Socket_GetSocketOption_arr_icall, void, 5, (gsize, gint32, gint32, MonoArray, gint32_ref))
 HANDLES(SOCK_8, "GetSocketOption_obj_icall", ves_icall_System_Net_Sockets_Socket_GetSocketOption_obj_icall, void, 5, (gsize, gint32, gint32, MonoObjectOut, gint32_ref))
 HANDLES(SOCK_21, "IOControl_icall", ves_icall_System_Net_Sockets_Socket_IOControl_icall, int, 5, (gsize, gint32, MonoArray, MonoArray, gint32_ref))
+ICALL(SOCK_22, "IsProtocolSupported_internal", ves_icall_System_Net_Sockets_Socket_IsProtocolSupported_internal)
 NOHANDLES(ICALL(SOCK_9, "Listen_icall", ves_icall_System_Net_Sockets_Socket_Listen_icall))
 HANDLES(SOCK_10, "LocalEndPoint_icall", ves_icall_System_Net_Sockets_Socket_LocalEndPoint_icall, MonoObject, 3, (gsize, gint32, gint32_ref))
 NOHANDLES(ICALL(SOCK_11, "Poll_icall", ves_icall_System_Net_Sockets_Socket_Poll_icall))
@@ -737,8 +757,8 @@ ICALL_TYPE(GCH, "System.Runtime.InteropServices.GCHandle", GCH_1)
 NOHANDLES(ICALL(GCH_1, "CheckCurrentDomain", ves_icall_System_GCHandle_CheckCurrentDomain))
 NOHANDLES(ICALL(GCH_2, "FreeHandle", ves_icall_System_GCHandle_FreeHandle))
 NOHANDLES(ICALL(GCH_3, "GetAddrOfPinnedObject", ves_icall_System_GCHandle_GetAddrOfPinnedObject))
-HANDLES(GCH_4, "GetTarget", ves_icall_System_GCHandle_GetTarget, MonoObject, 1, (guint32))
-HANDLES(GCH_5, "GetTargetHandle", ves_icall_System_GCHandle_GetTargetHandle, guint32, 3, (MonoObject, guint32, gint32))
+HANDLES(GCH_4, "GetTarget", ves_icall_System_GCHandle_GetTarget, MonoObject, 1, (gpointer))
+HANDLES(GCH_5, "GetTargetHandle", ves_icall_System_GCHandle_GetTargetHandle, gpointer, 3, (MonoObject, gpointer, gint32))
 
 #if !defined(DISABLE_COM) || defined (HOST_WIN32)
 ICALL_TYPE(MARSHAL, "System.Runtime.InteropServices.Marshal", MARSHAL_1)
@@ -838,6 +858,9 @@ ICALL_TYPE(REMSER, "System.Runtime.Remoting.RemotingServices", REMSER_0)
 HANDLES(REMSER_0, "GetVirtualMethod", ves_icall_Remoting_RemotingServices_GetVirtualMethod, MonoReflectionMethod, 2, (MonoReflectionType, MonoReflectionMethod))
 HANDLES(REMSER_1, "InternalExecute", ves_icall_InternalExecute, MonoObject, 4, (MonoReflectionMethod, MonoObject, MonoArray, MonoArrayOut))
 HANDLES(REMSER_2, "IsTransparentProxy", ves_icall_IsTransparentProxy, MonoBoolean, 1, (MonoObject))
+#else
+ICALL_TYPE(REMSER, "System.Runtime.Remoting.RemotingServices", REMSER_0)
+ICALL(REMSER_0, "IsTransparentProxy", ves_icall_IsTransparentProxy)
 #endif
 
 ICALL_TYPE(RUNIMPORT, "System.Runtime.RuntimeImports", RUNIMPORT_1)
@@ -864,6 +887,7 @@ HANDLES(RT_30, "GetCorrespondingInflatedConstructor", ves_icall_RuntimeType_GetC
 HANDLES_REUSE_WRAPPER(RT_31, "GetCorrespondingInflatedMethod", ves_icall_RuntimeType_GetCorrespondingInflatedMethod)
 HANDLES(RT_3, "GetEvents_native", ves_icall_RuntimeType_GetEvents_native, GPtrArray_ptr, 3, (MonoReflectionType, char_ptr, guint32))
 HANDLES(RT_5, "GetFields_native", ves_icall_RuntimeType_GetFields_native, GPtrArray_ptr, 4, (MonoReflectionType, char_ptr, guint32, guint32))
+HANDLES(RT_32, "GetGUID", ves_icall_RuntimeType_GetGUID, void, 2, (MonoReflectionType, MonoArray))
 HANDLES(RT_6, "GetGenericArgumentsInternal", ves_icall_RuntimeType_GetGenericArguments, MonoArray, 2, (MonoReflectionType, MonoBoolean))
 HANDLES(RT_9, "GetGenericParameterPosition", ves_icall_RuntimeType_GetGenericParameterPosition, gint32, 1, (MonoReflectionType))
 HANDLES(RT_10, "GetInterfaceMapData", ves_icall_RuntimeType_GetInterfaceMapData, void, 4, (MonoReflectionType, MonoReflectionType, MonoArrayOut, MonoArrayOut))
@@ -1011,6 +1035,10 @@ HANDLES(NATIVEC_3, "OpenEvent_icall", ves_icall_System_Threading_Events_OpenEven
 NOHANDLES(ICALL(NATIVEC_4, "ResetEvent_internal",  ves_icall_System_Threading_Events_ResetEvent_internal))
 NOHANDLES(ICALL(NATIVEC_5, "SetEvent_internal",    ves_icall_System_Threading_Events_SetEvent_internal))
 
+ICALL_TYPE(OSSYNCCONTEXT, "System.Threading.OSSpecificSynchronizationContext", OSSYNCCONTEXT_1)
+NOHANDLES(ICALL(OSSYNCCONTEXT_1, "GetOSContext", ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext))
+NOHANDLES(ICALL(OSSYNCCONTEXT_2, "PostInternal", ves_icall_System_Threading_OSSpecificSynchronizationContext_PostInternal))
+
 ICALL_TYPE(SEMA, "System.Threading.Semaphore", SEMA_1)
 NOHANDLES(ICALL(SEMA_1, "CreateSemaphore_icall", ves_icall_System_Threading_Semaphore_CreateSemaphore_icall))
 NOHANDLES(ICALL(SEMA_2, "OpenSemaphore_icall", ves_icall_System_Threading_Semaphore_OpenSemaphore_icall))
@@ -1099,6 +1127,11 @@ ICALL_TYPE(WAITH, "System.Threading.WaitHandle", WAITH_1)
 HANDLES(WAITH_1, "SignalAndWait_Internal", ves_icall_System_Threading_WaitHandle_SignalAndWait_Internal, gint32, 3, (gpointer, gpointer, gint32))
 HANDLES(WAITH_2, "Wait_internal", ves_icall_System_Threading_WaitHandle_Wait_internal, gint32, 4, (gpointer_ptr, gint32, MonoBoolean, gint32))
 
+#if defined(TARGET_WASM)
+ICALL_TYPE(TZINFO, "System.TimeZoneInfo", TZINFO_1)
+NOHANDLES(ICALL(TZINFO_1, "mono_timezone_get_local_name", ves_icall_System_TimeZoneInfo_mono_timezone_get_local_name))
+#endif
+
 ICALL_TYPE(TYPE, "System.Type", TYPE_1)
 HANDLES(TYPE_1, "internal_from_handle", ves_icall_System_Type_internal_from_handle, MonoReflectionType, 1, (MonoType_ref))
 
@@ -1156,15 +1189,18 @@ MONO_HANDLE_REGISTER_ICALL (mono_marshal_string_to_utf16_copy, gunichar2_ptr, 1,
 MONO_HANDLE_REGISTER_ICALL (mono_object_isinst_icall, MonoObject, 2, (MonoObject, MonoClass_ptr))
 MONO_HANDLE_REGISTER_ICALL (mono_string_builder_to_utf16, gunichar2_ptr, 1, (MonoStringBuilder))
 MONO_HANDLE_REGISTER_ICALL (mono_string_builder_to_utf8, char_ptr, 1, (MonoStringBuilder))
+MONO_HANDLE_REGISTER_ICALL (mono_string_from_ansibstr, MonoString, 1, (const_char_ptr))
 MONO_HANDLE_REGISTER_ICALL (mono_string_from_bstr_icall, MonoString, 1, (mono_bstr_const))
 MONO_HANDLE_REGISTER_ICALL (mono_string_from_byvalstr, MonoString, 2, (const_char_ptr, int))
 MONO_HANDLE_REGISTER_ICALL (mono_string_from_byvalwstr, MonoString, 2, (const_gunichar2_ptr, int))
+MONO_HANDLE_REGISTER_ICALL (mono_string_from_tbstr, MonoString, 1, (gpointer))
 MONO_HANDLE_REGISTER_ICALL (mono_string_new_len_wrapper, MonoString, 2, (const_char_ptr, guint))
 MONO_HANDLE_REGISTER_ICALL (mono_string_new_wrapper_internal, MonoString, 1, (const_char_ptr))
-MONO_HANDLE_REGISTER_ICALL (mono_string_to_ansibstr, gpointer, 1, (MonoString))
+MONO_HANDLE_REGISTER_ICALL (mono_string_to_ansibstr, char_ptr, 1, (MonoString))
 MONO_HANDLE_REGISTER_ICALL (mono_string_to_bstr, mono_bstr, 1, (MonoString))
 MONO_HANDLE_REGISTER_ICALL (mono_string_to_byvalstr, void, 3, (char_ptr, MonoString, int))
 MONO_HANDLE_REGISTER_ICALL (mono_string_to_byvalwstr, void, 3, (gunichar2_ptr, MonoString, int))
+MONO_HANDLE_REGISTER_ICALL (mono_string_to_tbstr, gpointer, 1, (MonoString))
 MONO_HANDLE_REGISTER_ICALL (mono_string_to_utf16_internal, mono_unichar2_ptr, 1, (MonoString))
 MONO_HANDLE_REGISTER_ICALL (mono_string_to_utf32_internal, mono_unichar4_ptr, 1, (MonoString)) // embedding API
 MONO_HANDLE_REGISTER_ICALL (mono_string_utf16_to_builder, void, 2, (MonoStringBuilder, const_gunichar2_ptr))
