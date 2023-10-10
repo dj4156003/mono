@@ -1751,7 +1751,7 @@ mono_thread_info_sleep (guint32 ms, gboolean *alerted)
 		}
 
 		do {
-			ret = g_clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &target, NULL);
+			ret = clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &target, NULL);
 		} while (ret != 0);
 #elif HOST_WIN32
 		Sleep (ms);
