@@ -584,7 +584,7 @@ static void get_type_hashes(MonoType *type, GList *hashes, gboolean inflate)
 		if (klass)
 		{
 			g_list_append(hashes, GUINT_TO_POINTER(klass->type_token));
-			g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2(klass->image->module_name)));
+			g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2((guchar*)klass->image->module_name)));
 		}
 
 		return;
@@ -592,7 +592,7 @@ static void get_type_hashes(MonoType *type, GList *hashes, gboolean inflate)
 	else
 	{
 		g_list_append(hashes, GUINT_TO_POINTER(type->data.generic_class->container_class->type_token));
-		g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2(type->data.generic_class->container_class->image->module_name)));
+		g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2((guchar*)type->data.generic_class->container_class->image->module_name)));
 
         if (inflate)
 		    get_type_hashes_generic_inst(type->data.generic_class->context.class_inst, hashes, inflate);
@@ -605,7 +605,7 @@ static GList* get_type_hashes_method(MonoMethod *method, gboolean inflate)
 	GList *hashes = monoeg_g_list_alloc();
 
 	hashes->data = GUINT_TO_POINTER(method->token);
-	g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2(method->klass->image->module_name)));
+	g_list_append(hashes, GUINT_TO_POINTER(hash_string_djb2((guchar*)method->klass->image->module_name)));
 
 	if (inflate && method->klass->class_kind == MONO_CLASS_GINST)
 	{
@@ -1625,7 +1625,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 		if (format == MONO_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED) {
 			MonoClass *klass = mono_class_from_mono_type(type);
 			MonoImage *klassImg = mono_class_get_image(klass);
-			char *imgName = mono_image_get_name(klassImg);
+			char *imgName = (char*)mono_image_get_name(klassImg);
 			nameChunkReport(imgName, userData);
 		}
 		break;
@@ -1648,7 +1648,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 		if (format == MONO_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED) {
 			MonoClass *klass = mono_class_from_mono_type(type);
 			MonoImage *klassImg = mono_class_get_image(klass);
-			char *imgName = mono_image_get_name(klassImg);
+			char *imgName = (char*)mono_image_get_name(klassImg);
 			nameChunkReport(imgName, userData);
 		}
 		break;
@@ -1669,7 +1669,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 		if (format == MONO_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED) {
 			MonoClass *klass = mono_class_from_mono_type(type);
 			MonoImage *klassImg = mono_class_get_image(klass);
-			char *imgName = mono_image_get_name(klassImg);
+			char *imgName = (char*)mono_image_get_name(klassImg);
 			nameChunkReport(imgName, userData);
 		}
 		break;
@@ -1688,7 +1688,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 			sprintf(bufferIter, "%d", type->data.generic_param->num);
 		}
 		else
-			nameChunkReport(mono_generic_param_name(type->data.generic_param), userData);
+			nameChunkReport((void*)mono_generic_param_name(type->data.generic_param), userData);
 
 		if (type->byref)
 			*bufferIter++ = '&';
@@ -1706,7 +1706,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 		}
 		else if (*klass->name_space) {
 			if (format == MONO_TYPE_NAME_FORMAT_IL)
-				nameChunkReport(klass->name_space, userData);
+				nameChunkReport((void*)klass->name_space, userData);
 			else
 				bufferIter = mono_identifier_escape_type_append(bufferIter, klass->name_space);
 
@@ -1788,7 +1788,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 				for (i = 0; i < mono_class_get_generic_container(klass)->type_argc; i++) {
 					if (i)
 						nameChunkReport(",", userData);
-					nameChunkReport(mono_generic_container_get_param_info(mono_class_get_generic_container(klass), i)->name, userData);
+					nameChunkReport((void*)(mono_generic_container_get_param_info(mono_class_get_generic_container(klass), i)->name), userData);
 				}
 				if (format == MONO_TYPE_NAME_FORMAT_IL)
 					*bufferIter++ = '>';
@@ -1806,7 +1806,7 @@ mono_unity_type_get_name_foreach_name_chunk_recurse(MonoType *type, gboolean is_
 		if ((format == MONO_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED) &&
 			(type->type != MONO_TYPE_VAR) && (type->type != MONO_TYPE_MVAR)) {
 			MonoImage *klassImg = mono_class_get_image(klass);
-			char *imgName = mono_image_get_name(klassImg);
+			char *imgName = (char*)mono_image_get_name(klassImg);
 			nameChunkReport(imgName, userData);
 		}
 		break;
