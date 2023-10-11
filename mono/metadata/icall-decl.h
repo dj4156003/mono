@@ -311,4 +311,12 @@ ICALL_EXPORT void ves_icall_System_Runtime_Intrinsics_X86_X86Base___cpuidex (int
 ICALL_EXPORT void ves_icall_Mono_Runtime_LoadMetadataUpdate (MonoAssembly *assm, gconstpointer dmeta_bytes, int32_t dmeta_len, gconstpointer dil_bytes, int32_t dil_len);
 #endif
 
+#ifndef DISABLE_REMOTING
+MonoBoolean
+ves_icall_IsTransparentProxy (MonoObjectHandle proxy, MonoError *error);
+#else
+MonoBoolean
+ves_icall_IsTransparentProxy (MonoObject* proxy);
+#endif
+
 #endif // __MONO_METADATA_ICALL_DECL_H__
