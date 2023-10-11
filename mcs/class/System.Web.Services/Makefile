@@ -13,12 +13,11 @@ LIB_MCS_FLAGS = \
 	-resource:System.Web.Services.Description/web-reference.xsd,web-reference.xsd
 else
 
-API_BIN_REFS = System
-LIB_REFS = System.EnterpriseServices System.Xml System.Data
+LIB_REFS = System System.EnterpriseServices System.Xml System.Data
 LIB_MCS_FLAGS = -nowarn:168,612,618,649 -d:MONO_BROKEN_CONFIGURATION_DLL
 
 ifndef NO_SYSTEM_WEB_DEPENDENCY
-API_BIN_REFS += System.Web
+API_BIN_REFS := System.Web
 endif
 
 ifndef NO_SYSTEM_DESIGN_DEPENDENCY
