@@ -13,11 +13,11 @@ namespace System.Net.Http
 {
 	public class HttpClientHandler : HttpMessageHandler
 	{
-		System.Net.Http.WebAssemblyHttpHandler wasmHandler;
+		WebAssembly.Net.Http.HttpClient.WasmHttpMessageHandler wasmHandler;
 
 		public HttpClientHandler ()
 		{
-			wasmHandler = new System.Net.Http.WebAssemblyHttpHandler ();
+			wasmHandler = new WebAssembly.Net.Http.HttpClient.WasmHttpMessageHandler ();
 		}
 
 		protected override void Dispose (bool disposing)
