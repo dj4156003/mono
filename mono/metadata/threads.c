@@ -1077,7 +1077,7 @@ mono_thread_detach_internal (MonoInternalThread *thread)
 	removed = mono_g_hash_table_remove (threads, (gpointer)thread->tid);
 	g_assert (removed);
 
-	g_assert (threads_array)
+	g_assert (threads_array);
 
 	for (int i = 0; i < threads_array->len; ++i)
 	{
@@ -4206,7 +4206,7 @@ collect_unity_frame(MonoStackFrameInfo * frame, MonoContext* ctx, gpointer data)
 
 	MonoUnityStackFrameInfo info;
 	info.method = frame->method;
-	di->walk((const MonoUnityStackFrameInfo)&info, di->userdata);
+	di->walk((const MonoUnityStackFrameInfo*)&info, di->userdata);
 	return FALSE;
 }
 
@@ -7278,7 +7278,6 @@ mono_unity_thread_get_all_attached_threads(MonoThreadManageVisit visitFunc)
 		visitFunc(thread);
 	}
 	mono_threads_unlock();
-	return &firstThread;
 }
 
 void mono_unity_current_thread_walk_frame_stack(MonoUnityStackFrameInfoWalk func, void* user_data)
@@ -7300,7 +7299,7 @@ void mono_unity_thread_walk_frame_stack(MonoThread *thread, MonoUnityStackFrameI
 	di.thread_func = collect_unity_frame;
 	MonoGCHandle handle = mono_gchandle_new_internal (&thread->internal_thread->obj, TRUE);
 	mono_thread_info_safe_suspend_and_run (thread_get_tid (thread->internal_thread), FALSE, get_mono_unity_thread_dump, &di);
-	mono_gchandle_free(handle);
+	mono_gchandle_free_internal(handle);
 }
 
 void mono_unity_current_thread_get_top_frame(MonoUnityStackFrameInfo* frame)
@@ -7325,7 +7324,7 @@ mono_unity_thread_get_top_frame(MonoThread* thread, MonoUnityStackFrameInfo* fra
 	di.out_sent_frame = frame;
 	MonoGCHandle handle = mono_gchandle_new_internal (&thread->internal_thread->obj, TRUE);
 	mono_thread_info_safe_suspend_and_run (thread_get_tid (thread->internal_thread), FALSE, get_mono_unity_thread_dump, &di);
-	mono_gchandle_free(handle);
+	mono_gchandle_free_internal(handle);
 }
 
 void mono_unity_current_thread_get_frame_at(int32_t offset, MonoUnityStackFrameInfo* frame)
@@ -7349,7 +7348,7 @@ mono_bool mono_unity_thread_get_frame_at(MonoThread* thread, int32_t offset, Mon
 	di.out_sent_frame = frame;
 	MonoGCHandle handle = mono_gchandle_new_internal (&thread->internal_thread->obj, TRUE);
 	mono_thread_info_safe_suspend_and_run (thread_get_tid (thread->internal_thread), FALSE, get_mono_unity_thread_dump, &di);
-	mono_gchandle_free(handle);
+	mono_gchandle_free_internal(handle);
 }
 
 int32_t mono_unity_current_thread_get_stack_depth()
@@ -7364,7 +7363,7 @@ int32_t mono_unity_current_thread_get_stack_depth()
 	return di.idx;
 }
 
-int32_t mono_unity_thread_get_stack_depth(Il2CppThread *thread)
+int32_t mono_unity_thread_get_stack_depth(MonoThread *thread)
 {
 	MonoUnityDumpInfoByIndex di;
 	di.idx = 0;
@@ -7374,6 +7373,6 @@ int32_t mono_unity_thread_get_stack_depth(Il2CppThread *thread)
 	di.out_sent_frame = NULL;
 	MonoGCHandle handle = mono_gchandle_new_internal (&thread->internal_thread->obj, TRUE);
 	mono_thread_info_safe_suspend_and_run (thread_get_tid (thread->internal_thread), FALSE, get_mono_unity_thread_dump, &di);
-	mono_gchandle_free(handle);
+	mono_gchandle_free_internal(handle);
 	return di.idx;
 }
