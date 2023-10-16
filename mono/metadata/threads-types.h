@@ -570,7 +570,7 @@ gboolean
 mono_threads_summarize_one (MonoThreadSummary *out, MonoContext *ctx);
 
 MonoObjectHandle
-ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext ();
+ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext (void);
 
 void
 ves_icall_System_Threading_OSSpecificSynchronizationContext_PostInternal (gpointer callback, gpointer arg);
