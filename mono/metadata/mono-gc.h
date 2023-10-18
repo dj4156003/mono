@@ -132,8 +132,8 @@ MONO_API int    mono_gc_walk_heap        (int flags, MonoGCReferences callback, 
 /*
  * Only supported under SGen. These two with Sgen will take and release the LOCK_GC
  */
-void mono_gc_stop_world (void);
-void mono_gc_restart_world (void);
+MONO_API void mono_gc_stop_world (void);
+MONO_API void mono_gc_restart_world (void);
 
 MONO_END_DECLS
 
