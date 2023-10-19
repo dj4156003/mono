@@ -235,8 +235,6 @@
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\AssemblyLoadEventArgs.cs" />
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\AssemblyLoadEventHandler.cs" />
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\AsyncCallback.cs" />
-    <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\AttributeTargets.cs" />
-    <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\AttributeUsageAttribute.cs" />
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\BadImageFormatException.cs" />
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\BitConverter.cs" />
     <Compile Include="..\..\..\external\corefx\src\Common\src\CoreLib\System\Boolean.cs" />
@@ -1045,6 +1043,8 @@
     <Compile Include="..\referencesource\mscorlib\system\_localdatastoremgr.cs" />
     <Compile Include="..\referencesource\mscorlib\system\activator.cs" />
     <Compile Include="..\referencesource\mscorlib\system\attribute.cs" />
+    <Compile Include="..\referencesource\mscorlib\system\attributetargets.cs" />
+    <Compile Include="..\referencesource\mscorlib\system\attributeusageattribute.cs" />
     <Compile Include="..\referencesource\mscorlib\system\buffer.cs" />
     <Compile Include="..\referencesource\mscorlib\system\collections\emptyreadonlydictionaryinternal.cs" />
     <Compile Include="..\referencesource\mscorlib\system\collections\generic\comparer.cs" />
