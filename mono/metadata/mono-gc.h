@@ -135,7 +135,7 @@ MONO_API int    mono_gc_walk_heap        (int flags, MonoGCReferences callback, 
 MONO_API void mono_gc_stop_world (void);
 MONO_API void mono_gc_restart_world (void);
 
-MONO_API gboolean mono_gc_is_finalizer_thread (MonoThread *thread);
+MONO_API mono_bool mono_gc_is_finalizer_thread (MonoThread *thread);
 
 MONO_END_DECLS
 
