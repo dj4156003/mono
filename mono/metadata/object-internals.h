@@ -1906,16 +1906,6 @@ mono_method_alloc_generic_virtual_trampoline (MonoDomain *domain, int size);
 
 #define mono_method_alloc_generic_virtual_trampoline(domain, size) (g_cast (mono_method_alloc_generic_virtual_trampoline ((domain), (size))))
 
-typedef enum {
-	MONO_UNHANDLED_POLICY_LEGACY,
-	MONO_UNHANDLED_POLICY_CURRENT
-} MonoRuntimeUnhandledExceptionPolicy;
-
-MonoRuntimeUnhandledExceptionPolicy
-mono_runtime_unhandled_exception_policy_get (void);
-MONO_API void
-mono_runtime_unhandled_exception_policy_set (MonoRuntimeUnhandledExceptionPolicy policy);
-
 void
 mono_unhandled_exception_checked (MonoObjectHandle exc, MonoError *error);
 
