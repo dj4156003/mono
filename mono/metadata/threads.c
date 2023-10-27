@@ -1674,20 +1674,24 @@ mono_thread_internal_attach (MonoDomain *domain)
 	MonoThreadInfo *info;
 	MonoNativeThreadId tid;
 
+	g_message("1");
 	if (mono_thread_internal_current_is_attached ()) {
 		if (domain != mono_domain_get ())
 			mono_domain_set_fast (domain, TRUE);
 		/* Already attached */
 		return mono_thread_current ();
 	}
+	g_message("2");
 
 	if (G_UNLIKELY ((info = mono_thread_info_current_unchecked ()))) {
+		g_message("3");
 		/* 
 		 * We are not attached currently, but we were earlier.  Ensure the thread is in GC Unsafe mode.
 		 * Have to do this before creating the managed thread object.
 		 *
 		 */
 		if (mono_threads_is_blocking_transition_enabled ()) {
+			g_message("4");
 			/*
 			 * Ensure the thread is in RUNNING state.
 			 * If the thread is doing something like this
@@ -1706,19 +1710,26 @@ mono_thread_internal_attach (MonoDomain *domain)
 			MONO_STACKDATA (stackdata);
 			mono_threads_enter_gc_unsafe_region_unbalanced_internal (&stackdata);
 		}
+		g_message("5");
 	} else {
+		g_message("6");
 		info = mono_thread_info_attach ();
 	}
+	g_message("7");
 	g_assert (info);
+	g_message("8");
 
 	tid=mono_native_thread_id_get ();
+	g_message("9");
 
 	if (mono_runtime_get_no_exec ())
 		return NULL;
-
+	g_message("10");
 	internal = create_internal_thread_object ();
+	g_message("11");
 
 	thread = create_thread_object (domain, internal);
+	g_message("12");
 
 	if (!mono_thread_attach_internal (thread, FALSE, TRUE)) {
 		THREAD_DEBUG (g_message ("Attached failed"));
@@ -1726,13 +1737,16 @@ mono_thread_internal_attach (MonoDomain *domain)
 		for (;;)
 			mono_thread_info_sleep (10000, NULL);
 	}
+	g_message("13");
 
 	THREAD_DEBUG (g_message ("%s: Attached thread ID %" G_GSIZE_FORMAT " (handle %p)", __func__, tid, internal->handle));
 
 	if (mono_thread_attach_cb)
 		mono_thread_attach_cb (MONO_NATIVE_THREAD_ID_TO_UINT (tid), info->stack_end);
+		g_message("14");
 
 	fire_attach_profiler_events (tid);
+	g_message("15");
 
 	return thread;
 }
