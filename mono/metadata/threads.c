@@ -705,44 +705,57 @@ create_thread_object (MonoDomain *domain, MonoInternalThread *internal)
 static void
 init_internal_thread_object (MonoInternalThread *thread)
 {
+	g_message("i1");
 	thread->longlived = g_new0 (MonoLongLivedThreadData, 1);
 	init_longlived_thread_data (thread->longlived);
+	g_message("i2");
 
 	thread->apartment_state = ThreadApartmentState_Unknown;
 	thread->managed_id = get_next_managed_thread_id ();
+	g_message("i3");
 	/* 
 	 * Boehm incremental is not actually "moving", it does not need the thread_pinning_ref.
 	 * But having it causes problems when unregistering the root after domain reload.
 	 */
 #if !defined(HAVE_BOEHM_GC) 
 	if (mono_gc_is_moving ()) {
+		g_message("i4");
 		thread->thread_pinning_ref = thread;
 		MONO_GC_REGISTER_ROOT_PINNING (thread->thread_pinning_ref, MONO_ROOT_SOURCE_THREADING, NULL, "Thread Pinning Reference");
+		g_message("i5");
 	}
 #endif	
 
+	g_message("i6");
 	thread->priority = MONO_THREAD_PRIORITY_NORMAL;
 
 	thread->suspended = g_new0 (MonoOSEvent, 1);
 	mono_os_event_init (thread->suspended, TRUE);
+	g_message("i7");
 }
 
 static MonoInternalThread*
 create_internal_thread_object (void)
 {
+	g_message("c1");
 	MONO_REQ_GC_UNSAFE_MODE;
-
+	g_message("c2");
 	ERROR_DECL (error);
 	MonoInternalThread *thread;
 	MonoVTable *vt;
-
+	g_message("c3");
 	vt = mono_class_vtable_checked (mono_get_root_domain (), mono_defaults.internal_thread_class, error);
+	g_message("c4");
 	mono_error_assert_ok (error);
+	g_message("c5");
 	thread = (MonoInternalThread*) mono_object_new_mature (vt, error);
+	g_message("c6");
 	/* only possible failure mode is OOM, from which we don't exect to recover */
 	mono_error_assert_ok (error);
+	g_message("c7");
 
 	init_internal_thread_object (thread);
+	g_message("c8");
 
 	return thread;
 }
