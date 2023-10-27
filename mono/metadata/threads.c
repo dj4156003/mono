@@ -96,8 +96,8 @@ mono_native_thread_join_handle (HANDLE thread_handle, gboolean close_handle);
 
 #include "icall-decl.h"
 
-/*#define THREAD_DEBUG(a) do { a; } while (0)*/
-#define THREAD_DEBUG(a)
+#define THREAD_DEBUG(a) do { a; } while (0)
+/*#define THREAD_DEBUG(a)*/
 /*#define THREAD_WAIT_DEBUG(a) do { a; } while (0)*/
 #define THREAD_WAIT_DEBUG(a)
 /*#define LIBGC_DEBUG(a) do { a; } while (0)*/
@@ -1721,6 +1721,7 @@ mono_thread_internal_attach (MonoDomain *domain)
 	thread = create_thread_object (domain, internal);
 
 	if (!mono_thread_attach_internal (thread, FALSE, TRUE)) {
+		THREAD_DEBUG (g_message ("Attached failed"));
 		/* Mono is shutting down, so just wait for the end */
 		for (;;)
 			mono_thread_info_sleep (10000, NULL);
