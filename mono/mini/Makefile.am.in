@@ -240,10 +240,12 @@ buildver-boehm.h: libmini.la $(monodir)/mono/metadata/libmonoruntime.la
 libmain_a-main.$(OBJEXT): buildver-boehm.h
 endif
 
+if SUPPORT_SGEN
 buildver-sgen.h: libmini.la $(monodir)/mono/metadata/libmonoruntimesgen.la $(monodir)/mono/sgen/libmonosgen.la
 	@echo "const char *build_date = \"`date`\";" > buildver-sgen.h
 
 libmain_a-main-sgen.$(OBJEXT): buildver-sgen.h
+endif
 
 if DTRACE_G_REQUIRED
 LIBMONO_DTRACE_OBJECT = .libs/mono-dtrace.$(OBJEXT)
