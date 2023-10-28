@@ -204,9 +204,13 @@ noinst_LTLIBRARIES = $(mini_common_lib)
 
 noinst_LIBRARIES = libmain.a
 
+if SUPPORT_SGEN
 libmain_a_SOURCES = main-sgen.c
 if SUPPORT_BOEHM
 libmain_a_SOURCES += main.c
+endif
+else
+libmain_a_SOURCES = main.c
 endif
 libmain_a_CFLAGS = $(AM_CFLAGS) @CXX_ADD_CFLAGS@
 
