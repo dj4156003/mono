@@ -58,8 +58,10 @@
 #define GC_PROC_BYTES 100
 
 #ifdef GC_BUILD
+#pragma message("defined GC_ms_entry in mark 1")
   struct GC_ms_entry;
 #else
+#pragma message("defined GC_ms_entry in mark 2")
   struct GC_ms_entry { void *opaque; };
 #endif
 typedef struct GC_ms_entry * (*GC_mark_proc)(GC_word * /* addr */,
