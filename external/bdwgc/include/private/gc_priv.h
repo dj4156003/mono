@@ -23,6 +23,7 @@
 #endif
 
 #ifndef GC_BUILD
+#pragma message("defined GC_BUILD in priv")
 # define GC_BUILD
 #endif
 
