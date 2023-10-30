@@ -615,22 +615,22 @@ STATIC void GC_delete_thread(pthread_t id)
 /* This is OK, but we need a way to delete a specific one.      */
 STATIC void GC_delete_gc_thread(GC_thread t)
 {
-    GC_log_printf("=================== delete gc_thread 1");
+    GC_info_log_printf("=================== delete gc_thread 1");
     pthread_t id = t -> id;
-    GC_log_printf("=================== delete gc_thread 2");
+    GC_info_log_printf("=================== delete gc_thread 2");
     int hv = THREAD_TABLE_INDEX(id);
-    GC_log_printf("=================== delete gc_thread 3");
+    GC_info_log_printf("=================== delete gc_thread 3");
     GC_thread p = GC_threads[hv];
-    GC_log_printf("=================== delete gc_thread 4");
+    GC_info_log_printf("=================== delete gc_thread 4");
     GC_thread prev = NULL;
 
     GC_ASSERT(I_HOLD_LOCK());
-    GC_log_printf("=================== delete gc_thread 5");
+    GC_info_log_printf("=================== delete gc_thread 5");
     while (p != t) {
         prev = p;
         p = p -> next;
     }
-    GC_log_printf("=================== delete gc_thread 6");
+    GC_info_log_printf("=================== delete gc_thread 6");
     if (prev == 0) {
         GC_threads[hv] = p -> next;
     } else {
@@ -638,12 +638,12 @@ STATIC void GC_delete_gc_thread(GC_thread t)
         prev -> next = p -> next;
         GC_dirty(prev);
     }
-    GC_log_printf("=================== delete gc_thread 7");
+    GC_info_log_printf("=================== delete gc_thread 7");
 #   ifdef GC_DARWIN_THREADS
         mach_port_deallocate(mach_task_self(), p->stop_info.mach_thread);
 #   endif
     GC_INTERNAL_FREE(p);
-    GC_log_printf("=================== delete gc_thread 8");
+    GC_info_log_printf("=================== delete gc_thread 8");
 
 #   ifdef DEBUG_THREADS
       GC_log_printf("Deleted thread %p, n_threads = %d\n",
@@ -1587,31 +1587,31 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
 
   GC_API int WRAP_FUNC(pthread_detach)(pthread_t thread)
   {
-    GC_log_printf("=================== thread deatch %p", thread);
+    GC_info_log_printf("=================== thread deatch %p", thread);
     int result;
     GC_thread t;
     DCL_LOCK_STATE;
 
     INIT_REAL_SYMS();
-    GC_log_printf("=================== before lookup gc_thread");
+    GC_info_log_printf("=================== before lookup gc_thread");
     LOCK();
-    GC_log_printf("=================== lock finish 1");
+    GC_info_log_printf("=================== lock finish 1");
     t = GC_lookup_thread(thread);
-    GC_log_printf("=================== gc_thread lookup result %p", t);
+    GC_info_log_printf("=================== gc_thread lookup result %p", t);
     UNLOCK();
-    GC_log_printf("=================== unlock finish 1");
+    GC_info_log_printf("=================== unlock finish 1");
     result = REAL_FUNC(pthread_detach)(thread);
-    GC_log_printf("=================== pthread deatch result %d", result);
+    GC_info_log_printf("=================== pthread deatch result %d", result);
     if (result == 0) {
       LOCK();
-      GC_log_printf("=================== lock finish 2");
+      GC_info_log_printf("=================== lock finish 2");
       t -> flags |= DETACHED;
       /* Here the pthread thread id may have been recycled. */
       if ((t -> flags & FINISHED) != 0) {
         GC_delete_gc_thread(t);
       }
       UNLOCK();
-      GC_log_printf("=================== unlock finish 2");
+      GC_info_log_printf("=================== unlock finish 2");
     }
     return result;
   }
@@ -2069,7 +2069,7 @@ GC_INNER volatile AO_TS_t GC_allocate_lock = AO_TS_INITIALIZER;
 
 GC_INNER void GC_lock(void)
 {
-    GC_info_log_printf("=================== gc lock");
+    GC_log_printf("=================== gc lock");
     unsigned my_spin_max;
     unsigned my_last_spins;
     unsigned i;
@@ -2131,7 +2131,7 @@ yield:
 
 GC_INNER void GC_lock(void)
 {
-  GC_info_log_printf("=================== gc lock");
+  GC_log_printf("=================== gc lock");
   
 #ifndef NO_PTHREAD_TRYLOCK
     if (1 == GC_nprocs || is_collecting()) {
