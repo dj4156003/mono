@@ -1473,15 +1473,19 @@ GC_API void * GC_CALL GC_call_with_gc_active(GC_fn_type fn,
 
 STATIC void GC_unregister_my_thread_inner(GC_thread me)
 {
+    GC_info_log_printf("=================== 1");
 #   ifdef DEBUG_THREADS
       GC_log_printf(
                 "Unregistering thread %p, gc_thread = %p, n_threads = %d\n",
                 (void *)me->id, (void *)me, GC_count_threads());
 #   endif
     GC_ASSERT(!(me -> flags & FINISHED));
+    GC_info_log_printf("=================== 2");
 #   if defined(THREAD_LOCAL_ALLOC)
       GC_ASSERT(GC_getspecific(GC_thread_key) == &me->tlfs);
+      GC_info_log_printf("=================== 3");
       GC_destroy_thread_local(&(me->tlfs));
+      GC_info_log_printf("=================== 4");
 #   endif
 #   if defined(GC_HAVE_PTHREAD_EXIT) || !defined(GC_NO_PTHREAD_CANCEL)
       /* Handle DISABLED_GC flag which is set by the    */
@@ -1491,13 +1495,17 @@ STATIC void GC_unregister_my_thread_inner(GC_thread me)
       }
 #   endif
     if (me -> flags & DETACHED) {
+        GC_info_log_printf("=================== 5");
         GC_delete_thread(pthread_self());
+        GC_info_log_printf("=================== 6");
     } else {
         me -> flags |= FINISHED;
     }
 #   if defined(THREAD_LOCAL_ALLOC)
       /* It is required to call remove_specific defined in specific.c. */
+      GC_info_log_printf("=================== 7");
       GC_remove_specific(GC_thread_key);
+      GC_info_log_printf("=================== 8");
 #   endif
 }
 
@@ -1519,8 +1527,13 @@ GC_API int GC_CALL GC_unregister_my_thread(void)
                 "Called GC_unregister_my_thread on %p, gc_thread = %p\n",
                 (void *)self, (void *)me);
 #   endif
+    GC_info_log_printf(
+                "Called GC_unregister_my_thread on %p, gc_thread = %p\n",
+                (void *)self, (void *)me);
     GC_ASSERT(THREAD_EQUAL(me->id, self));
+    GC_info_log_printf("=================== before GC_unregister_my_thread_inner");
     GC_unregister_my_thread_inner(me);
+    GC_info_log_printf("=================== finish GC_unregister_my_thread_inner");
     RESTORE_CANCEL(cancel_state);
     UNLOCK();
     return GC_SUCCESS;
@@ -1535,16 +1548,21 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
 {
     IF_CANCEL(int cancel_state;)
     DCL_LOCK_STATE;
-
+    GC_info_log_printf("=================== Called GC_thread_exit_proc on %p, gc_thread = %p\n",
+                      (void *)((GC_thread)arg)->id, arg);
 #   ifdef DEBUG_THREADS
         GC_log_printf("Called GC_thread_exit_proc on %p, gc_thread = %p\n",
                       (void *)((GC_thread)arg)->id, arg);
 #   endif
     LOCK();
     DISABLE_CANCEL(cancel_state);
+    GC_info_log_printf("=================== before GC_wait_for_gc_completion");
     GC_wait_for_gc_completion(FALSE);
+    GC_info_log_printf("=================== before GC_unregister_my_thread_inner");
     GC_unregister_my_thread_inner((GC_thread)arg);
+    GC_info_log_printf("=================== finish GC_unregister_my_thread_inner");
     RESTORE_CANCEL(cancel_state);
+    GC_info_log_printf("=================== finish restore cancel");
     UNLOCK();
 }
 
