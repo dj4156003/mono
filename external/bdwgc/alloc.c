@@ -35,7 +35,6 @@
         && GC_VERSION_MINOR == 7 \
         && GC_VERSION_MICRO == 0 \
         && GC_NO_THREADS_DISCOVERY \
-        && IGNORE_DYNAMIC_LOADING \
         && GC_DONT_REGISTER_MAIN_STATIC_DATA \
         && GC_THREADS \
         && USE_MMAP \
