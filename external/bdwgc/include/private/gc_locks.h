@@ -180,7 +180,7 @@
 #        define UNCOND_LOCK() { GC_ASSERT(I_DONT_HOLD_LOCK()); \
                                 GC_lock(); SET_LOCK_HOLDER(); }
 #        define UNCOND_UNLOCK() \
-                { GC_info_log_printf("=================== gc unlock"); \
+                { GC_log_printf("=================== gc unlock"); \
                   GC_ASSERT(I_HOLD_LOCK()); UNSET_LOCK_HOLDER(); \
                   pthread_mutex_unlock(&GC_allocate_ml); }
 #      else /* !GC_ASSERTIONS */
@@ -188,12 +188,12 @@
 #          define UNCOND_LOCK() pthread_mutex_lock(&GC_allocate_ml)
 #        else
 #          define UNCOND_LOCK() \
-              {GC_info_log_printf("=================== gc unlock"); \ 
+              {GC_log_printf("=================== gc unlock"); \ 
               if (0 != pthread_mutex_trylock(&GC_allocate_ml)) \
                   GC_lock(); }
 #        endif
 #        define UNCOND_UNLOCK()  \
-                {GC_info_log_printf("=================== gc unlock"); \
+                {GC_log_printf("=================== gc unlock"); \
                      pthread_mutex_unlock(&GC_allocate_ml);}
 #      endif /* !GC_ASSERTIONS */
 #    endif /* USE_PTHREAD_LOCKS */
