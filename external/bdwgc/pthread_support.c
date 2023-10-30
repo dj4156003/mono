@@ -2069,7 +2069,7 @@ GC_INNER volatile AO_TS_t GC_allocate_lock = AO_TS_INITIALIZER;
 
 GC_INNER void GC_lock(void)
 {
-    GC_log_printf("=================== gc lock");
+    GC_info_log_printf("=================== gc lock");
     unsigned my_spin_max;
     unsigned my_last_spins;
     unsigned i;
@@ -2131,7 +2131,7 @@ yield:
 
 GC_INNER void GC_lock(void)
 {
-  GC_log_printf("=================== gc lock");
+  GC_info_log_printf("=================== gc lock");
   
 #ifndef NO_PTHREAD_TRYLOCK
     if (1 == GC_nprocs || is_collecting()) {
