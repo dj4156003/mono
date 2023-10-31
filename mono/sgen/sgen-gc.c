@@ -3885,7 +3885,6 @@ sgen_get_nursery_clear_policy (void)
 void
 sgen_gc_lock (void)
 {
-	g_message("sgen gc lock");
 	mono_coop_mutex_lock (&sgen_gc_mutex);
 }
 
@@ -3893,7 +3892,6 @@ void
 sgen_gc_unlock (void)
 {
 	mono_coop_mutex_unlock (&sgen_gc_mutex);
-	g_message("sgen gc unlock");
 }
 
 void

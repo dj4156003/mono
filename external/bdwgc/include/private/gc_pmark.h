@@ -26,8 +26,7 @@
 # include "config.h"
 #endif
 
-#ifndef GC_BUILD 
-#pragma message("defined GC_BUILD in pmark")
+#ifndef GC_BUILD
 # define GC_BUILD
 #endif
 

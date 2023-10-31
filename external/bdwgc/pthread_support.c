@@ -615,22 +615,16 @@ STATIC void GC_delete_thread(pthread_t id)
 /* This is OK, but we need a way to delete a specific one.      */
 STATIC void GC_delete_gc_thread(GC_thread t)
 {
-    GC_info_log_printf("=================== delete gc_thread 1");
     pthread_t id = t -> id;
-    GC_info_log_printf("=================== delete gc_thread 2");
     int hv = THREAD_TABLE_INDEX(id);
-    GC_info_log_printf("=================== delete gc_thread 3");
     GC_thread p = GC_threads[hv];
-    GC_info_log_printf("=================== delete gc_thread 4");
     GC_thread prev = NULL;
 
     GC_ASSERT(I_HOLD_LOCK());
-    GC_info_log_printf("=================== delete gc_thread 5");
     while (p != t) {
         prev = p;
         p = p -> next;
     }
-    GC_info_log_printf("=================== delete gc_thread 6");
     if (prev == 0) {
         GC_threads[hv] = p -> next;
     } else {
@@ -638,12 +632,10 @@ STATIC void GC_delete_gc_thread(GC_thread t)
         prev -> next = p -> next;
         GC_dirty(prev);
     }
-    GC_info_log_printf("=================== delete gc_thread 7");
 #   ifdef GC_DARWIN_THREADS
         mach_port_deallocate(mach_task_self(), p->stop_info.mach_thread);
 #   endif
     GC_INTERNAL_FREE(p);
-    GC_info_log_printf("=================== delete gc_thread 8");
 
 #   ifdef DEBUG_THREADS
       GC_log_printf("Deleted thread %p, n_threads = %d\n",
@@ -1473,19 +1465,15 @@ GC_API void * GC_CALL GC_call_with_gc_active(GC_fn_type fn,
 
 STATIC void GC_unregister_my_thread_inner(GC_thread me)
 {
-    GC_info_log_printf("=================== 1");
 #   ifdef DEBUG_THREADS
       GC_log_printf(
                 "Unregistering thread %p, gc_thread = %p, n_threads = %d\n",
                 (void *)me->id, (void *)me, GC_count_threads());
 #   endif
     GC_ASSERT(!(me -> flags & FINISHED));
-    GC_info_log_printf("=================== 2");
 #   if defined(THREAD_LOCAL_ALLOC)
       GC_ASSERT(GC_getspecific(GC_thread_key) == &me->tlfs);
-      GC_info_log_printf("=================== 3");
       GC_destroy_thread_local(&(me->tlfs));
-      GC_info_log_printf("=================== 4");
 #   endif
 #   if defined(GC_HAVE_PTHREAD_EXIT) || !defined(GC_NO_PTHREAD_CANCEL)
       /* Handle DISABLED_GC flag which is set by the    */
@@ -1495,17 +1483,13 @@ STATIC void GC_unregister_my_thread_inner(GC_thread me)
       }
 #   endif
     if (me -> flags & DETACHED) {
-        GC_info_log_printf("=================== 5");
         GC_delete_thread(pthread_self());
-        GC_info_log_printf("=================== 6");
     } else {
         me -> flags |= FINISHED;
     }
 #   if defined(THREAD_LOCAL_ALLOC)
       /* It is required to call remove_specific defined in specific.c. */
-      GC_info_log_printf("=================== 7");
       GC_remove_specific(GC_thread_key);
-      GC_info_log_printf("=================== 8");
 #   endif
 }
 
@@ -1527,13 +1511,8 @@ GC_API int GC_CALL GC_unregister_my_thread(void)
                 "Called GC_unregister_my_thread on %p, gc_thread = %p\n",
                 (void *)self, (void *)me);
 #   endif
-    GC_info_log_printf(
-                "Called GC_unregister_my_thread on %p, gc_thread = %p\n",
-                (void *)self, (void *)me);
     GC_ASSERT(THREAD_EQUAL(me->id, self));
-    GC_info_log_printf("=================== before GC_unregister_my_thread_inner");
     GC_unregister_my_thread_inner(me);
-    GC_info_log_printf("=================== finish GC_unregister_my_thread_inner");
     RESTORE_CANCEL(cancel_state);
     UNLOCK();
     return GC_SUCCESS;
@@ -1548,21 +1527,16 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
 {
     IF_CANCEL(int cancel_state;)
     DCL_LOCK_STATE;
-    GC_info_log_printf("=================== Called GC_thread_exit_proc on %p, gc_thread = %p\n",
-                      (void *)((GC_thread)arg)->id, arg);
+
 #   ifdef DEBUG_THREADS
         GC_log_printf("Called GC_thread_exit_proc on %p, gc_thread = %p\n",
                       (void *)((GC_thread)arg)->id, arg);
 #   endif
     LOCK();
     DISABLE_CANCEL(cancel_state);
-    GC_info_log_printf("=================== before GC_wait_for_gc_completion");
     GC_wait_for_gc_completion(FALSE);
-    GC_info_log_printf("=================== before GC_unregister_my_thread_inner");
     GC_unregister_my_thread_inner((GC_thread)arg);
-    GC_info_log_printf("=================== finish GC_unregister_my_thread_inner");
     RESTORE_CANCEL(cancel_state);
-    GC_info_log_printf("=================== finish restore cancel");
     UNLOCK();
 }
 
@@ -1605,31 +1579,23 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
 
   GC_API int WRAP_FUNC(pthread_detach)(pthread_t thread)
   {
-    GC_info_log_printf("=================== thread deatch %p", thread);
     int result;
     GC_thread t;
     DCL_LOCK_STATE;
 
     INIT_REAL_SYMS();
-    GC_info_log_printf("=================== before lookup gc_thread");
     LOCK();
-    GC_info_log_printf("=================== lock finish 1");
     t = GC_lookup_thread(thread);
-    GC_info_log_printf("=================== gc_thread lookup result %p", t);
     UNLOCK();
-    GC_info_log_printf("=================== unlock finish 1");
     result = REAL_FUNC(pthread_detach)(thread);
-    GC_info_log_printf("=================== pthread deatch result %d", result);
     if (result == 0) {
       LOCK();
-      GC_info_log_printf("=================== lock finish 2");
       t -> flags |= DETACHED;
       /* Here the pthread thread id may have been recycled. */
       if ((t -> flags & FINISHED) != 0) {
         GC_delete_gc_thread(t);
       }
       UNLOCK();
-      GC_info_log_printf("=================== unlock finish 2");
     }
     return result;
   }
@@ -2087,7 +2053,6 @@ GC_INNER volatile AO_TS_t GC_allocate_lock = AO_TS_INITIALIZER;
 
 GC_INNER void GC_lock(void)
 {
-    GC_info_log_printf("=================== Spin GC_lock called");
     unsigned my_spin_max;
     unsigned my_last_spins;
     unsigned i;
@@ -2149,8 +2114,6 @@ yield:
 
 GC_INNER void GC_lock(void)
 {
-  GC_info_log_printf("=================== GC_lock called");
-  
 #ifndef NO_PTHREAD_TRYLOCK
     if (1 == GC_nprocs || is_collecting()) {
         pthread_mutex_lock(&GC_allocate_ml);

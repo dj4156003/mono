@@ -498,25 +498,17 @@ sgen_alloc_obj_mature (GCVTable vtable, size_t size)
 {
 	GCObject *res;
 
-	g_message("s1");
 	if (!SGEN_CAN_ALIGN_UP (size))
 		return NULL;
-	g_message("s2");	
 	size = ALIGN_UP (size);
-	g_message("s3");
 
 	LOCK_GC;
-	g_message("s4");
 	res = sgen_major_collector.alloc_degraded (vtable, size);
-	g_message("s5");
 	UNLOCK_GC;
-	g_message("s6");
 
 	if (res) {
-		g_message("s7");
 		increment_thread_allocation_counter (size);
 	}
-	g_message("s8");
 
 	return res;
 }
