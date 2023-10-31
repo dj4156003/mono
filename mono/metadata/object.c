@@ -59,6 +59,7 @@
 #include "monitor.h"
 #include "icall-decl.h"
 #include "icall-signatures.h"
+#include <mono/metadata/mono_runtime_stats.h">
 
 #if _MSC_VER
 #pragma warning(disable:4312) // FIXME pointer cast to different size
@@ -2165,6 +2166,7 @@ mono_class_create_runtime_vtable (MonoDomain *domain, MonoClass *klass, MonoErro
 		}
 		vt->has_static_fields = TRUE;
 		UnlockedAdd (&mono_stats.class_static_data_size, class_size);
+		UnlockedAdd64 (&mono_runtime_stats.class_static_data_size, class_size);
 	}
 
 	iter = NULL;

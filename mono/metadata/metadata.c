@@ -3845,6 +3845,8 @@ mono_metadata_get_canonical_generic_inst (MonoGenericInst *candidate)
 			ginst->type_argv [i] = mono_metadata_type_dup (NULL, candidate->type_argv [i]);
 
 		g_hash_table_insert (set->ginst_cache, ginst, ginst);
+
+		mono_atomic_inc_i64 (&mono_runtime_stats.generic_instance_count);
 	}
 
 	mono_image_set_unlock (set);
