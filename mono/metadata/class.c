@@ -1051,7 +1051,7 @@ mono_class_inflate_generic_type_no_copy (MonoImage *image, MonoType *type, MonoG
 		return type;
 
 	UnlockedIncrement (&mono_stats.inflated_type_count);
-	UnlockedIncremen64 (&mono_runtime_stats.inflated_type_count);
+	UnlockedIncrement64 (&mono_runtime_stats.inflated_type_count);
 	return inflated;
 }
 
