@@ -59,7 +59,7 @@
 #include "monitor.h"
 #include "icall-decl.h"
 #include "icall-signatures.h"
-#include <mono/metadata/mono-runtime-stats.h">
+#include <mono/metadata/mono-runtime-stats.h>
 
 #if _MSC_VER
 #pragma warning(disable:4312) // FIXME pointer cast to different size

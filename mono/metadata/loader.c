@@ -51,7 +51,7 @@
 #include <mono/utils/mono-error-internals.h>
 #include <mono/utils/mono-tls.h>
 #include <mono/utils/mono-path.h>
-#include <mono/metadata/mono-runtime-stats.h">
+#include <mono/metadata/mono-runtime-stats.h>
 
 /*
  * This lock protects the hash tables inside MonoImage used by the metadata 
