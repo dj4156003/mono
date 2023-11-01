@@ -2,8 +2,7 @@
 
 #include <glib.h>
 
-struct MonoRuntimeStats
-{
+typedef struct _MonoRuntimeStats {
     gint64 new_object_count;
     gint64 initialized_class_count;
     // uint64_t generic_vtable_count;
@@ -20,7 +19,7 @@ struct MonoRuntimeStats
     // uint64_t major_gc_count;
     // uint64_t minor_gc_time_usecs;
     // uint64_t major_gc_time_usecs;
-    bool enabled;
-};
+    gboolean enabled;
+} MonoRuntimeStats;
 
 extern MonoRuntimeStats mono_runtime_stats;

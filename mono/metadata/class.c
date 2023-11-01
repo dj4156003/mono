@@ -51,7 +51,7 @@
 #include <mono/utils/unlocked.h>
 #include <mono/utils/bsearch.h>
 #include <mono/utils/checked-build.h>
-#include <mono/metadata/mono-runtime-stats.h">
+#include <mono/metadata/mono-runtime-stats.h>
 
 MonoStats mono_stats;
 
