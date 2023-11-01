@@ -27,7 +27,7 @@
 #include <mono/utils/mono-logger-internals.h>
 #include <mono/utils/mono-memory-model.h>
 #include <mono/utils/unlocked.h>
-#include <mono/metadata/mono_runtime_stats.h">
+#include <mono/metadata/mono-runtime-stats.h">
 #ifdef MONO_CLASS_DEF_PRIVATE
 /* Class initialization gets to see the fields of MonoClass */
 #define REALLY_INCLUDE_CLASS_DEF 1

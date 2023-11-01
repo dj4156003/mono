@@ -41,7 +41,7 @@
 #include <mono/utils/mono-compiler.h>
 #include <mono/utils/unlocked.h>
 #include <mono/metadata/icall-decl.h>
-#include <mono/metadata/mono_runtime_stats.h">
+#include <mono/metadata/mono-runtime-stats.h">
 
 #if HAVE_BOEHM_GC
 

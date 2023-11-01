@@ -1,3 +1,3 @@
-#include <mono/metadata/mono_runtime_stats.h">
+#include <mono/metadata/mono-runtime-stats.h">
 
 MonoRuntimeStats mono_runtime_stats = {{ 0 }};

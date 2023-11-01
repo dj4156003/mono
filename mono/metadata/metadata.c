@@ -39,7 +39,7 @@
 #include <mono/utils/atomic.h>
 #include <mono/utils/unlocked.h>
 #include <mono/utils/mono-counters.h>
-#include <mono/metadata/mono_runtime_stats.h">
+#include <mono/metadata/mono-runtime-stats.h">
 
 static gint32 img_set_cache_hit, img_set_cache_miss, img_set_count;
 
