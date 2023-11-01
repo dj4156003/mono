@@ -192,7 +192,8 @@ unity_sources = \
 	unity-memory-info.h \
 	unity-utils.c \
 	unity-utils.h \
-	unity-icall.c
+	unity-icall.c \
+	mono-runtime-stats.c
 
 if !DISABLE_ICALL_TABLES
 icall_tables_sources = \
@@ -486,7 +487,8 @@ libmonoruntimeinclude_HEADERS = \
 	tokentype.h		\
 	verify.h		\
 	unity-liveness.h	\
-	unity-utils.h
+	unity-utils.h \
+	mono-runtime-stats.h
 
 if !ENABLE_MSVC_ONLY
 
