@@ -1,25 +1,30 @@
-#pragma once
+#ifndef __MONO_RUNTIME_STATS_H__
+#define __MONO_RUNTIME_STATS_H__
 
-#include <glib.h>
+MONO_BEGIN_DECLS
 
 typedef struct _MonoRuntimeStats {
-    gint64 new_object_count;
-    gint64 initialized_class_count;
+    int64_t new_object_count;
+    int64_t initialized_class_count;
     // uint64_t generic_vtable_count;
     // uint64_t used_class_count;
-    gint64 method_count;
+    int64_t method_count;
     // uint64_t class_vtable_size;
-    gint64 class_static_data_size;
-    gint64 generic_instance_count;
-    gint64 generic_class_count;
-    gint64 inflated_method_count;
-    gint64 inflated_type_count;
+    int64_t class_static_data_size;
+    int64_t generic_instance_count;
+    int64_t generic_class_count;
+    int64_t inflated_method_count;
+    int64_t inflated_type_count;
     // uint64_t delegate_creations;
     // uint64_t minor_gc_count;
     // uint64_t major_gc_count;
     // uint64_t minor_gc_time_usecs;
     // uint64_t major_gc_time_usecs;
-    gboolean enabled;
+    int32_t enabled;
 } MonoRuntimeStats;
 
 extern MonoRuntimeStats mono_runtime_stats;
+
+MONO_END_DECLS
+
+#endif /* __MONO_RUNTIME_STATS_H__ */
