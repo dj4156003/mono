@@ -27,6 +27,10 @@ typedef struct _MonoRuntimeStats {
 
 extern MonoRuntimeStats mono_runtime_stats;
 
+MONO_API
+MonoRuntimeStats *
+get_mono_runtime_stats	    ();
+
 MONO_END_DECLS
 
 #endif /* __MONO_RUNTIME_STATS_H__ */
