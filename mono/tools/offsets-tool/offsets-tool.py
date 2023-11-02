@@ -231,8 +231,7 @@ class OffsetsTool:
 			src = args.mono_path + "/" + srcfile
 			file_args = clang_args[:]
 			if not 'mini' in src:
-				file_args.append ('-DHAVE_SGEN_GC')
-				file_args.append ('-DHAVE_MOVING_COLLECTOR')
+				file_args.append ('-DHAVE_BOEHM_GC')
 				is_jit = False
 			else:
 				is_jit = True
@@ -284,7 +283,7 @@ class OffsetsTool:
 			f.write ("#ifdef " + target.arch_define + "\n")
 		if target.platform_define:
 			f.write ("#ifdef " + target.platform_define + "\n")
-		f.write ("#ifndef HAVE_BOEHM_GC\n")
+		f.write ("#ifndef HAVE_SGEN_GC\n")
 		f.write ("#define HAS_CROSS_COMPILER_OFFSETS\n")
 		f.write ("#if defined (USE_CROSS_COMPILE_OFFSETS) || defined (MONO_CROSS_COMPILE)\n")
 
