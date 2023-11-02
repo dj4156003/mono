@@ -1,6 +1,8 @@
 #ifndef __MONO_RUNTIME_STATS_H__
 #define __MONO_RUNTIME_STATS_H__
 
+#include <mono/utils/mono-publib.h>
+
 MONO_BEGIN_DECLS
 
 typedef struct _MonoRuntimeStats {
