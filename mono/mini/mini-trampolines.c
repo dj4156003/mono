@@ -21,6 +21,7 @@
 
 #include "mini.h"
 #include "lldb.h"
+#include "mixed_callstack_plugin.h"
 #include "aot-runtime.h"
 #include "mini-runtime.h"
 
