@@ -139,6 +139,7 @@ mono_log_write_logfile (const char *log_domain, GLogLevelFlags level, mono_bool 
 #else
 		g_assert_abort ();
 #endif
+	}
 }
 
 /**
