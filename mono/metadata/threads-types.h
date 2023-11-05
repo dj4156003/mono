@@ -315,7 +315,7 @@ void mono_thread_clear_and_set_state (MonoInternalThread *thread, MonoThreadStat
 void mono_thread_init_apartment_state (void);
 void mono_thread_cleanup_apartment_state (void);
 
-void mono_threads_set_shutting_down (void);
+UNITY_MONO_API void mono_threads_set_shutting_down (void);
 
 MONO_API MonoException* mono_thread_get_undeniable_exception (void);
 
@@ -359,12 +359,12 @@ mono_thread_set_name (MonoInternalThread *thread,
 		(flags) | MonoSetThreadNameFlag_Constant, NULL)
 
 #ifndef ENABLE_NETCORE
-void mono_thread_suspend_all_other_threads (void);
+UNITY_MONO_API void mono_thread_suspend_all_other_threads (void);
 #endif
 gboolean mono_threads_abort_appdomain_threads (MonoDomain *domain, int timeout);
 
-void mono_thread_push_appdomain_ref (MonoDomain *domain);
-void mono_thread_pop_appdomain_ref (void);
+UNITY_MONO_API void mono_thread_push_appdomain_ref (MonoDomain *domain);
+UNITY_MONO_API void mono_thread_pop_appdomain_ref (void);
 gboolean mono_thread_has_appdomain_ref (MonoThread *thread, MonoDomain *domain);
 
 gboolean mono_thread_interruption_requested (void);
@@ -568,5 +568,11 @@ mono_threads_summarize_execute (MonoContext *ctx, gchar **out, MonoStackHash *ha
 
 gboolean
 mono_threads_summarize_one (MonoThreadSummary *out, MonoContext *ctx);
+
+MonoObjectHandle
+ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext ();
+
+void
+ves_icall_System_Threading_OSSpecificSynchronizationContext_PostInternal (gpointer callback, gpointer arg);
 
 #endif /* _MONO_METADATA_THREADS_TYPES_H_ */

@@ -1496,7 +1496,7 @@ exit:
 	HANDLE_FUNCTION_RETURN ();
 }
 
-static MonoArrayHandle
+MonoArrayHandle
 mono_custom_attrs_construct_by_type (MonoCustomAttrInfo *cinfo, MonoClass *attr_klass, MonoError *error)
 {
 	HANDLE_FUNCTION_ENTER ();

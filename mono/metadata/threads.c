@@ -61,6 +61,8 @@
 #include <mono/metadata/mono-config.h>
 #include "mono/utils/mono-tls-inline.h"
 
+#include <mono/metadata/unity-utils.h>
+
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
@@ -248,6 +250,7 @@ gint32 mono_thread_interruption_request_flag;
 static MonoOSEvent background_change_event;
 
 static gboolean shutting_down = FALSE;
+gboolean unity_shutting_down = FALSE;
 
 static gint32 managed_thread_id_counter = 0;
 
@@ -653,6 +656,7 @@ set_current_thread_for_domain (MonoDomain *domain, MonoInternalThread *thread, M
 
 	g_assert (!*current_thread_ptr);
 	*current_thread_ptr = current;
+	mono_gc_wbarrier_generic_nostore_internal (current_thread_ptr);
 #endif
 }
 
@@ -688,10 +692,16 @@ init_internal_thread_object (MonoInternalThread *thread)
 
 	thread->apartment_state = ThreadApartmentState_Unknown;
 	thread->managed_id = get_next_managed_thread_id ();
+	/* 
+	 * Boehm incremental is not actually "moving", it does not need the thread_pinning_ref.
+	 * But having it causes problems when unregistering the root after domain reload.
+	 */
+#if !defined(HAVE_BOEHM_GC) 
 	if (mono_gc_is_moving ()) {
 		thread->thread_pinning_ref = thread;
 		MONO_GC_REGISTER_ROOT_PINNING (thread->thread_pinning_ref, MONO_ROOT_SOURCE_THREADING, NULL, "Thread Pinning Reference");
 	}
+#endif
 
 	thread->priority = MONO_THREAD_PRIORITY_NORMAL;
 
@@ -1072,10 +1082,16 @@ mono_thread_detach_internal (MonoInternalThread *thread)
 
 	mono_memory_barrier ();
 
+	/* 
+	 * Boehm incremental is not actually "moving", it does not need the thread_pinning_ref.
+	 * But having it causes problems when unregistering the root after domain reload.
+	 */
+#if !defined(HAVE_BOEHM_GC)
 	if (mono_gc_is_moving ()) {
 		MONO_GC_UNREGISTER_ROOT (thread->thread_pinning_ref);
 		thread->thread_pinning_ref = NULL;
 	}
+#endif
 
 	/* There is no more any guarantee that `thread` is alive */
 	mono_memory_barrier ();
@@ -1664,6 +1680,7 @@ mono_thread_construct_internal (MonoThreadObjectHandle this_obj_handle)
 	MonoThreadObject *this_obj = MONO_HANDLE_RAW (this_obj_handle);
 
 	mono_atomic_cas_ptr ((volatile gpointer *)&this_obj->internal_thread, internal, NULL);
+	mono_gc_wbarrier_generic_nostore_internal (&this_obj->internal_thread);
 
 	mono_gchandle_free_internal (thread_gchandle);
 }
@@ -2127,6 +2144,7 @@ mono_thread_current (void)
 	if (!*current_thread_ptr) {
 		g_assert (domain != mono_get_root_domain ());
 		*current_thread_ptr = create_thread_object (domain, internal);
+		mono_gc_wbarrier_generic_nostore_internal (current_thread_ptr);
 	}
 	return *current_thread_ptr;
 #endif
@@ -2154,6 +2172,7 @@ mono_thread_current_for_thread (MonoInternalThread *internal)
 	if (!*current_thread_ptr) {
 		g_assert (domain != mono_get_root_domain ());
 		*current_thread_ptr = create_thread_object (domain, internal);
+		mono_gc_wbarrier_generic_nostore_internal (current_thread_ptr);
 	}
 	return *current_thread_ptr;
 #endif
@@ -3575,7 +3594,7 @@ static void build_wait_tids (gpointer key, gpointer value, gpointer user)
 
 		/* Ignore background threads, we abort them later */
 		/* Do not lock here since it is not needed and the caller holds threads_lock */
-		if (thread->state & ThreadState_Background) {
+		if (thread->state & ThreadState_Background || unity_shutting_down) {
 			THREAD_DEBUG (g_message ("%s: ignoring background thread %" G_GSIZE_FORMAT, __func__, (gsize)thread->tid));
 			return; /* just leave, ignore */
 		}
@@ -3961,6 +3980,97 @@ get_thread_dump (MonoThreadInfo *info, gpointer ud)
 		mono_get_eh_callbacks ()->mono_walk_stack_with_state (collect_frame, mono_thread_info_get_suspend_state (info), MONO_UNWIND_SIGNAL_SAFE, ud);
 
 	return MonoResumeThread;
+}
+
+typedef struct QuickDumpUserData {
+	char *bufp;
+	char *maxp;
+	const MonoUnityCallstackOptions *opts;
+	size_t prefix_len;
+} QuickDumpUserData;
+
+static void
+append_quick (QuickDumpUserData *ud, const char *str)
+{
+	int len = (int)strlen (str);
+	int remain = (int)(ud->maxp - ud->bufp);
+	int copylen = len;
+	if (copylen > remain)
+		copylen = remain;
+	memcpy (ud->bufp, str, copylen);
+	ud->bufp += copylen;
+}
+
+static mono_bool
+collect_frame_text (MonoMethod *method, int32_t native_offset, int32_t il_offset, mono_bool managed, void *data)
+{
+	QuickDumpUserData *ud = (QuickDumpUserData *)data;
+
+	if (managed && method) {
+		char *method_name = mono_method_full_name (method, TRUE);
+		append_quick (ud, method_name);
+		g_free (method_name);
+
+		gboolean skip_lines = FALSE;
+
+		for (int fi = 0, fcount = ud->opts->filter_count; !skip_lines && fi < fcount; ++fi) {
+			const MonoUnityCallstackFilter *f = &ud->opts->line_filters[fi];
+
+			if (0 == strcmp (method->klass->name, f->class_name)) {
+				if (0 == strcmp (method->klass->name_space, f->name_space)) {
+					skip_lines = !f->method_name || 0 == strcmp (method->name, f->method_name);
+				}
+			}
+		}
+
+		if (!skip_lines) {
+			MonoDebugMethodInfo *minfo = mono_debug_lookup_method (method);
+			if (minfo) {
+
+				MonoDebugSourceLocation *src_loc = mono_debug_method_lookup_location (minfo, il_offset);
+
+				if (src_loc && src_loc->source_file) {
+					char buf[512];
+					strncpy (buf, src_loc->source_file, sizeof buf);
+					buf[(sizeof buf) - 1] = '\0';
+
+					for (char *p = buf; *p; ++p) {
+						if (*p == '\\')
+							*p = '/';
+					}
+
+					const char *output_ptr = buf;
+					size_t slen = strlen (buf);
+					if (slen > ud->prefix_len) {
+						if (0 == memcmp (buf, ud->opts->path_prefix_filter, ud->prefix_len))
+							output_ptr += ud->prefix_len;
+					}
+
+					append_quick (ud, " (at ");
+					append_quick (ud, output_ptr);
+					append_quick (ud, ":");
+					char num_buf[32];
+					snprintf (num_buf, sizeof num_buf, "%d", src_loc->row);
+					append_quick (ud, num_buf);
+					append_quick (ud, ")");
+				}
+				mono_debug_free_source_location (src_loc);
+			}
+		}
+		append_quick (ud, "\n");
+	}
+
+	return ud->bufp == ud->maxp;
+}
+
+MONO_API int
+mono_unity_managed_callstack (unsigned char *buffer, int bufferSize, const MonoUnityCallstackOptions *opts)
+{
+	QuickDumpUserData ud = {(char *)buffer, (char *)buffer + bufferSize - 1, opts, strlen (opts->path_prefix_filter)};
+
+	mono_stack_walk (collect_frame_text, &ud);
+
+	return (int)(ud.bufp - (char *)buffer);
 }
 
 typedef struct {
@@ -4629,10 +4739,13 @@ mono_alloc_static_data (gpointer **static_data_ptr, guint32 offset, void *alloc_
 		if (mono_gc_user_markers_supported ())
 			static_data [i] = g_malloc0 (static_data_size [i]);
 		else
+		{
 			static_data [i] = mono_gc_alloc_fixed (static_data_size [i], MONO_GC_DESCRIPTOR_NULL,
 				threadlocal ? MONO_ROOT_SOURCE_THREAD_STATIC : MONO_ROOT_SOURCE_CONTEXT_STATIC,
 				alloc_key,
 				threadlocal ? "ThreadStatic Fields" : "ContextStatic Fields");
+			mono_gc_wbarrier_generic_nostore_internal (static_data + i);
+		}
 	}
 }
 
@@ -4712,6 +4825,7 @@ context_adjust_static_data (MonoAppContextHandle ctx_handle)
 	if (context_static_info.offset || context_static_info.idx > 0) {
 		guint32 offset = MAKE_SPECIAL_STATIC_OFFSET (context_static_info.idx, context_static_info.offset, 0);
 		mono_alloc_static_data (&ctx->static_data, offset, ctx, FALSE);
+		mono_gc_wbarrier_generic_nostore_internal (&ctx->static_data);
 		ctx->data->static_data = ctx->static_data;
 	}
 }
@@ -4741,6 +4855,7 @@ alloc_context_static_data_helper (gpointer key, gpointer value, gpointer user)
 
 	guint32 offset = GPOINTER_TO_UINT (user);
 	mono_alloc_static_data (&ctx->static_data, offset, ctx, FALSE);
+	mono_gc_wbarrier_generic_nostore_internal (&ctx->static_data);
 	ctx->data->static_data = ctx->static_data;
 }
 
@@ -6780,3 +6895,33 @@ ves_icall_System_Threading_Thread_GetCurrentProcessorNumber (MonoError *error)
 }
 
 #endif
+
+mono_bool mono_thread_has_sufficient_execution_stack (void)
+{
+	guint8* stack_addr;
+	guint8* current;
+	size_t stack_size;
+	size_t min_size;
+
+	mono_thread_info_get_stack_bounds (&stack_addr, &stack_size);
+	/* if we have no info we are optimistic and assume there is enough room */
+	if (!stack_addr || !stack_size)
+		return TRUE;
+
+	min_size = stack_size / 2;
+
+	// TODO: It's not always set
+	if (!min_size)
+		return TRUE;
+
+	current = (guint8*)&stack_addr;
+	if (current > stack_addr) {
+		if ((current - stack_addr) < min_size)
+			return FALSE;
+	}
+	else {
+		if (current - (stack_addr - stack_size) < min_size)
+			return FALSE;
+	}
+	return TRUE;
+}

@@ -95,6 +95,7 @@
 #include <mono/metadata/w32event.h>
 #include <mono/metadata/abi-details.h>
 #include <mono/metadata/loader-internals.h>
+#include <mono/metadata/unity-utils.h>
 #include <mono/utils/monobitset.h>
 #include <mono/utils/mono-time.h>
 #include <mono/utils/mono-proclib.h>
@@ -1307,40 +1308,7 @@ ves_icall_System_Runtime_CompilerServices_RuntimeHelpers_RunModuleConstructor (M
 MonoBoolean
 ves_icall_System_Runtime_CompilerServices_RuntimeHelpers_SufficientExecutionStack (void)
 {
-#if defined(TARGET_WIN32) || defined(HOST_WIN32)
-	// It does not work on win32
-#elif defined(TARGET_ANDROID) || defined(__linux__)
-	// No need for now
-#else
-	guint8 *stack_addr;
-	guint8 *current;
-	size_t stack_size;
-	int min_size;
-	MonoInternalThread *thread;
-
-	mono_thread_info_get_stack_bounds (&stack_addr, &stack_size);
-	/* if we have no info we are optimistic and assume there is enough room */
-	if (!stack_addr)
-		return TRUE;
-
-	thread = mono_thread_internal_current ();
-	// .net seems to check that at least 50% of stack is available
-	min_size = thread->stack_size / 2;
-
-	// TODO: It's not always set
-	if (!min_size)
-		return TRUE;
-
-	current = (guint8 *)&stack_addr;
-	if (current > stack_addr) {
-		if ((current - stack_addr) < min_size)
-			return FALSE;
-	} else {
-		if (current - (stack_addr - stack_size) < min_size)
-			return FALSE;
-	}
-#endif
-	return TRUE;
+	return mono_thread_has_sufficient_execution_stack();
 }
 
 #ifdef ENABLE_NETCORE
@@ -2970,6 +2938,7 @@ ves_icall_RuntimeType_GetInterfaces (MonoReflectionTypeHandle ref_type, MonoErro
 		g_hash_table_destroy (iface_hash);
 		if (!domain->empty_types) {
 			domain->empty_types = mono_array_new_cached (domain, mono_defaults.runtimetype_class, 0, error);
+			mono_gc_wbarrier_generic_nostore_internal (&domain->empty_types);
 			goto_if_nok (error, fail);
 		}
 		return MONO_HANDLE_NEW (MonoArray, domain->empty_types);
@@ -8090,6 +8059,13 @@ ves_icall_System_Runtime_Activation_ActivationServices_EnableProxyActivation (Mo
 
 #else /* DISABLE_REMOTING */
 
+ICALL_EXPORT MonoBoolean
+ves_icall_IsTransparentProxy (MonoObject *proxy)
+{
+	return 0;
+}
+
+
 #ifndef ENABLE_NETCORE
 void
 ves_icall_System_Runtime_Activation_ActivationServices_EnableProxyActivation (MonoReflectionTypeHandle type, MonoBoolean enable, MonoError *error)
@@ -9678,3 +9654,17 @@ ves_icall_System_Net_NetworkInformation_LinuxNetworkChange_CloseNLSocket (gpoint
 #undef ICALL
 #undef NOHANDLES
 #undef MONO_HANDLE_REGISTER_ICALL
+
+
+MonoObjectHandle
+ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext ()
+{
+	return NULL_HANDLE;
+}
+
+void
+ves_icall_System_Threading_OSSpecificSynchronizationContext_PostInternal (gpointer callback, gpointer arg)
+{
+	/* This isn't actually reachable since ves_icall_System_Threading_OSSpecificSynchronizationContext_GetOSContext always returns NULL */
+	mono_set_pending_exception (mono_exception_from_name_msg (mono_get_corlib (), "System", "NotImplementedException", "System.Threading.InteropServices.OSSpecificSynchronizationContext.PostInternal internal call is not implemented."));
+}

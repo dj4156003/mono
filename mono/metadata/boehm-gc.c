@@ -44,6 +44,9 @@
 
 #if HAVE_BOEHM_GC
 
+#include <private/gc_pmark.h>
+#include <gc_vector.h>
+
 #if defined(HOST_DARWIN) && defined(HAVE_PTHREAD_GET_STACKADDR_NP)
 void *pthread_get_stackaddr_np(pthread_t);
 #endif
@@ -55,6 +58,7 @@ void *pthread_get_stackaddr_np(pthread_t);
 
 static gboolean gc_initialized = FALSE;
 static gboolean gc_dont_gc_env = FALSE;
+static gboolean gc_strict_wbarriers = FALSE;
 
 static mono_mutex_t mono_gc_lock;
 
@@ -109,10 +113,57 @@ static void on_gc_notification (GC_EventType event);
 // GC_word here to precisely match Boehm. Not size_t, not gsize.
 static void on_gc_heap_resize (GC_word new_size);
 
+#define ELEMENT_CHUNK_SIZE 256
+#define VECTOR_PROC_INDEX 6
+
+static unsigned GC_roots_proc_index;
+
+static mse*
+GC_roots_proc (word* addr, mse* mark_stack_ptr, mse* mark_stack_limit, word env);
+
+static mse * GC_gcj_vector_proc (word * addr, mse * mark_stack_ptr,
+	mse * mark_stack_limit, word env)
+{
+	MonoArray* a = NULL;
+	if (env)
+	{
+		g_assert (env == 1);
+
+		a = (MonoArray*)GC_base (addr);
+	} else {
+		g_assert (addr == GC_base (addr));
+
+		a = (MonoArray*)addr;
+	}
+
+	if (!a->max_length)
+		return mark_stack_ptr;
+
+	mono_array_size_t length = a->max_length;
+	MonoClass* array_type = a->obj.vtable->klass;
+	MonoClass *element_type = array_type->element_class;
+	GC_descr element_desc = (GC_descr)m_class_get_gc_descr(element_type); //TODO: Got a differing levels of indirection error here prior to casting
+
+	g_assert ((element_desc & GC_DS_TAGS) == GC_DS_BITMAP);
+	g_assert (element_type->valuetype);
+
+	int words_per_element = array_type->sizes.element_size / BYTES_PER_WORD;
+	word *actual_start = (word *)a->vector;
+
+	/* start at first element or resume from last iteration */
+	word *start = env ? addr : actual_start;
+	/* end at last element or max chunk size */
+	word *actual_end = actual_start + length * words_per_element;
+
+	return GC_gcj_vector_mark_proc (mark_stack_ptr, mark_stack_limit, element_desc, start, actual_end, words_per_element);
+}
+
 void
 mono_gc_base_init (void)
 {
 	char *env;
+	char *params_opts = NULL;
+	char *debug_opts = NULL;
 
 	if (gc_initialized)
 		return;
@@ -127,23 +178,22 @@ mono_gc_base_init (void)
 	default_push_other_roots = GC_get_push_other_roots ();
 	GC_set_push_other_roots (mono_push_other_roots);
 
-#if !defined(HOST_ANDROID)
-	/* If GC_no_dls is set to true, GC_find_limit is not called. This causes a seg fault on Android. */
 	GC_set_no_dls (TRUE);
-#endif
+
+	debug_opts = mono_gc_debug_get();
+	if (debug_opts)
 	{
-		if ((env = g_getenv ("MONO_GC_DEBUG"))) {
-			char **opts = g_strsplit (env, ",", -1);
-			for (char **ptr = opts; ptr && *ptr; ptr ++) {
-				char *opt = *ptr;
-				if (!strcmp (opt, "do-not-finalize")) {
-					mono_do_not_finalize = 1;
-				} else if (!strcmp (opt, "log-finalizers")) {
-					mono_log_finalizers = 1;
-				}
+		char **opts = g_strsplit (debug_opts, ",", -1);
+		for (char **ptr = opts; ptr && *ptr; ptr ++) {
+			char *opt = *ptr;
+			if (!strcmp (opt, "do-not-finalize")) {
+				mono_do_not_finalize = 1;
+			} else if (!strcmp (opt, "log-finalizers")) {
+				mono_log_finalizers = 1;
 			}
-			g_free (env);
 		}
+		g_strfreev (opts);
+		g_free (debug_opts);
 	}
 
 	/* cache value rather than calling during collection since g_hasenv may take locks and can deadlock */
@@ -156,12 +206,16 @@ mono_gc_base_init (void)
 	GC_set_finalizer_notifier(mono_gc_finalize_notify);
 
 	GC_init_gcj_malloc (5, NULL);
+	GC_init_gcj_vector (VECTOR_PROC_INDEX, GC_gcj_vector_proc);
+	GC_roots_proc_index = GC_new_proc (GC_roots_proc);
 	GC_allow_register_threads ();
 
-	if ((env = g_getenv ("MONO_GC_PARAMS"))) {
-		char **ptr, **opts = g_strsplit (env, ",", -1);
+	params_opts = mono_gc_params_get();
+	if (params_opts) {
+		char **ptr, **opts = g_strsplit (params_opts, ",", -1);
 		for (ptr = opts; *ptr; ++ptr) {
 			char *opt = *ptr;
+
 			if (g_str_has_prefix (opt, "max-heap-size=")) {
 				size_t max_heap;
 
@@ -180,6 +234,21 @@ mono_gc_base_init (void)
 			} else if (g_str_has_prefix (opt, "toggleref-test")) {
 				register_test_toggleref_callback ();
 				continue;
+			} else if (g_str_has_prefix (opt, "incremental=")) {
+				size_t time_limit;
+
+				opt = strchr (opt, '=') + 1;
+				if (*opt && mono_gc_parse_environment_string_extract_number (opt, &time_limit)) {
+					GC_enable_incremental ();
+					if (time_limit != 0) {
+						// value is in milliseconds
+						GC_set_time_limit (time_limit);
+					}
+				}
+				continue;
+			} else if (g_str_has_prefix (opt, "strict-wbarriers")) {
+				gc_strict_wbarriers = TRUE;
+				continue;
 			} else {
 				/* Could be a parameter for sgen */
 				/*
@@ -189,8 +258,8 @@ mono_gc_base_init (void)
 				*/
 			}
 		}
-		g_free (env);
 		g_strfreev (opts);
+		g_free (params_opts);
 	}
 
 	mono_thread_callbacks_init ();
@@ -204,6 +273,24 @@ mono_gc_base_init (void)
 	GC_set_on_heap_resize (on_gc_heap_resize);
 
 	gc_initialized = TRUE;
+}
+
+void 
+mono_gc_dirty(void **ptr)
+{
+	GC_dirty (ptr);
+}
+
+void 
+mono_gc_dirty_range(void **ptr, size_t size)
+{
+	if (G_UNLIKELY(gc_strict_wbarriers))
+	{
+		for (int i = 0; i < size/sizeof(void*); i++)
+			GC_dirty(ptr + i);
+	}
+	else
+		GC_dirty (ptr);
 }
 
 void
@@ -236,6 +323,18 @@ mono_gc_collect (int generation)
 	mono_atomic_inc_i32 (&mono_perfcounters->gc_induced);
 #endif
 	GC_gcollect ();
+}
+
+
+int
+mono_gc_collect_a_little()
+{
+	return GC_collect_a_little();
+}
+
+void mono_gc_start_incremental_collection()
+{
+	GC_start_incremental_collection();
 }
 
 /**
@@ -289,6 +388,18 @@ mono_gc_collection_count (int generation)
 	return GC_get_gc_no ();
 }
 
+void
+mono_gc_stop_world ()
+{
+	g_assert ("mono_gc_stop_world is not supported in Boehm");
+}
+
+void
+mono_gc_restart_world ()
+{
+	g_assert ("mono_gc_restart_world is not supported in Boehm");
+}
+
 /**
  * mono_gc_add_memory_pressure:
  * \param value amount of bytes
@@ -329,6 +440,35 @@ int64_t
 mono_gc_get_heap_size (void)
 {
 	return GC_get_heap_size ();
+}
+
+int64_t
+mono_gc_get_max_time_slice_ns()
+{
+	return GC_get_time_limit_ns();
+}
+
+void
+mono_gc_set_max_time_slice_ns(int64_t maxTimeSlice)
+{
+	GC_set_time_limit_ns(maxTimeSlice);
+}
+
+MonoBoolean 
+mono_gc_is_incremental()
+{
+    return GC_is_incremental_mode();
+}
+
+void 
+mono_gc_set_incremental(MonoBoolean value)
+{
+	if (GC_is_incremental_mode() == value)
+		return;
+	if (value)
+		GC_enable_incremental();
+	else
+		GC_disable_incremental();
 }
 
 gboolean
@@ -373,8 +513,7 @@ mono_gc_thread_detach_with_lock (MonoThreadInfo *p)
 
 	tid = mono_thread_info_get_tid (p);
 
-	if (p->runtime_thread)
-		mono_threads_add_joinable_thread ((gpointer)tid);
+	mono_threads_add_joinable_runtime_thread(p);
 
 	mono_handle_stack_free (p->handle_stack);
 	p->handle_stack = NULL;
@@ -554,12 +693,6 @@ mono_gc_deregister_root (char* addr)
 }
 
 static void
-push_root (gpointer key, gpointer value, gpointer user_data)
-{
-	GC_push_all (key, value);
-}
-
-static void
 push_handle_stack (HandleStack* stack)
 {
 	HandleChunk *cur = stack->bottom;
@@ -577,10 +710,66 @@ push_handle_stack (HandleStack* stack)
 	}
 }
 
+static mse*
+GC_roots_proc (word* addr, mse* mark_stack_ptr,	mse* mark_stack_limit, word env)
+{
+	GHashTableIter iter;
+	guint size = g_hash_table_size (roots);
+	g_hash_table_iter_init (&iter, roots);
+	char* start;
+	char* end;
+
+	word capacity = (word)(mark_stack_limit - mark_stack_ptr) - 1;
+	word start_index = env;
+	word remaining = size - start_index;
+	word skip = start_index;
+
+	/* if we have more items than capacity, push remaining immediately. This allows pushed
+	 * items to be processed on top of stack before we process remainder. If we push remainder
+	 * at top, we have no mark stack space.
+	 */
+	if (remaining > capacity) {
+		capacity--;
+		mark_stack_ptr++;
+		mark_stack_ptr->mse_descr.w = GC_MAKE_PROC (GC_roots_proc_index, (start_index + capacity) /* continue processing */);
+		mark_stack_ptr->mse_start = (ptr_t)0;
+	}
+
+	while (g_hash_table_iter_next (&iter, (void**)&start, (void**)&end) && capacity > 0) {
+		void* bottom;
+		void* top;
+
+		if (skip) {
+			skip--;
+			continue;
+		}
+
+		/* taken from GC_push_all */
+		bottom = (void*)(((word)start + ALIGNMENT - 1) & ~(ALIGNMENT - 1));
+		top = (void*)((word)end & ~(ALIGNMENT - 1));
+
+		g_assert ((word)bottom < (word)top);
+
+		mark_stack_ptr++;
+
+		if ((word)mark_stack_ptr >= (word)mark_stack_limit) {
+			g_error ("Unexpected mark stack overflow\n");
+		}
+		mark_stack_ptr->mse_start = (ptr_t)bottom;
+		mark_stack_ptr->mse_descr.w = (word)top - (word)bottom;
+		capacity--;
+	}
+	return mark_stack_ptr;
+}
+
 static void
 mono_push_other_roots (void)
 {
-	g_hash_table_foreach (roots, push_root, NULL);
+	if (GC_roots_proc_index) {
+		GC_mark_stack_top++;
+		GC_mark_stack_top->mse_descr.w = GC_MAKE_PROC (GC_roots_proc_index, 0 /* continue processing */);
+		GC_mark_stack_top->mse_start = (ptr_t)0;
+	}
 	FOREACH_THREAD_EXCLUDE (info, MONO_THREAD_INFO_FLAGS_NO_GC) {
 		HandleStack* stack = info->handle_stack;
 		if (stack)
@@ -595,6 +784,7 @@ mono_gc_weak_link_add (void **link_addr, MonoObject *obj, gboolean track)
 {
 	/* libgc requires that we use HIDE_POINTER... */
 	*link_addr = (void*)HIDE_POINTER (obj);
+	mono_gc_dirty (link_addr);
 	if (track)
 		GC_REGISTER_LONG_LINK (link_addr, obj);
 	else
@@ -642,7 +832,9 @@ mono_gc_make_descr_for_object (gsize *bitmap, int numbits, size_t obj_size)
 void*
 mono_gc_make_descr_for_array (int vector, gsize *elem_bitmap, int numbits, size_t elem_size)
 {
-	/* libgc has no usable support for arrays... */
+	/* libgc has no usable support for arrays...
+	 * but Unity added support with newer bdwgc 
+	 * we don't need descriptor though, as arrays have custom mark proc */
 	return GC_NO_DESCRIPTOR;
 }
 
@@ -722,6 +914,12 @@ mono_gc_alloc_obj (MonoVTable *vtable, size_t size)
 }
 
 MonoArray*
+mono_gc_alloc_pinned_vector (MonoVTable *vtable, size_t size, uintptr_t max_length)
+{
+	return mono_gc_alloc_vector (vtable, size, max_length);
+}
+
+MonoArray*
 mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length)
 {
 	MonoArray *obj;
@@ -735,8 +933,11 @@ mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length)
 		obj->obj.synchronisation = NULL;
 
 		memset (mono_object_get_data ((MonoObject*)obj), 0, size - MONO_ABI_SIZEOF (MonoObject));
-	} else if (vtable->gc_descr != GC_NO_DESCRIPTOR) {
-		obj = (MonoArray *)GC_GCJ_MALLOC (size, vtable);
+	} else if (vtable->klass->element_class->valuetype && 
+		vtable->klass->element_class->gc_descr != GC_NO_DESCRIPTOR &&
+		vtable->domain == mono_get_root_domain () /* &&
+		max_length > 50 */) {
+		obj = (MonoArray *)GC_gcj_vector_malloc (size, vtable);
 		if (G_UNLIKELY (!obj))
 			return NULL;
 	} else {
@@ -845,49 +1046,60 @@ void
 mono_gc_wbarrier_set_field_internal (MonoObject *obj, gpointer field_ptr, MonoObject* value)
 {
 	*(void**)field_ptr = value;
+	mono_gc_dirty (field_ptr);
 }
 
 void
 mono_gc_wbarrier_set_arrayref_internal (MonoArray *arr, gpointer slot_ptr, MonoObject* value)
 {
 	*(void**)slot_ptr = value;
+	mono_gc_dirty (slot_ptr);
 }
 
 void
 mono_gc_wbarrier_arrayref_copy_internal (gpointer dest_ptr, gconstpointer src_ptr, int count)
 {
 	mono_gc_memmove_aligned (dest_ptr, src_ptr, count * sizeof (gpointer));
+	mono_gc_dirty_range (dest_ptr, count * sizeof(gpointer));
 }
 
 void
 mono_gc_wbarrier_generic_store_internal (void volatile* ptr, MonoObject* value)
 {
 	*(void**)ptr = value;
+	mono_gc_dirty (ptr);
 }
 
 void
 mono_gc_wbarrier_generic_store_atomic_internal (gpointer ptr, MonoObject *value)
 {
 	mono_atomic_store_ptr ((volatile gpointer *)ptr, value);
+	mono_gc_dirty (ptr);
 }
 
 void
 mono_gc_wbarrier_generic_nostore_internal (gpointer ptr)
 {
+	mono_gc_dirty (ptr);
 }
 
 void
 mono_gc_wbarrier_value_copy_internal (gpointer dest, gconstpointer src, int count, MonoClass *klass)
 {
-	mono_gc_memmove_atomic (dest, src, count * mono_class_value_size (klass, NULL));
+	size_t size = count * mono_class_value_size (klass, NULL);
+	mono_gc_memmove_atomic (dest, src, size);
+	mono_gc_dirty_range (dest, size);
 }
 
 void
 mono_gc_wbarrier_object_copy_internal (MonoObject* obj, MonoObject *src)
 {
 	/* do not copy the sync state */
-	mono_gc_memmove_aligned (mono_object_get_data (obj), (char*)src + MONO_ABI_SIZEOF (MonoObject),
-				m_class_get_instance_size (mono_object_class (obj)) - MONO_ABI_SIZEOF (MonoObject));
+	size_t size = m_class_get_instance_size (mono_object_class (obj)) - MONO_ABI_SIZEOF (MonoObject);
+	char * dstPtr = mono_object_get_data (obj);
+	mono_gc_memmove_aligned (dstPtr, (char*)src + MONO_ABI_SIZEOF (MonoObject),
+			size);
+	mono_gc_dirty_range ((void**)dstPtr, size);
 }
 
 void
@@ -947,11 +1159,48 @@ mono_gc_get_managed_allocator_types (void)
 	return 0;
 }
 
+static MonoMethod *write_barrier_conc_method;
 MonoMethod*
 mono_gc_get_write_barrier (void)
 {
-	g_assert_not_reached ();
-	return NULL;
+	MonoMethod *res;
+	MonoMethodBuilder *mb;
+	MonoMethodSignature *sig;
+	MonoMethod **write_barrier_method_addr;
+	WrapperInfo *info;
+
+	write_barrier_method_addr = &write_barrier_conc_method;
+
+	if (*write_barrier_method_addr)
+		return *write_barrier_method_addr;
+
+	/* Create the IL version of mono_gc_barrier_generic_store () */
+	sig = mono_metadata_signature_alloc(mono_defaults.corlib, 1);
+	sig->ret = mono_get_void_type();
+	sig->params[0] = mono_get_int_type();
+
+	mb = mono_mb_new (mono_defaults.object_class, "wbarrier_conc", MONO_WRAPPER_WRITE_BARRIER);
+
+	mono_mb_emit_ldarg (mb, 0);
+	mono_mb_emit_icall (mb, mono_gc_wbarrier_generic_nostore_internal);
+	mono_mb_emit_byte (mb, MONO_CEE_RET);
+
+	res = mono_mb_create_method (mb, sig, 16);
+	info = mono_wrapper_info_create (mb, WRAPPER_SUBTYPE_NONE);
+	mono_marshal_set_wrapper_info (res, info);
+	mono_mb_free (mb);
+
+	if (*write_barrier_method_addr) {
+		/* Already created */
+		mono_free_method (res);
+	} else {
+		/* double-checked locking */
+		mono_memory_barrier ();
+		*write_barrier_method_addr = res;
+	}
+
+	return *write_barrier_method_addr;
+
 }
 
 MonoMethod*
@@ -997,6 +1246,12 @@ mono_gc_is_moving (void)
 	return FALSE;
 }
 
+gboolean 
+mono_gc_needs_write_barriers(void)
+{
+	return GC_is_incremental_mode ();
+}
+
 gboolean
 mono_gc_is_disabled (void)
 {
@@ -1009,7 +1264,8 @@ mono_gc_is_disabled (void)
 void
 mono_gc_wbarrier_range_copy (gpointer _dest, gconstpointer _src, int size)
 {
-	g_assert_not_reached ();
+	memcpy (_dest, _src, size);
+	mono_gc_dirty_range (_dest, size);
 }
 
 MonoRangeCopyFunction
@@ -1058,16 +1314,6 @@ FILE *
 mono_gc_get_logfile (void)
 {
 	return NULL;
-}
-
-void
-mono_gc_params_set (const char* options)
-{
-}
-
-void
-mono_gc_debug_set (const char* options)
-{
 }
 
 void
@@ -1393,6 +1639,7 @@ handle_data_grow (HandleData *handles, gboolean track)
 		gpointer *entries;
 		entries = (void **)mono_gc_alloc_fixed (sizeof (*handles->entries) * new_size, NULL, MONO_ROOT_SOURCE_GC_HANDLE, NULL, "GC Handle Table (Boehm)");
 		mono_gc_memmove_aligned (entries, handles->entries, sizeof (*handles->entries) * handles->size);
+		mono_gc_dirty_range (entries, new_size * sizeof (*handles->entries));
 		mono_gc_free_fixed (handles->entries);
 		handles->entries = entries;
 	}
@@ -1425,6 +1672,7 @@ alloc_handle (HandleData *handles, MonoObject *obj, gboolean track)
 			mono_gc_weak_link_add (&(handles->entries [slot]), obj, track);
 	} else {
 		handles->entries [slot] = obj;
+		mono_gc_dirty (handles->entries + slot);
 	}
 
 #ifndef DISABLE_PERFCOUNTERS
@@ -1453,10 +1701,10 @@ alloc_handle (HandleData *handles, MonoObject *obj, gboolean track)
  * \returns a handle that can be used to access the object from
  * unmanaged code.
  */
-guint32
+MonoGCHandle
 mono_gchandle_new_internal (MonoObject *obj, gboolean pinned)
 {
-	return alloc_handle (&gc_handles [pinned? HANDLE_PINNED: HANDLE_NORMAL], obj, FALSE);
+	return MONO_GC_HANDLE_FROM_UINT(alloc_handle (&gc_handles [pinned? HANDLE_PINNED: HANDLE_NORMAL], obj, FALSE));
 }
 
 /**
@@ -1480,10 +1728,10 @@ mono_gchandle_new_internal (MonoObject *obj, gboolean pinned)
  * \returns a handle that can be used to access the object from
  * unmanaged code.
  */
-guint32
+MonoGCHandle
 mono_gchandle_new_weakref_internal (MonoObject *obj, gboolean track_resurrection)
 {
-	return alloc_handle (&gc_handles [track_resurrection? HANDLE_WEAK_TRACK: HANDLE_WEAK], obj, track_resurrection);
+	return MONO_GC_HANDLE_FROM_UINT (alloc_handle (&gc_handles [track_resurrection? HANDLE_WEAK_TRACK: HANDLE_WEAK], obj, track_resurrection));
 }
 
 /**
@@ -1497,8 +1745,9 @@ mono_gchandle_new_weakref_internal (MonoObject *obj, gboolean track_resurrection
  * NULL for a collected object if using a weakref handle.
  */
 MonoObject*
-mono_gchandle_get_target_internal (guint32 gchandle)
+mono_gchandle_get_target_internal (MonoGCHandle gch)
 {
+	guint32 gchandle = MONO_GC_HANDLE_TO_UINT (gch);
 	guint slot = MONO_GC_HANDLE_SLOT (gchandle);
 	guint type = MONO_GC_HANDLE_TYPE (gchandle);
 	HandleData *handles = &gc_handles [type];
@@ -1522,8 +1771,9 @@ mono_gchandle_get_target_internal (guint32 gchandle)
 }
 
 void
-mono_gchandle_set_target (guint32 gchandle, MonoObject *obj)
+mono_gchandle_set_target (MonoGCHandle gch, MonoObject *obj)
 {
+	guint32 gchandle = MONO_GC_HANDLE_TO_UINT (gch);
 	guint slot = MONO_GC_HANDLE_SLOT (gchandle);
 	guint type = MONO_GC_HANDLE_TYPE (gchandle);
 	HandleData *handles = &gc_handles [type];
@@ -1543,6 +1793,7 @@ mono_gchandle_set_target (guint32 gchandle, MonoObject *obj)
 			handles->domain_ids [slot] = (obj ? mono_object_get_domain_internal (obj) : mono_domain_get ())->domain_id;
 		} else {
 			handles->entries [slot] = obj;
+			mono_gc_dirty (handles->entries + slot);
 		}
 	} else {
 		/* print a warning? */
@@ -1568,8 +1819,9 @@ mono_gc_is_null (void)
  * \returns TRUE if the object wrapped by the \p gchandle belongs to the specific \p domain.
  */
 gboolean
-mono_gchandle_is_in_domain (guint32 gchandle, MonoDomain *domain)
+mono_gchandle_is_in_domain (MonoGCHandle gch, MonoDomain *domain)
 {
+	guint32 gchandle = MONO_GC_HANDLE_TO_UINT (gch);
 	guint slot = MONO_GC_HANDLE_SLOT (gchandle);
 	guint type = MONO_GC_HANDLE_TYPE (gchandle);
 	HandleData *handles = &gc_handles [type];
@@ -1606,8 +1858,9 @@ mono_gchandle_is_in_domain (guint32 gchandle, MonoDomain *domain)
  * object wrapped. 
  */
 void
-mono_gchandle_free_internal (guint32 gchandle)
+mono_gchandle_free_internal (MonoGCHandle gch)
 {
+	guint32 gchandle = MONO_GC_HANDLE_TO_UINT (gch);
 	if (!gchandle)
 		return;
 
@@ -1624,6 +1877,7 @@ mono_gchandle_free_internal (guint32 gchandle)
 				mono_gc_weak_link_remove (&handles->entries [slot], handles->type == HANDLE_WEAK_TRACK);
 		} else {
 			handles->entries [slot] = NULL;
+			mono_gc_dirty (handles->entries + slot);
 		}
 		vacate_slot (handles, slot);
 	} else {
@@ -1666,6 +1920,7 @@ mono_gchandle_free_domain (MonoDomain *domain)
 				if (handles->entries [slot] && mono_object_domain (handles->entries [slot]) == domain) {
 					vacate_slot (handles, slot);
 					handles->entries [slot] = NULL;
+					mono_gc_dirty (handles->entries + slot);
 				}
 			}
 		}
@@ -1704,6 +1959,30 @@ mono_gc_get_gcmemoryinfo (gint64* high_memory_load_threshold_bytes,
 	*total_available_memory_bytes = 0;
 	*heap_size_bytes = 0;
 	*fragmented_bytes = 0;
+}
+
+void
+mono_gc_strong_handle_foreach(GFunc func, gpointer user_data)
+{
+	int gcHandleTypeIndex;
+	uint32_t i;
+
+	lock_handles(handles);
+
+	for (gcHandleTypeIndex = HANDLE_NORMAL; gcHandleTypeIndex <= HANDLE_PINNED; gcHandleTypeIndex++)
+	{
+		HandleData* handles = &gc_handles[gcHandleTypeIndex];
+
+		for (i = 0; i < handles->size; i++)
+		{			
+			if (!slot_occupied(handles, i))
+				continue;
+			if (handles->entries[i] != NULL)
+				func(handles->entries[i], user_data);
+		}
+	}
+
+	unlock_handles(handles);
 }
 
 #else

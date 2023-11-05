@@ -6062,7 +6062,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 		INLINE_FAILURE ("coverage profiling");
 
-		cfg->coverage_info = mono_profiler_coverage_alloc (cfg->method, header->code_size);
+		cfg->coverage_info = mono_profiler_coverage_alloc (cfg->domain, cfg->method, header->code_size);
 	}
 
 	if ((cfg->gen_sdb_seq_points && cfg->method == method) || cfg->prof_coverage) {
@@ -9608,6 +9608,11 @@ calli_end:
 
 				EMIT_NEW_STORE_MEMBASE_TYPE (cfg, store, ftype, ins->dreg, 0, store_val->dreg);
 				store->flags |= ins_flag;
+				if (cfg->gen_write_barriers && cfg->method->wrapper_type != MONO_WRAPPER_WRITE_BARRIER &&
+					mini_type_is_reference (ftype)) {
+					/* insert call to write barrier */
+					mini_emit_write_barrier (cfg, store, ins);
+				}
 			} else {
 				gboolean is_const = FALSE;
 				MonoVTable *vtable = NULL;

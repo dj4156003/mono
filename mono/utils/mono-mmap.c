@@ -355,6 +355,9 @@ mono_vfree (void *addr, size_t length, MonoMemAccountType type)
 	return res;
 }
 
+extern MonoFileMapMap      file_map_func;
+extern MonoFileMapUnmap    file_unmap_func;
+
 /**
  * mono_file_map:
  * \param length size of data to map
@@ -380,6 +383,13 @@ mono_file_map_error (size_t length, int flags, int fd, guint64 offset, void **re
 	const char *filepath, char **error_message)
 {
 	void *ptr;
+	if (file_map_func)
+	{
+		BEGIN_CRITICAL_SECTION;
+		ptr = file_map_func(length, flags, fd, offset, ret_handle);
+		END_CRITICAL_SECTION;
+		return ptr;
+	}
 	int mflags = 0;
 	int prot = prot_from_flags (flags);
 	/* translate the flags */
@@ -432,7 +442,10 @@ mono_file_unmap (void *addr, void *handle)
 
 	// No GC safe transition because this is called early in driver.c via mono_debug_init (with a few layers of indirection)
 	BEGIN_CRITICAL_SECTION;
-	res = munmap (addr, (size_t)handle);
+	if (file_unmap_func)
+		res = file_unmap_func(addr, handle);
+	else
+		res = munmap(addr, (size_t)handle);
 	END_CRITICAL_SECTION;
 
 	return res;

@@ -60,6 +60,7 @@ typedef struct {
 	gint32 signature;
 	guint8 guid [16];
 	gint32 age;
+	char path[];
 } CodeviewDebugDirectory;
 
 typedef struct {
@@ -83,7 +84,7 @@ enum {
 };
 
 static gboolean
-get_pe_debug_info (MonoImage *image, guint8 *out_guid, gint32 *out_age, gint32 *out_timestamp, guint8 **ppdb_data,
+get_pe_debug_info (MonoImage *image, const char** out_path, guint8 *out_guid, gint32 *out_age, gint32 *out_timestamp, guint8 **ppdb_data,
 				   int *ppdb_uncompressed_size, int *ppdb_compressed_size)
 {
 	MonoPEDirEntry *debug_dir_entry;
@@ -109,6 +110,10 @@ get_pe_debug_info (MonoImage *image, guint8 *out_guid, gint32 *out_age, gint32 *
 				*out_age = dir->age;
 				*out_timestamp = debug_dir->time_date_stamp;
 				guid_found = TRUE;
+
+				if (out_path != NULL) {
+					*out_path = g_strdup (dir.path);
+				}
 			}
 		}
 		if (debug_dir->type == DEBUG_DIR_ENTRY_PPDB && debug_dir->major_version >= 0x100 && debug_dir->minor_version == 0x100) {
@@ -147,6 +152,14 @@ create_ppdb_file (MonoImage *ppdb_image)
 	return ppdb;
 }
 
+gboolean
+mono_ppdb_get_signature(MonoImage *image, const char** out_path, guint8 *out_guid, gint32 *out_age, gint32 *out_timestamp)
+{
+	guint8 *ppdb_data = NULL;
+	int ppdb_size, ppdb_compressed_size;
+	return get_pe_debug_info (image, out_path, out_guid, out_age, out_timestamp, &ppdb_data, &ppdb_size, &ppdb_compressed_size);
+}
+
 MonoPPDBFile*
 mono_ppdb_load_file (MonoImage *image, const guint8 *raw_contents, int size)
 {
@@ -167,7 +180,7 @@ mono_ppdb_load_file (MonoImage *image, const guint8 *raw_contents, int size)
 		return create_ppdb_file (image);
 	}
 
-	if (!get_pe_debug_info (image, pe_guid, &pe_age, &pe_timestamp, &ppdb_data, &ppdb_size, &ppdb_compressed_size)) {
+	if (!get_pe_debug_info (image, NULL, pe_guid, &pe_age, &pe_timestamp, &ppdb_data, &ppdb_size, &ppdb_compressed_size)) {
 		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_ASSEMBLY, "Image '%s' has no debug directory.", image->name);
 		return NULL;
 	}

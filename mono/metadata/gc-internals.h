@@ -28,6 +28,13 @@
 #define MONO_GC_UNREGISTER_ROOT(x) mono_gc_deregister_root ((char*)&(x))
 
 /*
+ * The lowest bit is used to mark pinned handles by netcore's GCHandle class. These macros
+ * are used to convert between the old int32 representation to a netcore compatible pointer
+ * representation.
+ */
+#define MONO_GC_HANDLE_TO_UINT(ptr) ((guint32)((size_t)(ptr) >> 1))
+#define MONO_GC_HANDLE_FROM_UINT(i) ((MonoGCHandle)((size_t)(i) << 1))
+/*
  * Return a GC descriptor for an array containing N pointers to memory allocated
  * by mono_gc_alloc_fixed ().
  */
@@ -55,7 +62,7 @@
 } while (0)
 
 /* useful until we keep track of gc-references in corlib etc. */
-#define IS_GC_REFERENCE(class,t) (mono_gc_is_moving () ? FALSE : ((t)->type == MONO_TYPE_U && (class)->image == mono_defaults.corlib))
+#define IS_GC_REFERENCE(class,t) (mono_gc_needs_write_barriers() ? FALSE : ((t)->type == MONO_TYPE_U && (class)->image == mono_defaults.corlib))
 
 void   mono_object_register_finalizer               (MonoObject  *obj);
 
@@ -84,7 +91,7 @@ extern void mono_gc_set_stack_end (void *stack_end);
 gboolean mono_object_is_alive (MonoObject* obj);
 gboolean mono_gc_is_finalizer_thread (MonoThread *thread);
 
-void mono_gchandle_set_target (guint32 gchandle, MonoObject *obj);
+void mono_gchandle_set_target (MonoGCHandle gchandle, MonoObject *obj);
 
 /*Ephemeron functionality. Sgen only*/
 gboolean    mono_gc_ephemeron_array_add (MonoObject *obj);
@@ -119,7 +126,7 @@ mono_gc_alloc_fixed_no_descriptor (size_t size, MonoGCRootSource source, void *k
 void  mono_gc_free_fixed             (void* addr);
 
 /* make sure the gchandle was allocated for an object in domain */
-gboolean mono_gchandle_is_in_domain (guint32 gchandle, MonoDomain *domain);
+UNITY_MONO_API gboolean mono_gchandle_is_in_domain (MonoGCHandle gchandle, MonoDomain *domain);
 void     mono_gchandle_free_domain  (MonoDomain *domain);
 
 typedef void (*FinalizerThreadCallback) (gpointer user_data);
@@ -138,6 +145,9 @@ mono_gc_alloc_handle_obj (MonoVTable *vtable, gsize size);
 
 MonoArray*
 mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length);
+
+MonoArray*
+mono_gc_alloc_pinned_vector (MonoVTable *vtable, size_t size, uintptr_t max_length);
 
 MonoArrayHandle
 mono_gc_alloc_handle_vector (MonoVTable *vtable, gsize size, gsize max_length);
@@ -169,6 +179,7 @@ mono_gc_register_object_with_weak_fields (MonoObjectHandle obj);
 typedef void (*MonoFinalizationProc)(gpointer, gpointer); // same as SGenFinalizationProc, GC_finalization_proc
 
 void  mono_gc_register_for_finalization (MonoObject *obj, MonoFinalizationProc user_data);
+void  mono_gc_strong_handle_foreach(GFunc func, gpointer user_data);
 void  mono_gc_add_memory_pressure (gint64 value);
 MONO_API int   mono_gc_register_root (char *start, size_t size, MonoGCDescriptor descr, MonoGCRootSource source, void *key, const char *msg);
 void  mono_gc_deregister_root (char* addr);
@@ -309,6 +320,11 @@ void mono_gc_set_desktop_mode (void);
  */
 gboolean mono_gc_is_moving (void);
 
+/*
+ * Return whenever this GC needs write barriers
+ */
+gboolean mono_gc_needs_write_barriers (void);
+
 typedef void* (*MonoGCLockedCallbackFunc) (void *data);
 
 void* mono_gc_invoke_with_gc_lock (MonoGCLockedCallbackFunc func, void *data);
@@ -362,7 +378,7 @@ typedef struct _RefQueueEntry RefQueueEntry;
 
 struct _RefQueueEntry {
 	void *dis_link;
-	guint32 gchandle;
+	MonoGCHandle gchandle;
 	MonoDomain *domain;
 	void *user_data;
 	RefQueueEntry *next;

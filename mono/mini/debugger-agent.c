@@ -68,6 +68,7 @@
 #include <mono/metadata/verify-internals.h>
 #include <mono/metadata/reflection-internals.h>
 #include <mono/metadata/w32socket.h>
+#include <mono/metadata/w32socket-internals.h>
 #include <mono/utils/mono-coop-mutex.h>
 #include <mono/utils/mono-coop-semaphore.h>
 #include <mono/utils/mono-error-internals.h>
@@ -929,6 +930,59 @@ debugger_agent_parse_options (char *options)
 	mini_get_debug_options ()->load_aot_jit_info_eagerly = TRUE;
 }
 
+static gboolean disable_optimizations = TRUE;
+
+static void
+update_mdb_optimizations ()
+{
+	gboolean enable = disable_optimizations;
+	mini_get_debug_options ()->gen_sdb_seq_points = enable;
+	/*
+	 * This is needed because currently we don't handle liveness info.
+	 */
+	mini_get_debug_options ()->mdb_optimizations = enable;
+
+#ifndef MONO_ARCH_HAVE_CONTEXT_SET_INT_REG
+	/* This is needed because we can't set local variables in registers yet */
+	mono_disable_optimizations (MONO_OPT_LINEARS);
+#endif
+
+	/*
+	 * The stack walk done from thread_interrupt () needs to be signal safe, but it
+	 * isn't, since it can call into mono_aot_find_jit_info () which is not signal
+	 * safe (#3411). So load AOT info eagerly when the debugger is running as a
+	 * workaround.
+	 */
+	mini_get_debug_options ()->load_aot_jit_info_eagerly = enable;
+}
+
+MONO_API void
+mono_debugger_set_generate_debug_info (gboolean enable)
+{
+	disable_optimizations = enable;
+	update_mdb_optimizations ();
+}
+
+MONO_API gboolean
+mono_debugger_get_generate_debug_info ()
+{
+	return disable_optimizations;
+}
+
+MONO_API void
+mono_debugger_disconnect (const char *message)
+{
+	stop_debugger_thread ();
+}
+
+typedef void (*MonoDebuggerAttachFunc)(gboolean attached);
+static MonoDebuggerAttachFunc attach_func;
+MONO_API void
+mono_debugger_install_attach_detach_callback (MonoDebuggerAttachFunc func)
+{
+	attach_func = func;
+}
+
 void
 mono_debugger_set_thread_state (DebuggerTlsData *tls, MonoDebuggerThreadState expected, MonoDebuggerThreadState set)
 {
@@ -1053,6 +1107,8 @@ debugger_agent_init (void)
 	ids_init ();
 	objrefs_init ();
 	suspend_init ();
+
+	update_mdb_optimizations ();
 
 #ifdef HAVE_SETPGID
 	if (agent_config.setpgid)
@@ -1200,7 +1256,13 @@ static int
 socket_transport_accept (int socket_fd)
 {
 	MONO_ENTER_GC_SAFE;
-	conn_fd = accept (socket_fd, NULL, NULL);
+#if defined(HOST_WIN32)
+	conn_fd = mono_w32socket_accept(socket_fd, NULL, NULL, TRUE);
+	if (conn_fd != -1)
+		mono_w32socket_set_blocking(conn_fd, TRUE);
+#else
+	conn_fd = accept(socket_fd, NULL, NULL);
+#endif
 	MONO_EXIT_GC_SAFE;
 
 	if (conn_fd == -1) {
@@ -4172,7 +4234,11 @@ thread_startup (MonoProfiler *prof, uintptr_t tid)
 	}
 
 	tls = (DebuggerTlsData *)mono_native_tls_get_value (debugger_tls_id);
-	g_assert (!tls);
+	if (tls) {
+		if (!tls->terminated)
+			MONO_GC_UNREGISTER_ROOT (tls->thread);
+		g_free (tls);
+	}
 	// FIXME: Free this somewhere
 	tls = g_new0 (DebuggerTlsData, 1);
 	MONO_GC_REGISTER_ROOT_SINGLE (tls->thread, MONO_ROOT_SOURCE_DEBUGGER, NULL, "Debugger Thread Reference");
@@ -10185,11 +10251,15 @@ debugger_thread (void *arg)
 			attach_failed = TRUE; // Don't abort process when we can't listen
 		} else {
 			mono_set_is_debugger_attached (TRUE);
+			if (attach_func)
+				attach_func (TRUE);
 			/* Send start event to client */
 			process_profiler_event (EVENT_KIND_VM_START, mono_thread_get_main ());
 		}
 	} else {
 		mono_set_is_debugger_attached (TRUE);
+		if (attach_func)
+			attach_func (TRUE);
 	}
 	
 	while (!attach_failed) {
@@ -10332,6 +10402,8 @@ debugger_thread (void *arg)
 	}
 
 	mono_set_is_debugger_attached (FALSE);
+	if (attach_func)
+		attach_func (FALSE);
 
 	mono_coop_mutex_lock (&debugger_thread_exited_mutex);
 	debugger_thread_exited = TRUE;

@@ -483,6 +483,7 @@ mono_domain_create (void)
 #endif
 
 	mono_debug_domain_create (domain);
+	mono_profiler_coverage_domain_init (domain);
 
 #ifdef ENABLE_NETCORE
 	mono_domain_create_default_alc (domain);
@@ -975,6 +976,7 @@ mono_domain_set_internal_with_options (MonoDomain *domain, gboolean migrate_exce
 
 	SET_APPDOMAIN (domain);
 	SET_APPCONTEXT (domain->default_context);
+	mono_gc_wbarrier_generic_nostore_internal (&domain->default_context);
 
 	if (migrate_exception) {
 		thread = mono_thread_internal_current ();
@@ -1022,6 +1024,33 @@ mono_domain_foreach (MonoDomainFunc func, gpointer user_data)
 
 	gc_free_fixed_non_heap_list (copy);
 	MONO_EXIT_GC_UNSAFE;
+}
+
+MONO_API void
+mono_domain_jit_foreach (MonoDomain *domain, MonoJitInfoFunc func, void *user_data)
+{
+	mono_jit_info_table_foreach_internal (domain, func, user_data);
+}
+
+MONO_API void
+mono_domain_assembly_foreach (MonoDomain* domain, MonoDomainAssemblyFunc func, void* user_data)
+{
+	MonoAssembly* assembly;
+	GSList *iter;
+
+	/* Skipping internal assembly builders created by remoting,
+	   as it is done in ves_icall_System_AppDomain_GetAssemblies
+	*/
+	mono_domain_assemblies_lock(domain);
+	for (iter = domain->domain_assemblies; iter; iter = iter->next) 
+	{
+		assembly = (MonoAssembly *)iter->data;
+		if (assembly->corlib_internal)
+			continue;
+
+		func(assembly, user_data);
+	}
+	mono_domain_assemblies_unlock(domain);
 }
 
 /* FIXME: maybe we should integrate this with mono_assembly_open? */
@@ -1315,6 +1344,7 @@ mono_domain_free (MonoDomain *domain, gboolean force)
 
 	if (domain == mono_root_domain)
 		mono_root_domain = NULL;
+	mono_profiler_coverage_domain_free (domain);
 }
 
 /**
