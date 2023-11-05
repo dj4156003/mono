@@ -2,6 +2,7 @@
 #include <mono/utils/mono-publib.h>
 #include "unity-memory-info.h"
 #include <mono/metadata/assembly.h>
+#include <mono/metadata/assembly-internals.h>
 #include <mono/metadata/class.h>
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/image.h>
@@ -42,8 +43,8 @@ ContextRecurseClassData (CollectMetadataContext *context, MonoClass *klass)
 		fieldCount = mono_class_num_fields (klass);
 		
 		if (fieldCount > 0) {
-			while ((field = mono_class_get_fields (klass, &iter))) {
-				MonoClass *fieldKlass = mono_class_from_mono_type (field->type);
+			while ((field = mono_class_get_fields_internal (klass, &iter))) {
+				MonoClass *fieldKlass = mono_class_from_mono_type_internal (field->type);
 
 				if (fieldKlass != klass)
 					ContextRecurseClassData (context, fieldKlass);
@@ -98,7 +99,7 @@ CollectImageMetaData (MonoImage *image, gpointer value, CollectMetadataContext *
 
 		while (g_hash_table_iter_next (&iter, &key, NULL)) {
 			MonoType *monoType = (MonoType *)key;
-			MonoClass *klass = mono_class_from_mono_type (monoType);
+			MonoClass *klass = mono_class_from_mono_type_internal (monoType);
 
 			if (klass)
 				ContextRecurseClassData (context, klass);
@@ -164,7 +165,7 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 
 	if (klass->rank > 0) {
 		type->flags = (MonoMetadataTypeFlags) (kArray | (kArrayRankMask & (klass->rank << 16)));
-		type->baseOrElementTypeIndex = FindClassIndex (context->allTypes, mono_class_get_element_class (klass));
+		type->baseOrElementTypeIndex = FindClassIndex (context->allTypes, m_class_get_element_class (klass));
 	} else {
 		gpointer iter = NULL;
 		int fieldCount = 0;
@@ -173,15 +174,15 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 		MonoVTable *vtable;
 		void *statics_data;
 
-		type->flags = (klass->valuetype || klass->byval_arg.type == MONO_TYPE_PTR) ? kValueType : kNone;
+		type->flags = (klass->valuetype || klass->_byval_arg.type == MONO_TYPE_PTR) ? kValueType : kNone;
 		type->fieldCount = 0;
 		fieldCount = mono_class_num_fields (klass);
 		if (fieldCount > 0) {
 			type->fields = g_new (MonoMetadataField, fieldCount);
 
-			while ((field = mono_class_get_fields (klass, &iter))) {
+			while ((field = mono_class_get_fields_internal (klass, &iter))) {
 				MonoMetadataField *metaField = &type->fields[type->fieldCount];
-				MonoClass *typeKlass = mono_class_from_mono_type (field->type);
+				MonoClass *typeKlass = mono_class_from_mono_type_internal (field->type);
 
 				metaField->typeIndex = FindClassIndex (context->allTypes, typeKlass);
 
@@ -214,12 +215,12 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 			memcpy (type->statics, statics_data, type->staticsSize);
 		}
 
-		baseClass = mono_class_get_parent (klass);
+		baseClass = m_class_get_parent (klass);
 		type->baseOrElementTypeIndex = baseClass ? FindClassIndex (context->allTypes, baseClass) : -1;
 	}
 
 	type->assemblyName = mono_class_get_image (klass)->assembly->aname.name;
-	type->name = mono_type_get_name_full (&klass->byval_arg, MONO_TYPE_NAME_FORMAT_IL);
+	type->name = mono_type_get_name_full (&klass->_byval_arg, MONO_TYPE_NAME_FORMAT_IL);
 	type->typeInfoAddress = (uint64_t)klass;
 	type->size = (klass->valuetype) != 0 ? (mono_class_instance_size (klass) - sizeof (MonoObject)) : mono_class_instance_size (klass);
 }
@@ -660,7 +661,7 @@ ReportHashMapListClasses(gpointer key, gpointer value, gpointer user_data)
 static void
 ReportClassesFromAssembly(MonoAssembly *assembly, void *user_data)
 {
-	MonoImage *image = mono_assembly_get_image(assembly);
+	MonoImage *image = mono_assembly_get_image_internal(assembly);
 	int i;
 	MonoTableInfo *tdef = &image->tables[MONO_TABLE_TYPEDEF];
 	GSList *list;
@@ -674,7 +675,7 @@ ReportClassesFromAssembly(MonoAssembly *assembly, void *user_data)
 
 		while (g_hash_table_iter_next(&iter, &key, NULL)) {
 			MonoType *monoType = (MonoType *)key;
-			MonoClass *klass = mono_class_from_mono_type(monoType);
+			MonoClass *klass = mono_class_from_mono_type_internal(monoType);
 
 			if (klass && klass->inited)
 				context->callback(klass, context->user_data);
