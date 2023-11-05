@@ -2,7 +2,6 @@
 #include <mono/utils/mono-publib.h>
 #include "unity-memory-info.h"
 #include <mono/metadata/assembly.h>
-#include <mono/metadata/assembly-internals.h>
 #include <mono/metadata/class.h>
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/image.h>
@@ -43,8 +42,8 @@ ContextRecurseClassData (CollectMetadataContext *context, MonoClass *klass)
 		fieldCount = mono_class_num_fields (klass);
 		
 		if (fieldCount > 0) {
-			while ((field = mono_class_get_fields_internal (klass, &iter))) {
-				MonoClass *fieldKlass = mono_class_from_mono_type_internal (field->type);
+			while ((field = mono_class_get_fields (klass, &iter))) {
+				MonoClass *fieldKlass = mono_class_from_mono_type (field->type);
 
 				if (fieldKlass != klass)
 					ContextRecurseClassData (context, fieldKlass);
@@ -99,7 +98,7 @@ CollectImageMetaData (MonoImage *image, gpointer value, CollectMetadataContext *
 
 		while (g_hash_table_iter_next (&iter, &key, NULL)) {
 			MonoType *monoType = (MonoType *)key;
-			MonoClass *klass = mono_class_from_mono_type_internal (monoType);
+			MonoClass *klass = mono_class_from_mono_type (monoType);
 
 			if (klass)
 				ContextRecurseClassData (context, klass);
@@ -165,7 +164,7 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 
 	if (klass->rank > 0) {
 		type->flags = (MonoMetadataTypeFlags) (kArray | (kArrayRankMask & (klass->rank << 16)));
-		type->baseOrElementTypeIndex = FindClassIndex (context->allTypes, m_class_get_element_class (klass));
+		type->baseOrElementTypeIndex = FindClassIndex (context->allTypes, mono_class_get_element_class (klass));
 	} else {
 		gpointer iter = NULL;
 		int fieldCount = 0;
@@ -174,15 +173,15 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 		MonoVTable *vtable;
 		void *statics_data;
 
-		type->flags = (klass->valuetype || klass->_byval_arg.type == MONO_TYPE_PTR) ? kValueType : kNone;
+		type->flags = (klass->valuetype || klass->byval_arg.type == MONO_TYPE_PTR) ? kValueType : kNone;
 		type->fieldCount = 0;
 		fieldCount = mono_class_num_fields (klass);
 		if (fieldCount > 0) {
 			type->fields = g_new (MonoMetadataField, fieldCount);
 
-			while ((field = mono_class_get_fields_internal (klass, &iter))) {
+			while ((field = mono_class_get_fields (klass, &iter))) {
 				MonoMetadataField *metaField = &type->fields[type->fieldCount];
-				MonoClass *typeKlass = mono_class_from_mono_type_internal (field->type);
+				MonoClass *typeKlass = mono_class_from_mono_type (field->type);
 
 				metaField->typeIndex = FindClassIndex (context->allTypes, typeKlass);
 
@@ -215,12 +214,12 @@ AddMetadataType (gpointer key, gpointer value, gpointer user_data)
 			memcpy (type->statics, statics_data, type->staticsSize);
 		}
 
-		baseClass = m_class_get_parent (klass);
+		baseClass = mono_class_get_parent (klass);
 		type->baseOrElementTypeIndex = baseClass ? FindClassIndex (context->allTypes, baseClass) : -1;
 	}
 
 	type->assemblyName = mono_class_get_image (klass)->assembly->aname.name;
-	type->name = mono_type_get_name_full (&klass->_byval_arg, MONO_TYPE_NAME_FORMAT_IL);
+	type->name = mono_type_get_name_full (&klass->byval_arg, MONO_TYPE_NAME_FORMAT_IL);
 	type->typeInfoAddress = (uint64_t)klass;
 	type->size = (klass->valuetype) != 0 ? (mono_class_instance_size (klass) - sizeof (MonoObject)) : mono_class_instance_size (klass);
 }
@@ -381,15 +380,15 @@ static void* CaptureHeapInfo(void* user)
 	MonoManagedHeap* heap = data->heap;
 	GHashTable* monoImages = data->monoImages;
 
-	MonoMemoryManager* memory_manager = mono_domain_memory_manager(mono_domain_get());
-	MonoMemoryManager* root_memory_manager = mono_domain_memory_manager(mono_get_root_domain());
+	MonoDomain* domain = mono_domain_get();
+	MonoDomain* rootDomain = mono_get_root_domain();
 	SectionIterationContext iterationContext;
 
 	// Increment count for each heap section
 	heap->sectionCount = GC_get_heap_section_count();
 	// Increment count for the domain mem pool chunk
-	heap->sectionCount += MonoMemPoolNumChunks(root_memory_manager->mp);
-	heap->sectionCount += MonoMemPoolNumChunks(memory_manager->mp);
+	heap->sectionCount += MonoMemPoolNumChunks(rootDomain->mp);
+	heap->sectionCount += MonoMemPoolNumChunks(domain->mp);
 	// Increment count for each image mem pool chunk
 	heap->sectionCount += MonoImagesMemPoolNumChunks(monoImages);
 	// Increment count for each image->class_cache hash table.
@@ -404,12 +403,12 @@ static void* CaptureHeapInfo(void* user)
 	// Allocate memory for each heap section
 	GC_foreach_heap_section(&iterationContext, AllocateMemoryForSection);
 	// Allocate memory for the domain mem pool chunk
-	mono_mem_manager_lock(root_memory_manager);
-	mono_mempool_foreach_block(root_memory_manager->mp, AllocateMemoryForMemPoolChunk, &iterationContext);
-	mono_mem_manager_unlock(root_memory_manager);
-	mono_mem_manager_lock(memory_manager);
-	mono_mempool_foreach_block(memory_manager->mp, AllocateMemoryForMemPoolChunk, &iterationContext);
-	mono_mem_manager_unlock(memory_manager);
+	mono_domain_lock(rootDomain);
+	mono_mempool_foreach_block(rootDomain->mp, AllocateMemoryForMemPoolChunk, &iterationContext);
+	mono_domain_unlock(rootDomain);
+	mono_domain_lock(domain);
+	mono_mempool_foreach_block(domain->mp, AllocateMemoryForMemPoolChunk, &iterationContext);
+	mono_domain_unlock(domain);
 	// Allocate memory for each image mem pool chunk
 	g_hash_table_foreach(monoImages, (GHFunc)AllocateMemoryForImageMemPool, &iterationContext);
 	// Allocate memory for each image->class_cache hash table.
@@ -451,15 +450,15 @@ static void VerifyHeapSectionIsStillValid(void* context, void* sectionStart, voi
 
 static gboolean MonoManagedHeapStillValid(MonoManagedHeap* heap, GHashTable* monoImages)
 {
-	MonoMemoryManager* memory_manager = mono_domain_memory_manager(mono_domain_get());
-	MonoMemoryManager* root_memory_manager = mono_domain_memory_manager(mono_get_root_domain());
+	MonoDomain* rootDomain = mono_get_root_domain();
+	MonoDomain* domain = mono_domain_get();
 
 	VerifyHeapSectionStillValidIterationContext iterationContext;
 	int currentSectionCount;
 
 	currentSectionCount = GC_get_heap_section_count();
-	currentSectionCount += MonoMemPoolNumChunks(root_memory_manager->mp);
-	currentSectionCount += MonoMemPoolNumChunks(memory_manager->mp);
+	currentSectionCount += MonoMemPoolNumChunks(rootDomain->mp);
+	currentSectionCount += MonoMemPoolNumChunks(domain->mp);
 	currentSectionCount += MonoImagesMemPoolNumChunks(monoImages);
 	currentSectionCount += g_hash_table_size(monoImages); // image->class_cache hash table.
 	currentSectionCount += MonoImageSetsMemPoolNumChunks();
@@ -488,8 +487,8 @@ static gboolean MonoManagedHeapStillValid(MonoManagedHeap* heap, GHashTable* mon
 
 static void CaptureManagedHeap(MonoManagedHeap* heap, GHashTable* monoImages)
 {
-	MonoMemoryManager* memory_manager = mono_domain_memory_manager(mono_domain_get());
-	MonoMemoryManager* root_memory_manager = mono_domain_memory_manager(mono_get_root_domain());
+	MonoDomain* rootDomain = mono_get_root_domain();
+	MonoDomain* domain = mono_domain_get();
 	SectionIterationContext iterationContext;
 
 	CaptureHeapInfoData data;
@@ -502,8 +501,8 @@ static void CaptureManagedHeap(MonoManagedHeap* heap, GHashTable* monoImages)
 	iterationContext.currentSection = heap->sections;
 
 	GC_foreach_heap_section(&iterationContext, CopyHeapSection);
-	mono_mempool_foreach_block(root_memory_manager->mp, CopyMemPoolChunk, &iterationContext);
-	mono_mempool_foreach_block(memory_manager->mp, CopyMemPoolChunk, &iterationContext);
+	mono_mempool_foreach_block(rootDomain->mp, CopyMemPoolChunk, &iterationContext);
+	mono_mempool_foreach_block(domain->mp, CopyMemPoolChunk, &iterationContext);
 	g_hash_table_foreach(monoImages, (GHFunc)CopyImageMemPool, &iterationContext);
 	g_hash_table_foreach(monoImages, (GHFunc)CopyImageClassCache, &iterationContext);
 	mono_metadata_image_set_foreach(CopyImageSetMemPool, &iterationContext);
@@ -661,7 +660,7 @@ ReportHashMapListClasses(gpointer key, gpointer value, gpointer user_data)
 static void
 ReportClassesFromAssembly(MonoAssembly *assembly, void *user_data)
 {
-	MonoImage *image = mono_assembly_get_image_internal(assembly);
+	MonoImage *image = mono_assembly_get_image(assembly);
 	int i;
 	MonoTableInfo *tdef = &image->tables[MONO_TABLE_TYPEDEF];
 	GSList *list;
@@ -675,7 +674,7 @@ ReportClassesFromAssembly(MonoAssembly *assembly, void *user_data)
 
 		while (g_hash_table_iter_next(&iter, &key, NULL)) {
 			MonoType *monoType = (MonoType *)key;
-			MonoClass *klass = mono_class_from_mono_type_internal(monoType);
+			MonoClass *klass = mono_class_from_mono_type(monoType);
 
 			if (klass && klass->inited)
 				context->callback(klass, context->user_data);

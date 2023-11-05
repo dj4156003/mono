@@ -472,15 +472,16 @@ void mono_filter_objects(LivenessState *state)
  */
 void mono_unity_liveness_calculation_from_statics(LivenessState *liveness_state)
 {
-	guint i, j;
-	MonoDomain *domain = mono_domain_get();
-	MonoMemoryManager* memory_manager = mono_domain_memory_manager(domain);
+		int i, j;
+	MonoDomain* domain = mono_domain_get();
 
 	mono_reset_state(liveness_state);
 
-	for (i = 0; i < memory_manager->class_vtable_array->len; ++i) {
-		MonoVTable *vtable = (MonoVTable *)g_ptr_array_index(memory_manager->class_vtable_array, i);
-		MonoClass *klass = vtable->klass;
+
+	for (i = 0; i < domain->class_vtable_array->len; ++i)
+	{
+		MonoVTable* vtable = (MonoVTable *)g_ptr_array_index (domain->class_vtable_array, i);
+		MonoClass* klass = vtable->klass;
 		MonoClassField *field;
 		if (!klass)
 			continue;
@@ -490,35 +491,47 @@ void mono_unity_liveness_calculation_from_statics(LivenessState *liveness_state)
 			continue;
 		if (klass->size_inited == 0)
 			continue;
-		for (j = 0; j < mono_class_get_field_count(klass); j++) {
+		for (j = 0; j < mono_class_get_field_count (klass); j++)
+		{
 			field = &klass->fields[j];
 			if (!(field->type->attrs & FIELD_ATTRIBUTE_STATIC))
 				continue;
-			if (!mono_field_can_contain_references(field))
+			if(!mono_field_can_contain_references(field))
 				continue;
 			// shortcut check for special statics
 			if (field->offset == -1)
 				continue;
 
-			char *offseted = (char *)mono_vtable_get_static_field_data(vtable);
+			if (MONO_TYPE_ISSTRUCT(field->type))
+			{
+				char* offseted = (char*)mono_vtable_get_static_field_data (vtable);
 				offseted += field->offset;
-
-			if (MONO_TYPE_ISSTRUCT(field->type)) {
-				if (field->type->type == MONO_TYPE_GENERICINST) {
+				if (field->type->type == MONO_TYPE_GENERICINST)
+				{
 					g_assert(field->type->data.generic_class->cached_class);
-					mono_traverse_object_internal((MonoObject *)offseted, TRUE, field->type->data.generic_class->cached_class, liveness_state);
+					mono_traverse_object_internal((MonoObject*)offseted, TRUE, field->type->data.generic_class->cached_class, liveness_state);
 				}
 				else
-					mono_traverse_object_internal((MonoObject *)offseted, TRUE, field->type->data.klass, liveness_state);
+				{
+					mono_traverse_object_internal((MonoObject*)offseted, TRUE, field->type->data.klass, liveness_state);
+				}
 			}
-			else {
-				MonoObject* val = *(MonoObject**)offseted;
-				if (val)
+			else
+			{
+				MonoError error;
+				MonoObject* val = NULL;
+
+				mono_field_static_get_value_checked (mono_class_vtable (domain, klass), field, &val, &error);
+
+				if (val && mono_error_ok (&error))
+				{
 					mono_add_process_object(val, liveness_state);
+				}
+				mono_error_cleanup (&error);
 			}
 		}
 	}
-	mono_traverse_objects(liveness_state);
+	mono_traverse_objects (liveness_state);
 	//Filter objects and call callback to register found objects
 	mono_filter_objects(liveness_state);
 }
