@@ -523,7 +523,7 @@ void mono_unity_liveness_calculation_from_statics(LivenessState *liveness_state)
 
 				mono_field_static_get_value_checked (mono_class_vtable (domain, klass), field, &val, &error);
 
-				if (val && mono_error_ok (&error))
+				if (val && is_ok (&error))
 				{
 					mono_add_process_object(val, liveness_state);
 				}
