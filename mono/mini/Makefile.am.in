@@ -206,7 +206,7 @@ noinst_LIBRARIES = libmain.a
 
 if SUPPORT_SGEN
 libmain_a_SOURCES = main-sgen.c
-#endif
+endif
 if SUPPORT_BOEHM
 if SUPPORT_SGEN
 libmain_a_SOURCES += main.c
