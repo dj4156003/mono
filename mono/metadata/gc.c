@@ -700,10 +700,10 @@ ves_icall_System_GC_get_ephemeron_tombstone (MonoError *error)
 
 #if ENABLE_NETCORE
 
-MonoGCHandle
+gpointer
 ves_icall_System_GCHandle_InternalAlloc (MonoObjectHandle obj, gint32 type, MonoError *error)
 {
-	MonoGCHandle handle = NULL;
+	guint32 handle = 0;
 
 	switch (type) {
 	case HANDLE_WEAK:
@@ -721,31 +721,32 @@ ves_icall_System_GCHandle_InternalAlloc (MonoObjectHandle obj, gint32 type, Mono
 	default:
 		g_assert_not_reached ();
 	}
-	return handle;
+	/* The lowest bit is used to mark pinned handles by netcore's GCHandle class */
+	return GUINT_TO_POINTER (handle << 1);
 }
 
 void
-ves_icall_System_GCHandle_InternalFree (MonoGCHandle handle, MonoError *error)
+ves_icall_System_GCHandle_InternalFree (gpointer handle, MonoError *error)
 {
-	mono_gchandle_free_internal (handle);
+	mono_gchandle_free_internal (GPOINTER_TO_UINT (handle) >> 1);
 }
 
 MonoObjectHandle
-ves_icall_System_GCHandle_InternalGet (MonoGCHandle handle, MonoError *error)
+ves_icall_System_GCHandle_InternalGet (gpointer handle, MonoError *error)
 {
-	return mono_gchandle_get_target_handle (handle);
+	return mono_gchandle_get_target_handle (GPOINTER_TO_UINT (handle) >> 1);
 }
 
 void
-ves_icall_System_GCHandle_InternalSet (MonoGCHandle handle, MonoObjectHandle obj, MonoError *error)
+ves_icall_System_GCHandle_InternalSet (gpointer handle, MonoObjectHandle obj, MonoError *error)
 {
-	mono_gchandle_set_target_handle (handle, obj);
+	mono_gchandle_set_target_handle (GPOINTER_TO_UINT (handle) >> 1, obj);
 }
 
 #else
 
 MonoObjectHandle
-ves_icall_System_GCHandle_GetTarget (MonoGCHandle handle, MonoError *error)
+ves_icall_System_GCHandle_GetTarget (guint32 handle, MonoError *error)
 {
 	return mono_gchandle_get_target_handle (handle);
 }
@@ -753,8 +754,8 @@ ves_icall_System_GCHandle_GetTarget (MonoGCHandle handle, MonoError *error)
 /*
  * if type == -1, change the target of the handle, otherwise allocate a new handle.
  */
-MonoGCHandle
-ves_icall_System_GCHandle_GetTargetHandle (MonoObjectHandle obj, MonoGCHandle handle, gint32 type, MonoError *error)
+guint32
+ves_icall_System_GCHandle_GetTargetHandle (MonoObjectHandle obj, guint32 handle, gint32 type, MonoError *error)
 {
 	if (type == -1) {
 		mono_gchandle_set_target_handle (handle, obj);
@@ -773,26 +774,24 @@ ves_icall_System_GCHandle_GetTargetHandle (MonoObjectHandle obj, MonoGCHandle ha
 	default:
 		g_assert_not_reached ();
 	}
-	return NULL;
+	return 0;
 }
 
 void
-ves_icall_System_GCHandle_FreeHandle (MonoGCHandle handle)
+ves_icall_System_GCHandle_FreeHandle (guint32 handle)
 {
 	mono_gchandle_free_internal (handle);
 }
 
 gpointer
-ves_icall_System_GCHandle_GetAddrOfPinnedObject (MonoGCHandle handle)
+ves_icall_System_GCHandle_GetAddrOfPinnedObject (guint32 handle)
 {
 	// Handles seem to only be in the way here, and the object is pinned.
 
 	MonoObject *obj;
-	guint32 gch = MONO_GC_HANDLE_TO_UINT (handle);
 
-	if (MONO_GC_HANDLE_TYPE (gch) != HANDLE_PINNED)
+	if (MONO_GC_HANDLE_TYPE (handle) != HANDLE_PINNED)
 		return (gpointer)-2;
-
 	obj = mono_gchandle_get_target_internal (handle);
 	if (obj) {
 		MonoClass *klass = mono_object_class (obj);
@@ -817,7 +816,7 @@ ves_icall_System_GCHandle_GetAddrOfPinnedObject (MonoGCHandle handle)
 }
 
 MonoBoolean
-ves_icall_System_GCHandle_CheckCurrentDomain (MonoGCHandle gchandle)
+ves_icall_System_GCHandle_CheckCurrentDomain (guint32 gchandle)
 {
 	return mono_gchandle_is_in_domain (gchandle, mono_domain_get ());
 }
