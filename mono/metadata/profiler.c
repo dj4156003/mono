@@ -256,7 +256,6 @@ mono_profiler_enable_coverage (void)
 		return FALSE;
 
 	mono_os_mutex_init (&mono_profiler_state.coverage_mutex);
-	mono_profiler_state.coverage_hash = g_hash_table_new (NULL, NULL);
 
 	if (!mono_debug_enabled ())
 		mono_debug_init (MONO_DEBUG_FORMAT_MONO);
