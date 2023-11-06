@@ -129,6 +129,9 @@ MONO_API void mono_gc_start_incremental_collection(void);
 /* heap walking is only valid in the pre-stop-world event callback */
 MONO_API int    mono_gc_walk_heap        (int flags, MonoGCReferences callback, void *data);
 
+MONO_API MONO_RT_EXTERNAL_ONLY void
+mono_gc_init_finalizer_thread (void);
+
 /*
  * Only supported under SGen. These two with Sgen will take and release the LOCK_GC
  */
