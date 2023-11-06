@@ -14,7 +14,7 @@
 #include "trace.h"
 
 #include <mono/utils/mono-logger-internals.h>
-#include <mono/metadata/class.h>
+#include <mono/metadata/class-getters.h>
 
 #ifndef DISABLE_JIT
 
@@ -90,10 +90,21 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 
     const char* method_name = cfg->method->name;
     MonoClass* mono_class = cfg->method->klass;
-    const char* class_name = mono_class_get_name(mono_class);
+    const char* class_name = m_class_get_name(mono_class);
 
-	mono_profiler_printf ("mini_profiler_emit_enter %s::%s\n", class_name, method_name);
-	mono_profiler_printf ("mini_profiler_emit_enter trace:%d enable enter: %d, equal: %d, aot: %d, can encode: %d\n", trace， MONO_CFG_PROFILE (cfg, ENTER), cfg->current_method != cfg->method, cfg->compile_aot, can_encode_method_ref (cfg->method));
+	mono_profiler_printf ("mini_profiler_emit_enter method: %s::%s\n", class_name, method_name);
+
+	const char* current_method_name = cfg->current_method->name;
+    MonoClass* current_mono_class = cfg->current_method->klass;
+    const char* current_class_name = m_class_get_name(current_mono_class);
+
+	mono_profiler_printf ("mini_profiler_emit_enter current method: %s::%s\n", current_class_name, current_method_name);
+
+	long profile_enter_enable = MONO_CFG_PROFILE (cfg, ENTER);
+	gboolean method_equal = cfg->current_method != cfg->method;
+ 	guint aot = cfg->compile_aot;
+	gboolean can_encode = can_encode_method_ref (cfg->method);
+	mono_profiler_printf ("mini_profiler_emit_enter trace:%d enable enter: %d, equal: %d, aot: %d, can_encode: %d\n", trace， profile_enter_enable, method_equal, aot, can_encode);
 
 	if ((!MONO_CFG_PROFILE (cfg, ENTER) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method))) && !trace)
 		return;
