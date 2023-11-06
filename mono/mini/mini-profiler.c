@@ -14,7 +14,6 @@
 #include "trace.h"
 
 #include <mono/utils/mono-logger-internals.h>
-#include <mono/metadata/class-getters.h>
 
 #ifndef DISABLE_JIT
 
