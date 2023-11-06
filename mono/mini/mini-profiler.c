@@ -97,7 +97,7 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 	gboolean method_equal = cfg->current_method != cfg->method;
  	guint aot = cfg->compile_aot;
 	gboolean can_encode = can_encode_method_ref (cfg->method);
-	mono_profiler_printf ("mini_profiler_emit_enter trace:%d enable enter: %d, equal: %d, aot: %d, can_encode: %d\n", trace， profile_enter_enable, method_equal, aot, can_encode);
+	mono_profiler_printf ("mini_profiler_emit_enter trace:%d enable enter: %d, equal: %d, aot: %d, can_encode: %d\n", trace, profile_enter_enable, method_equal, aot, can_encode);
 
 	if ((!MONO_CFG_PROFILE (cfg, ENTER) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method))) && !trace)
 		return;
