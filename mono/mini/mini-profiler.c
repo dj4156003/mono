@@ -89,16 +89,10 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 	gboolean trace = mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method);
 
     const char* method_name = cfg->method->name;
-    MonoClass* mono_class = cfg->method->klass;
-    const char* class_name = m_class_get_name(mono_class);
-
-	mono_profiler_printf ("mini_profiler_emit_enter method: %s::%s\n", class_name, method_name);
+	mono_profiler_printf ("mini_profiler_emit_enter method: %s\n", method_name);
 
 	const char* current_method_name = cfg->current_method->name;
-    MonoClass* current_mono_class = cfg->current_method->klass;
-    const char* current_class_name = m_class_get_name(current_mono_class);
-
-	mono_profiler_printf ("mini_profiler_emit_enter current method: %s::%s\n", current_class_name, current_method_name);
+	mono_profiler_printf ("mini_profiler_emit_enter current method: %s\n", current_method_name);
 
 	long profile_enter_enable = MONO_CFG_PROFILE (cfg, ENTER);
 	gboolean method_equal = cfg->current_method != cfg->method;
