@@ -13,6 +13,8 @@
 #include "mini.h"
 #include "trace.h"
 
+#include <mono/utils/mono-logger-internals.h>
+
 #ifndef DISABLE_JIT
 
 static MonoInst *
@@ -85,7 +87,7 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 {
 	gboolean trace = mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method);
 
-	printf ("mini_profiler_emit_enter trace:%d\n", trace);
+	mono_profiler_printf ("mini_profiler_emit_enter trace:%d\n", trace);
 
 	if ((!MONO_CFG_PROFILE (cfg, ENTER) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method))) && !trace)
 		return;
@@ -115,7 +117,7 @@ mini_profiler_emit_leave (MonoCompile *cfg, MonoInst *ret)
 {
 	gboolean trace = mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method);
 
-	printf ("mini_profiler_emit_leave trace:%d\n", trace);
+	mono_profiler_printf ("mini_profiler_emit_leave trace:%d\n", trace);
 
 	if (!MONO_CFG_PROFILE (cfg, LEAVE) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method)))
 		return;
