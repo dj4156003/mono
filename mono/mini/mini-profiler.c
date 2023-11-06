@@ -14,6 +14,7 @@
 #include "trace.h"
 
 #include <mono/utils/mono-logger-internals.h>
+#include <mono/metadata/class.h>
 
 #ifndef DISABLE_JIT
 
@@ -87,7 +88,12 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 {
 	gboolean trace = mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method);
 
-	mono_profiler_printf ("mini_profiler_emit_enter trace:%d\n", trace);
+    const char* method_name = cfg->method->name;
+    MonoClass* mono_class = cfg->method->klass;
+    const char* class_name = mono_class_get_name(mono_class);
+
+	mono_profiler_printf ("mini_profiler_emit_enter %s::%s\n", class_name, method_name);
+	mono_profiler_printf ("mini_profiler_emit_enter trace:%d enable enter: %d, equal: %d, aot: %d, can encode: %d\n", trace， MONO_CFG_PROFILE (cfg, ENTER), cfg->current_method != cfg->method, cfg->compile_aot, can_encode_method_ref (cfg->method));
 
 	if ((!MONO_CFG_PROFILE (cfg, ENTER) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method))) && !trace)
 		return;
@@ -105,6 +111,7 @@ mini_profiler_emit_enter (MonoCompile *cfg)
 	else
 		EMIT_NEW_PCONST (cfg, iargs [2], NULL);
 
+	mono_profiler_printf ("mini_profiler_emit_enter call mono_emit_jit_icall\n");
 	/* void mono_profiler_raise_method_enter (MonoMethod *method, MonoJitInfo *ji, MonoProfilerCallContext *ctx) */
 	if (trace)
 		mono_emit_jit_icall (cfg, mono_trace_enter_method, iargs);
@@ -116,8 +123,6 @@ void
 mini_profiler_emit_leave (MonoCompile *cfg, MonoInst *ret)
 {
 	gboolean trace = mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method);
-
-	mono_profiler_printf ("mini_profiler_emit_leave trace:%d\n", trace);
 
 	if (!MONO_CFG_PROFILE (cfg, LEAVE) || cfg->current_method != cfg->method || (cfg->compile_aot && !can_encode_method_ref (cfg->method)))
 		return;
