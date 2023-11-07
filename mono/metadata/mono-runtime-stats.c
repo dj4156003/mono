@@ -1,4 +1,5 @@
 #include <mono/metadata/mono-runtime-stats.h>
+#include <mono/utils/gc_wrapper.h>
 #include <glib.h>
 
 MonoRuntimeStats mono_runtime_stats = {{ 0 }};
@@ -18,11 +19,7 @@ MONO_API void
 rg_gc_heap_foreach(CBFunc callback, cbPtr user_data)
 {
 #if HAVE_BOEHM_GC
-	rg_execution_ctx ctx;
-	ctx.callback = callback;
-	ctx.user_data = user_data;
-
-	GC_foreach_heap_section(&ctx, handle_gc_heap_chunk);
+	GC_foreach_heap_section(user_data, callback);
 #else
 	g_assert_not_reached();
 #endif
