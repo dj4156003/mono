@@ -5,7 +5,8 @@
 
 MONO_BEGIN_DECLS
 
-typedef struct _MonoRuntimeStats {
+typedef struct _MonoRuntimeStats
+{
     int64_t new_object_count;
     int64_t initialized_class_count;
     // uint64_t generic_vtable_count;
@@ -29,7 +30,12 @@ extern MonoRuntimeStats mono_runtime_stats;
 
 MONO_API
 MonoRuntimeStats *
-get_mono_runtime_stats	    ();
+get_mono_runtime_stats();
+
+typedef void *cbPtr;
+typedef void (*CBFunc)(cbPtr data, cbPtr user_data);
+MONO_API void
+rg_gc_heap_foreach(CBFunc callback, cbPtr user_data);
 
 MONO_END_DECLS
 
