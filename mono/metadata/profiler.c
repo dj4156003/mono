@@ -780,6 +780,12 @@ mono_profiler_enable_allocations (void)
 	return mono_profiler_state.allocations = TRUE;
 }
 
+mono_bool
+mono_profiler_enable_fileio (void)
+{
+	return mono_profiler_state.fileio = TRUE;
+}
+
 /**
  * mono_profiler_enable_clauses:
  *
@@ -1160,6 +1166,7 @@ struct _MonoProfiler {
 	MonoLegacyProfileGCResizeFunc gc_heap_resize;
 	MonoLegacyProfileJitResult jit_end2;
 	MonoLegacyProfileAllocFunc allocation;
+	MonoLegacyProfileFileIOFunc fileio;
 	MonoLegacyProfileMethodFunc enter;
 	MonoLegacyProfileMethodFunc leave;
 	MonoLegacyProfileExceptionFunc throw_callback;
@@ -1314,6 +1321,21 @@ mono_profiler_install_allocation (MonoLegacyProfileAllocFunc callback)
 
 	if (callback)
 		mono_profiler_set_gc_allocation_callback (current->handle, allocation_cb);
+}
+
+static void
+fileio_cb (MonoProfiler *prof, uint64_t kind, uint64_t size)
+{
+	prof->fileio (prof->profiler, kind, size);
+}
+
+void
+mono_profiler_install_fileio (MonoLegacyProfileFileIOFunc callback)
+{
+	current->fileio = callback;
+
+	if (callback)
+		mono_profiler_set_fileio_callback (current->handle, fileio_cb);
 }
 
 static void
