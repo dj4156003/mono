@@ -118,6 +118,9 @@ static void on_gc_heap_resize (GC_word new_size);
 
 static unsigned GC_roots_proc_index;
 
+/* Functions supplied by the runtime to be called by the GC */
+static MonoGCCallbacks gc_callbacks;
+
 static mse*
 GC_roots_proc (word* addr, mse* mark_stack_ptr, mse* mark_stack_limit, word env);
 
@@ -762,9 +765,18 @@ GC_roots_proc (word* addr, mse* mark_stack_ptr,	mse* mark_stack_limit, word env)
 	return mark_stack_ptr;
 }
 
+static void mono_mark_interp_stack(gpointer* p, gpointer gc_data)
+{
+	GC_push_one((GC_word)p);
+}
+
 static void
 mono_push_other_roots (void)
 {
+	if (gc_callbacks.interp_mark_func)
+		/* The interpreter code uses only compiler write barriers so have to synchronize with it */
+		mono_memory_barrier_process_wide ();
+		
 	if (GC_roots_proc_index) {
 		GC_mark_stack_top++;
 		GC_mark_stack_top->mse_descr.w = GC_MAKE_PROC (GC_roots_proc_index, 0 /* continue processing */);
@@ -774,6 +786,10 @@ mono_push_other_roots (void)
 		HandleStack* stack = info->handle_stack;
 		if (stack)
 			push_handle_stack (stack);
+		if (gc_callbacks.interp_mark_func)
+		{
+			gc_callbacks.interp_mark_func(info, mono_mark_interp_stack, NULL, 0);
+		}	
 	} FOREACH_THREAD_END
 	if (default_push_other_roots)
 		default_push_other_roots ();
@@ -1339,6 +1355,7 @@ mono_gc_get_bitmap_for_descr (void *descr, int *numbits)
 void
 mono_gc_set_gc_callbacks (MonoGCCallbacks *callbacks)
 {
+	gc_callbacks = *callbacks;
 }
 
 void
