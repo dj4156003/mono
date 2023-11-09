@@ -50,6 +50,7 @@
 #include <mono/utils/mono-error-internals.h>
 #include <mono/utils/mono-tls.h>
 #include <mono/utils/mono-path.h>
+#include <mono/metadata/mono-runtime-stats.h>
 
 /*
  * This lock protects the hash tables inside MonoImage used by the metadata 
@@ -1100,6 +1101,7 @@ mono_get_method_from_token (MonoImage *image, guint32 token, MonoClass *klass,
 	}
 
 	mono_atomic_inc_i32 (&mono_stats.method_count);
+	mono_atomic_inc_i64 (&mono_runtime_stats.method_count);
 
 	result->slot = -1;
 	result->klass = klass;

@@ -51,6 +51,7 @@
 #include <mono/utils/unlocked.h>
 #include <mono/utils/bsearch.h>
 #include <mono/utils/checked-build.h>
+#include <mono/metadata/mono-runtime-stats.h>
 
 MonoStats mono_stats;
 
@@ -980,6 +981,7 @@ mono_class_inflate_generic_type_with_mempool (MonoImage *image, MonoType *type, 
 	}
 
 	UnlockedIncrement (&mono_stats.inflated_type_count);
+	UnlockedIncrement64 (&mono_runtime_stats.inflated_type_count);
 	return inflated;
 }
 
@@ -1044,6 +1046,7 @@ mono_class_inflate_generic_type_no_copy (MonoImage *image, MonoType *type, MonoG
 		return type;
 
 	UnlockedIncrement (&mono_stats.inflated_type_count);
+	UnlockedIncrement64 (&mono_runtime_stats.inflated_type_count);
 	return inflated;
 }
 
@@ -1193,6 +1196,7 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	}
 
 	UnlockedIncrement (&mono_stats.inflated_method_count);
+	UnlockedIncrement64 (&mono_runtime_stats.inflated_method_count);
 
 	UnlockedAdd (&mono_inflated_methods_size,  sizeof (MonoMethodInflated));
 
