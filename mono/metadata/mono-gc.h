@@ -120,6 +120,8 @@ MONO_API int64_t mono_gc_get_used_size   (void);
 MONO_API int64_t mono_gc_get_heap_size   (void);
 MONO_API int64_t mono_gc_get_max_time_slice_ns (void);
 MONO_API void   mono_gc_set_max_time_slice_ns (int64_t maxTimeSlice);
+MONO_API int32_t mono_gc_get_max_time_slice();
+MONO_API void mono_gc_set_max_time_slice(int32_t maxTimeSlice);
 MONO_API MonoBoolean mono_gc_pending_finalizers (void);
 MONO_API MonoBoolean mono_gc_is_incremental (void);
 MONO_API void 	mono_gc_set_incremental(MonoBoolean value);

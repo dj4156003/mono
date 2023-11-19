@@ -32,10 +32,6 @@ MONO_API
 MonoRuntimeStats *
 get_mono_runtime_stats();
 
-typedef void *RG_GC_PTR;
-typedef void (*RG_GC_heap_section_proc)(void* user_data, RG_GC_PTR start, RG_GC_PTR end);
-MONO_API void rg_gc_heap_foreach(RG_GC_heap_section_proc callback, RG_GC_PTR user_data);
-
 // IL2CPP_ENABLE_WRITE_BARRIER_VALIDATION
 typedef void (*rg_mono_func_GC_dirty_inner)(void **ptr);
 typedef void (*rg_mono_func_GC_free)(void *ptr);
@@ -52,7 +48,6 @@ MONO_API void rg_mono_set_GC_malloc_uncollectable(rg_mono_func_GC_malloc_uncolle
 MONO_API void rg_mono_set_GC_malloc_atomic(rg_mono_func_GC_malloc_atomic func);
 
 MONO_API void *rg_mono_GC_malloc_kind(size_t /* lb */, int /* k */);
-MONO_API void rg_mono_GC_set_time_limit(unsigned long slice);
 
 MONO_END_DECLS
 

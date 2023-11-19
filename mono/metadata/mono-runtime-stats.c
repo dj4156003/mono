@@ -14,16 +14,6 @@ get_mono_runtime_stats()
 	return &mono_runtime_stats;
 }
 
-MONO_API void
-rg_gc_heap_foreach(RG_GC_heap_section_proc callback, void* user_data)
-{
-#if HAVE_BOEHM_GC
-	GC_foreach_heap_section(user_data, callback);
-#else
-	g_assert_not_reached();
-#endif
-}
-
 MONO_API void rg_mono_set_GC_dirty_inner(rg_mono_func_GC_dirty_inner func)
 {
 #if HAVE_BOEHM_GC
@@ -76,12 +66,5 @@ MONO_API void *rg_mono_GC_malloc_kind(size_t lb, int k)
 	return GC_malloc_kind(lb, k);
 #else
 	g_assert_not_reached();
-#endif
-}
-
-MONO_API void rg_mono_GC_set_time_limit(unsigned long slice)
-{
-#if HAVE_BOEHM_GC
-	GC_set_time_limit(slice);
 #endif
 }

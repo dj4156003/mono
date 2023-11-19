@@ -260,6 +260,7 @@ mono_gc_base_init (void)
 					if (time_limit != 0) {
 						// value is in milliseconds
 						GC_set_time_limit (time_limit);
+						g_debug("gc incremental mode enabled, time_limit %d\n", (int32_t)time_limit);
 					}
 				}
 				continue;
@@ -408,13 +409,13 @@ mono_gc_collection_count (int generation)
 void
 mono_gc_stop_world ()
 {
-	g_assert ("mono_gc_stop_world is not supported in Boehm");
+	GC_stop_world_external();
 }
 
 void
 mono_gc_restart_world ()
 {
-	g_assert ("mono_gc_restart_world is not supported in Boehm");
+	GC_start_world_external();
 }
 
 /**
@@ -469,6 +470,18 @@ void
 mono_gc_set_max_time_slice_ns(int64_t maxTimeSlice)
 {
 	GC_set_time_limit_ns(maxTimeSlice);
+}
+
+int32_t
+mono_gc_get_max_time_slice()
+{
+	return GC_get_time_limit();
+}
+
+void
+mono_gc_set_max_time_slice(int32_t maxTimeSlice)
+{
+	GC_set_time_limit(maxTimeSlice);
 }
 
 MonoBoolean 

@@ -188,6 +188,7 @@ MONO_API void mono_unity_gc_disable(void);
 // Deprecated. Remove when Unity has switched to mono_unity_gc_set_mode
 MONO_API int mono_unity_gc_is_disabled(void);
 MONO_API void mono_unity_gc_handles_foreach_get_target(MonoFunc callback, void* user_data);
+MONO_API void mono_unity_gc_heap_foreach(MonoFunc callback, void* user_data);
 
 // logging
 typedef void (*UnityLogErrorCallback) (const char *message);
