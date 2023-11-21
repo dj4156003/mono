@@ -36,6 +36,8 @@ SUBDIRS =
 ACLOCAL_AMFLAGS = -I m4
 AM_CPPFLAGS = \
     -I$(top_builddir)/include -I$(top_srcdir)/include \
+    -I$(top_srcdir)/libatomic_ops/src \
+    -I$(top builddir)/libatomic_ops/src \  
     $(ATOMIC_OPS_CFLAGS)
 
 # Initialize variables so that we can declare files locally.
