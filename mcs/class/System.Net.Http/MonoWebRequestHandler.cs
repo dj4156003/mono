@@ -38,6 +38,7 @@ using System.Net.Http.Headers;
 using System.Net.Cache;
 using System.Net.Security;
 using System.Linq;
+using System.Reflection;
 
 namespace System.Net.Http
 {
