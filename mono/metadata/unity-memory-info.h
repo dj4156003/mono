@@ -1,7 +1,6 @@
 #ifndef __UNITY_MONO_MEMORY_INFO_H
 #define __UNITY_MONO_MEMORY_INFO_H
 
-#include <glib.h>
 #include <mono/metadata/object-forward.h>
 
 typedef struct MonoMetadataField
@@ -9,7 +8,7 @@ typedef struct MonoMetadataField
 	uint32_t offset;
 	uint32_t typeIndex;
 	const char* name;
-	gboolean isStatic;
+	mono_bool isStatic;
 } MonoMetadataField;
 
 typedef enum MonoMetadataTypeFlags
