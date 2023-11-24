@@ -935,6 +935,7 @@ GC_INNER void GC_stop_world(void)
     GC_stopping_pid = getpid();
     GC_log_printf("Stopping the world from %p\n", (void *)GC_stopping_thread);
 # endif
+    GC_log_printf(".p.");
 
   /* Make sure all free list construction has stopped before we start.  */
   /* No new construction can start, since free list construction is     */
@@ -984,6 +985,9 @@ GC_INNER void GC_stop_world(void)
     GC_log_printf("World stopped from %p\n", (void *)pthread_self());
     GC_stopping_thread = 0;
 # endif
+    int si;
+    sem_getvalue(&GC_suspend_ack_sem, &si);
+    GC_log_printf(".p. end num %d\n", si);
 }
 
 #ifdef NACL
@@ -1207,6 +1211,7 @@ GC_INNER void GC_start_world(void)
     int n_live_threads;
 
     GC_ASSERT(I_HOLD_LOCK());
+    GC_log_printf(".s.");
 #   ifdef DEBUG_THREADS
       GC_log_printf("World starting\n");
 #   endif
@@ -1248,6 +1253,9 @@ GC_INNER void GC_start_world(void)
       GC_on_thread_event(GC_EVENT_THREAD_UNSUSPENDED, NULL);
       /* TODO: Send event for every unsuspended thread. */
 # endif
+    int si;
+    sem_getvalue(&GC_suspend_ack_sem, &si);
+    GC_log_printf(".s. end num %d\n", si);
 }
 
 GC_INNER void GC_stop_init(void)

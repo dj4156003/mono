@@ -777,7 +777,6 @@ STATIC GC_bool GC_stopped_mark(GC_stop_func stop_func)
       if (GC_on_collection_event)
         GC_on_collection_event(GC_EVENT_PRE_STOP_WORLD);
 #   endif
-    GC_log_printf("st by alloc");
     STOP_WORLD();
 #   ifdef THREADS
       if (GC_on_collection_event)
