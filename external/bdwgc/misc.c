@@ -2585,6 +2585,7 @@ GC_API int GC_CALL GC_get_force_unmap_on_gcollect(void)
 GC_API void GC_CALL GC_stop_world_external()
 {
     LOCK();
+    GC_log_printf("st by external");
     STOP_WORLD();
 }
 

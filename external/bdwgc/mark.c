@@ -597,6 +597,7 @@ handle_ex:
 #     ifdef REGISTER_LIBRARIES_EARLY
         START_WORLD();
         GC_cond_register_dynamic_libraries();
+        GC_log_printf("st by rle");
         STOP_WORLD();
 #     endif
       GC_invalidate_mark_state();
