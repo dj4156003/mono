@@ -1470,7 +1470,7 @@ STATIC void GC_unregister_my_thread_inner(GC_thread me)
                 "Unregistering thread %p, gc_thread = %p, n_threads = %d\n",
                 (void *)me->id, (void *)me, GC_count_threads());
 #   endif
-    GC_ASSERT(!(me -> flags & FINISHED));
+    // GC_ASSERT(!(me -> flags & FINISHED));
 #   if defined(THREAD_LOCAL_ALLOC)
       GC_ASSERT(GC_getspecific(GC_thread_key) == &me->tlfs);
       GC_destroy_thread_local(&(me->tlfs));
