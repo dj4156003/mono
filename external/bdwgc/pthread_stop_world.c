@@ -429,6 +429,7 @@ static int resend_lost_signals(int n_live_threads,
         if (ack_count == n_live_threads)
           break;
         if (wait_usecs > RETRY_INTERVAL) {
+          GC_log_printf("resent");
           int newly_sent = suspend_restart_all();
 
           GC_COND_LOG_PRINTF("Resent %d signals after timeout\n", newly_sent);
@@ -495,11 +496,19 @@ static void suspend_restart_barrier_retry(int n_live_threads,
         else if (errno != EINTR) {
           ABORT("sem_wait failed");
         }
+        else
+        {
+          GC_log_printf("unknown error %d\n", errno);
+        }
       }
       acked_threads++;
     }
 #   ifdef GC_ASSERTIONS
       sem_getvalue(&GC_suspend_ack_sem, &i);
+      if (0 != i)
+      {
+        GC_log_printf("ack_sem num %d, ln %d\n", i, n_live_threads);
+      }
       GC_ASSERT(0 == i);
 #   endif
 }
@@ -786,6 +795,7 @@ GC_INNER void GC_push_all_stacks(void)
 STATIC int GC_suspend_all(void)
 {
   int n_live_threads = 0;
+  int n_rasie_signal = 0;
   int i;
 # ifndef NACL
     GC_thread p;
@@ -793,6 +803,10 @@ STATIC int GC_suspend_all(void)
       int result;
 #   endif
     pthread_t self = pthread_self();
+
+    int si;
+    sem_getvalue(&GC_suspend_ack_sem, &si);
+    GC_log_printf("s_a_s init num %d\n", si);
 
     for (i = 0; i < THREAD_TABLE_SZ; i++) {
       for (p = GC_threads[i]; p != 0; p = p -> next) {
@@ -833,10 +847,12 @@ STATIC int GC_suspend_all(void)
               /* GC_release_dirty_lock cannot be called before          */
               /* acknowledging the thread is really suspended.          */
               result = RAISE_SIGNAL(p, GC_sig_suspend);
+              
               switch(result) {
                 case ESRCH:
                     /* Not really there anymore.  Possible? */
                     n_live_threads--;
+                    GC_log_printf("t esrch %p\n", (void*)p->id);
                     break;
                 case 0:
                     if (GC_on_thread_event)
@@ -852,6 +868,8 @@ STATIC int GC_suspend_all(void)
         }
       }
     }
+
+    GC_log_printf("t s %d\n", n_live_threads);
 
 # else /* NACL */
 #   ifndef NACL_PARK_WAIT_NANOSECONDS
