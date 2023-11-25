@@ -1158,19 +1158,33 @@ GC_INNER void GC_stop_world(void)
 #   ifndef GC_OPENBSD_UTHREADS
       int result;
 #   endif
-
+    
+    int f_num = 0;
+    int b_num = 0;
+    int r_num = 0;
     for (i = 0; i < THREAD_TABLE_SZ; i++) {
       for (p = GC_threads[i]; p != NULL; p = p -> next) {
         if (!THREAD_EQUAL(p -> id, self)) {
-          if ((p -> flags & FINISHED) != 0) continue;
-          if (p -> thread_blocked) continue;
+          if ((p -> flags & FINISHED) != 0) 
+          {
+            ++f_num;
+            continue;
+          }
+          if (p -> thread_blocked) 
+          {
+            ++b_num;
+            continue;
+          }
 #         ifndef GC_OPENBSD_UTHREADS
 #           ifdef GC_ENABLE_SUSPEND_THREAD
               if (p -> suspended_ext) continue;
 #           endif
             if (GC_retry_signals && AO_load(&p->stop_info.last_stop_count)
                                     == (AO_t)((word)GC_stop_count | 1))
+            {
+              ++r_num;
               continue; /* The thread has been restarted. */
+            }
             n_live_threads++;
 #         endif
 #         ifdef DEBUG_THREADS
@@ -1203,7 +1217,7 @@ GC_INNER void GC_stop_world(void)
       }
     }
 
-    GC_log_printf("ts %d\n", n_live_threads);
+    GC_log_printf("ts %d %d %d %d\n", n_live_threads, f_num, b_num, r_num);
 
     return n_live_threads;
   }
