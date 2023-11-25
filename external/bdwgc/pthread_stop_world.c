@@ -854,7 +854,7 @@ STATIC int GC_suspend_all(void)
                 case ESRCH:
                     /* Not really there anymore.  Possible? */
                     n_live_threads--;
-                    GC_log_printf("t esrch %p\n", (void*)p->id);
+                    GC_log_printf("p esrch %p\n", (void*)p->id);
                     break;
                 case 0:
                     if (GC_on_thread_event)
@@ -1186,6 +1186,7 @@ GC_INNER void GC_stop_world(void)
             switch(result) {
             case ESRCH:
               /* Not really there anymore.  Possible?   */
+              GC_log_printf("s esrch %p\n", (void*)p->id);
               n_live_threads--;
               break;
             case 0:
