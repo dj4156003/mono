@@ -292,7 +292,7 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
   pthread_t self = pthread_self();
   GC_thread me;
   IF_CANCEL(int cancel_state;)
-  AO_t my_stop_count = AO_load_acquire(&GC_stop_count) & ~(word)THREAD_RESTARTED;;
+  AO_t my_stop_count = AO_load_acquire(&GC_stop_count) & ~(word)1;;
                         /* After the barrier, this thread should see    */
                         /* the actual content of GC_threads.            */
 
@@ -804,7 +804,7 @@ STATIC int GC_suspend_all(void)
 #   ifndef GC_OPENBSD_UTHREADS
       int result;
 
-      GC_ASSERT((GC_stop_count & THREAD_RESTARTED) == 0)
+      GC_ASSERT((GC_stop_count & 1) == 0);
 #   endif
 
     int si;
@@ -1158,7 +1158,7 @@ GC_INNER void GC_stop_world(void)
 #   ifndef GC_OPENBSD_UTHREADS
       int result;
 
-      GC_ASSERT((GC_stop_count & THREAD_RESTARTED) != 0);
+      GC_ASSERT((GC_stop_count & 1) != 0);
 #   endif
     
     int f_num = 0;
