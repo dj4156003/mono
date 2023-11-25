@@ -350,11 +350,11 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
     }
 # endif
 
+  AO_store_release(&me->stop_info.last_stop_count, my_stop_count);
   /* Tell the thread that wants to stop the world that this     */
   /* thread has been stopped.  Note that sem_post() is          */
   /* the only async-signal-safe primitive in LinuxThreads.      */
   sem_post(&GC_suspend_ack_sem);
-  AO_store_release(&me->stop_info.last_stop_count, my_stop_count);
 
   /* Wait until that thread tells us to restart by sending      */
   /* this thread a GC_sig_thr_restart signal (should be masked  */
@@ -378,13 +378,8 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
     if (GC_retry_signals)
 # endif
   {
-    /* If the RESTART signal loss is possible (though it should be      */
-    /* less likely than losing the SUSPEND signal as we do not do       */
-    /* much between the first sem_post and sigsuspend calls), more      */
-    /* handshaking is provided to work around it.                       */
-    sem_post(&GC_suspend_ack_sem);
 #   ifdef GC_NETBSD_THREADS_WORKAROUND
-      if (GC_retry_signals)
+    if (GC_retry_signals)
 #   endif
     {
       /* Set the flag (the lowest bit of last_stop_count) that the      */
@@ -392,6 +387,11 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
       AO_store_release(&me->stop_info.last_stop_count,
                        my_stop_count | 1);
     }
+    /* If the RESTART signal loss is possible (though it should be      */
+    /* less likely than losing the SUSPEND signal as we do not do       */
+    /* much between the first sem_post and sigsuspend calls), more      */
+    /* handshaking is provided to work around it.                       */
+    sem_post(&GC_suspend_ack_sem);
   }
   RESTORE_CANCEL(cancel_state);
 }
