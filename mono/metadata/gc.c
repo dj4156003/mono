@@ -923,6 +923,7 @@ finalize_domain_objects (void)
 static void
 mono_runtime_do_background_work (void)
 {
+	g_debug("mono runtime do bw");
 	mono_threads_perform_thread_dump ();
 
 	mono_console_handle_async_ops ();
@@ -1016,6 +1017,7 @@ finalizer_thread (gpointer unused)
 static void
 init_finalizer_thread (void)
 {
+	g_debug("mono init finalizer thread");
 	ERROR_DECL (error);
 	gc_thread = mono_thread_create_internal (mono_domain_get (), (gpointer)finalizer_thread, NULL, MONO_THREAD_CREATE_FLAGS_NONE, error);
 	mono_error_assert_ok (error);

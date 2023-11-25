@@ -6088,6 +6088,7 @@ threads_native_thread_join_lock (gpointer tid, gpointer value)
 	pthread_t thread = (pthread_t)(intptr_t)tid;
 	if (thread != pthread_self ()) {
 		MONO_ENTER_GC_SAFE;
+		g_debug("mono join %p\n", tid);
 		/* This shouldn't block */
 		mono_threads_join_lock ();
 		mono_native_thread_join (thread);
@@ -6315,6 +6316,7 @@ mono_threads_join_threads (void)
 	if (!UnlockedRead (&joinable_thread_count))
 		return;
 
+	g_debug("mono threads join threads");
 	while (TRUE) {
 		joinable_threads_lock ();
 		if (found) {

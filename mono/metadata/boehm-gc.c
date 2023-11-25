@@ -543,6 +543,8 @@ mono_gc_thread_detach_with_lock (MonoThreadInfo *p)
 
 	tid = mono_thread_info_get_tid (p);
 
+	g_debug("mono detach with lock %p\n", (void*)tid);
+
 	mono_threads_add_joinable_runtime_thread(p);
 
 	mono_handle_stack_free (p->handle_stack);
