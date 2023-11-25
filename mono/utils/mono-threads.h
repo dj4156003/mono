@@ -631,6 +631,9 @@ gboolean
 mono_thread_platform_create_thread (MonoThreadStart thread_fn, gpointer thread_data,
 	gsize* const stack_size, MonoNativeThreadId *tid);
 
+gboolean
+mono_platform_thread_join (MonoNativeThreadId tid);
+
 void mono_threads_platform_get_stack_bounds (guint8 **staddr, size_t *stsize);
 gboolean mono_threads_platform_is_main_thread (void);
 void mono_threads_platform_init (void);

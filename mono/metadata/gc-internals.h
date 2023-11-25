@@ -357,6 +357,7 @@ void mono_gc_skip_thread_changed (gboolean skip);
 
 #ifndef HOST_WIN32
 int mono_gc_pthread_create (pthread_t *new_thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+int mono_gc_pthread_join (pthread_t thread);
 #endif
 
 /*

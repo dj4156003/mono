@@ -2502,6 +2502,13 @@ mono_gc_pthread_create (pthread_t *new_thread, const pthread_attr_t *attr, void 
 
 	return res;
 }
+
+int mono_gc_pthread_join (pthread_t thread)
+{
+	void* res;
+	return pthread_join(thread, &res);
+}
+
 #endif
 
 /*

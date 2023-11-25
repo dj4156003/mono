@@ -1482,6 +1482,12 @@ mono_gc_pthread_create (pthread_t *new_thread, const pthread_attr_t *attr, void 
 	 * platforms, see libgc/include/gc_pthread_redirects.h */
 	return pthread_create (new_thread, attr, start_routine, arg);
 }
+
+int mono_gc_pthread_join (pthread_t thread)
+{
+	void* res;
+	return pthread_join(thread, &res);
+}
 #endif
 
 #ifdef HOST_WIN32

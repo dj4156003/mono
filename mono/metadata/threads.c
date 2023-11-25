@@ -6090,7 +6090,7 @@ threads_native_thread_join_lock (gpointer tid, gpointer value)
 		MONO_ENTER_GC_SAFE;
 		/* This shouldn't block */
 		mono_threads_join_lock ();
-		mono_native_thread_join (thread);
+		mono_platform_thread_join (thread);
 		mono_threads_join_unlock ();
 		MONO_EXIT_GC_SAFE;
 	}
@@ -6100,7 +6100,7 @@ threads_native_thread_join_nolock (gpointer tid, gpointer value)
 {
 	pthread_t thread = (pthread_t)(intptr_t)tid;
 	MONO_ENTER_GC_SAFE;
-	mono_native_thread_join (thread);
+	mono_platform_thread_join (thread);
 	MONO_EXIT_GC_SAFE;
 }
 
