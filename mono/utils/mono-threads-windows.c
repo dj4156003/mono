@@ -415,6 +415,12 @@ mono_thread_platform_create_thread (MonoThreadStart thread_fn, gpointer thread_d
 	return TRUE;
 }
 
+gboolean
+mono_platform_thread_join (MonoNativeThreadId tid)
+{
+	return mono_native_thread_join (tid);
+}
+
 
 MonoNativeThreadId
 mono_native_thread_id_get (void)
