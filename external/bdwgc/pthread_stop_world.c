@@ -349,6 +349,8 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
         ABORT("pthread_sigmask failed in suspend handler");
     }
 # endif
+
+GC_ASSERT(AO_load_acquire(&GC_world_is_stopped))
   /* Tell the thread that wants to stop the world that this     */
   /* thread has been stopped.  Note that sem_post() is          */
   /* the only async-signal-safe primitive in LinuxThreads.      */
@@ -869,7 +871,7 @@ STATIC int GC_suspend_all(void)
       }
     }
 
-    GC_log_printf("t s %d\n", n_live_threads);
+    GC_log_printf("tp %d\n", n_live_threads);
 
 # else /* NACL */
 #   ifndef NACL_PARK_WAIT_NANOSECONDS
@@ -1199,6 +1201,9 @@ GC_INNER void GC_stop_world(void)
         }
       }
     }
+
+    GC_log_printf("ts %d\n", n_live_threads);
+
     return n_live_threads;
   }
 #endif /* !NACL */
