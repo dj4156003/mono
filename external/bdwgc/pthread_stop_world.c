@@ -350,7 +350,7 @@ STATIC void GC_suspend_handler_inner(ptr_t dummy GC_ATTR_UNUSED,
     }
 # endif
 
-GC_ASSERT(AO_load_acquire(&GC_world_is_stopped))
+GC_ASSERT(AO_load_acquire(&GC_world_is_stopped));
   /* Tell the thread that wants to stop the world that this     */
   /* thread has been stopped.  Note that sem_post() is          */
   /* the only async-signal-safe primitive in LinuxThreads.      */
