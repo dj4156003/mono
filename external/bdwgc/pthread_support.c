@@ -1496,6 +1496,7 @@ STATIC void GC_unregister_my_thread_inner(GC_thread me)
 GC_API int GC_CALL GC_unregister_my_thread(void)
 {
     pthread_t self = pthread_self();
+    GC_log_printf("unresiter %p\n", (void*)self);
     GC_thread me;
     IF_CANCEL(int cancel_state;)
     DCL_LOCK_STATE;
@@ -1528,6 +1529,8 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
     IF_CANCEL(int cancel_state;)
     DCL_LOCK_STATE;
 
+    GC_log_printf("exit %p\n", (void *)pthread_self());
+
 #   ifdef DEBUG_THREADS
         GC_log_printf("Called GC_thread_exit_proc on %p, gc_thread = %p\n",
                       (void *)((GC_thread)arg)->id, arg);
@@ -1546,6 +1549,8 @@ GC_INNER_PTHRSTART void GC_thread_exit_proc(void *arg)
     int result;
     GC_thread t;
     DCL_LOCK_STATE;
+
+    GC_log_printf("join %p\n", (void*)thread);
 
     INIT_REAL_SYMS();
     LOCK();
@@ -1709,6 +1714,7 @@ GC_API int GC_CALL GC_register_my_thread(const struct GC_stack_base *sb)
     GC_thread me;
     DCL_LOCK_STATE;
 
+    GC_log_printf("attach %p\n", (void*)self);
     if (GC_need_to_lock == FALSE)
         ABORT("Threads explicit registering is not previously enabled");
 
