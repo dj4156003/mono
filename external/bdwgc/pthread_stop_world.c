@@ -490,7 +490,7 @@ static void suspend_restart_barrier_retry(int n_live_threads,
 
         if (errno == ETIMEDOUT || errno == EINVAL) {
             // Wait timed out or the timeout period has passed
-            n_live_threads = resend_lost_signals(n_live_threads - acked_threads, suspend_restart_all);
+            n_live_threads = resend_los t_signals(n_live_threads - acked_threads, suspend_restart_all);
             suspend_restart_barrier(n_live_threads);
             return;
         }
@@ -811,6 +811,7 @@ STATIC int GC_suspend_all(void)
     sem_getvalue(&GC_suspend_ack_sem, &si);
     GC_log_printf("s_a_s init num %d\n", si);
 
+    void* lp = NULL;
     for (i = 0; i < THREAD_TABLE_SZ; i++) {
       for (p = GC_threads[i]; p != 0; p = p -> next) {
         if (!THREAD_EQUAL(p -> id, self)) {
@@ -827,7 +828,7 @@ STATIC int GC_suspend_all(void)
 #           ifdef DEBUG_THREADS
               GC_log_printf("Sending suspend signal to %p\n", (void *)p->id);
 #           endif
-
+            lp = (void *)p->id;
 #           ifdef GC_OPENBSD_UTHREADS
               {
                 stack_t stack;
@@ -872,7 +873,7 @@ STATIC int GC_suspend_all(void)
       }
     }
 
-    GC_log_printf("tp %d\n", n_live_threads);
+    GC_log_printf("tp %d-%p\n", n_live_threads, lp);
 
 # else /* NACL */
 #   ifndef NACL_PARK_WAIT_NANOSECONDS
@@ -1186,6 +1187,7 @@ GC_INNER void GC_stop_world(void)
             {
               if (GC_is_first_restart)
               {
+                GC_log_printf("q %p\n", (void*)p->id;)
                 n_live_threads++;
               }
               else

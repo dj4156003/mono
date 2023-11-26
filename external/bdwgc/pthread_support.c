@@ -1714,7 +1714,7 @@ GC_API int GC_CALL GC_register_my_thread(const struct GC_stack_base *sb)
     GC_thread me;
     DCL_LOCK_STATE;
 
-    GC_log_printf("attach %p\n", (void*)self);
+    GC_log_printf("attach %p-%d\n", (void*)self, gettid());
     if (GC_need_to_lock == FALSE)
         ABORT("Threads explicit registering is not previously enabled");
 
