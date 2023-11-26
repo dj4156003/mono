@@ -490,7 +490,7 @@ static void suspend_restart_barrier_retry(int n_live_threads,
 
         if (errno == ETIMEDOUT || errno == EINVAL) {
             // Wait timed out or the timeout period has passed
-            n_live_threads = resend_los t_signals(n_live_threads - acked_threads, suspend_restart_all);
+            n_live_threads = resend_lost_signals(n_live_threads - acked_threads, suspend_restart_all);
             suspend_restart_barrier(n_live_threads);
             return;
         }
