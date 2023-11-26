@@ -291,7 +291,7 @@ mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSem
 	copy = ts;
 
 retry:
-	res = sem_timedwait (sem, &ts);
+	res = sem_timedwait_alternative (sem, &ts);
 	if (G_UNLIKELY (res != 0 && errno != EINTR && errno != ETIMEDOUT))
 		g_error ("%s: sem_timedwait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
 
