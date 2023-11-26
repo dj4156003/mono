@@ -1147,6 +1147,7 @@ GC_INNER void GC_stop_world(void)
 
 #else /* !NACL */
 
+  static int GC_is_first_restart = 0;
   /* Restart all threads that were suspended by the collector.  */
   /* Return the number of restart signals that were sent.       */
   STATIC int GC_restart_all(void)
@@ -1183,7 +1184,14 @@ GC_INNER void GC_stop_world(void)
 #           endif
             if (GC_retry_signals && AO_load(&p->stop_info.last_stop_count) == GC_stop_count)
             {
-              ++r_num;
+              if (GC_is_first_restart)
+              {
+                n_live_threads++;
+              }
+              else
+              {
+                ++r_num;
+              }
               continue; /* The thread has been restarted. */
             }
             n_live_threads++;
@@ -1241,7 +1249,9 @@ GC_INNER void GC_start_world(void)
                     /* signal handler (note that pthread_kill is not on */
                     /* the list of functions which synchronize memory). */
 #   endif
+    GC_is_first_restart = 1;
     n_live_threads = GC_restart_all();
+    GC_is_first_restart = 0;
 #   ifndef GC_OPENBSD_UTHREADS
 #   ifndef UNITY_RETRY_SIGNALS
       if (GC_retry_signals)
