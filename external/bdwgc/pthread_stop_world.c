@@ -1187,7 +1187,7 @@ GC_INNER void GC_stop_world(void)
             {
               if (GC_is_first_restart)
               {
-                GC_log_printf("q %p\n", (void*)p->id;)
+                GC_log_printf("q %p\n", (void*)p->id)
                 n_live_threads++;
               }
               else
