@@ -59,6 +59,20 @@ mono_coop_sem_timedwait (MonoCoopSem *sem, guint timeout_ms, MonoSemFlags flags)
 	return res;
 }
 
+static inline MonoSemTimedwaitRet
+mono_coop_sem_timedwait_alternative (MonoCoopSem *sem, guint timeout_ms, MonoSemFlags flags)
+{
+	MonoSemTimedwaitRet res;
+
+	MONO_ENTER_GC_SAFE;
+
+	res = mono_os_sem_timedwait_alternative (&sem->s, timeout_ms, flags);
+
+	MONO_EXIT_GC_SAFE;
+
+	return res;
+}
+
 static inline void
 mono_coop_sem_post (MonoCoopSem *sem)
 {
