@@ -3573,6 +3573,7 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 	MonoDomain *domain = mono_domain_get ();
 	gpointer fault_addr = NULL;
 	MonoContext mctx;
+	g_debug("sigsegv handler");
 
 #if defined(HAVE_SIG_INFO) || defined(MONO_ARCH_SIGSEGV_ON_ALTSTACK)
 	MonoJitTlsData *jit_tls = mono_tls_get_jit_tls ();
@@ -3600,6 +3601,7 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 #if !defined(HOST_WIN32)
 	fault_addr = info->si_addr;
 	if (mono_aot_is_pagefault (info->si_addr)) {
+		g_debug("sigsegv handler, is page fault");
 		mono_aot_handle_pagefault (info->si_addr);
 		return;
 	}
@@ -3610,6 +3612,7 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 
 	/* The thread might no be registered with the runtime */
 	if (!mono_domain_get () || !jit_tls) {
+		g_debug("sigsegv handler, no domain and jit_tls");
 		if (!mono_do_crash_chaining && mono_chain_signal (MONO_SIG_HANDLER_PARAMS))
 			return;
 		if (mono_dump_start())
@@ -3627,6 +3630,8 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 		gpointer ip = MINI_FTNPTR_TO_ADDR (mono_arch_ip_from_context (ctx));
 		ji = mono_jit_info_table_find_internal (domain, ip, TRUE, TRUE);
 	}
+
+	g_debug("sigsegv handler ji is %p\n", ji);
 
 #ifdef MONO_ARCH_SIGSEGV_ON_ALTSTACK
 	if (mono_handle_soft_stack_ovf (jit_tls, ji, ctx, info, (guint8*)info->si_addr))
@@ -3667,6 +3672,7 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 #else
 
 	if (!ji) {
+		g_debug("sigsegv handler process native crash, no ji");
 		if (!mono_do_crash_chaining && mono_chain_signal (MONO_SIG_HANDLER_PARAMS))
 			return;
 
@@ -3680,8 +3686,10 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 	}
 
 	if (mono_is_addr_implicit_null_check (fault_addr)) {
+		g_debug("sigsegv handler process null exception");
 		mono_arch_handle_exception (ctx, NULL);
 	} else {
+		g_debug("sigsegv handler process native crash");
 		if (mono_dump_start ())
 			mono_handle_native_crash (mono_get_signame (SIGSEGV), &mctx, (MONO_SIG_HANDLER_INFO_TYPE*)info);
 		if (mono_do_crash_chaining) {
