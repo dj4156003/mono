@@ -21,7 +21,7 @@
 /// Semaphore structure
 struct fm_sem_t {
     /// Value of semaphore
-    int value;
+    _Atomic int value;
 };
 
 /**
@@ -123,7 +123,7 @@ int fm_sem_timedwait(struct fm_sem_t *sem, const struct timespec* timeout) {
                                                   memory_order_relaxed)) {
         if (value == 0) {
             int res = futex(&sem->value, FUTEX_WAIT_PRIVATE, 0, timeout);
-            if (res == -1 && (errno == ETIMEDOUT || error = EINTR) {
+            if (res == -1 && (errno == ETIMEDOUT || errno = EINTR) {
                 return -1;
             }
             value = 1;
