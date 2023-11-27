@@ -157,12 +157,6 @@ retry:
 	}
 }
 
-static inline MonoSemTimedwaitRet
-mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSemFlags flags)
-{
-	return mono_os_sem_timedwait(sem, timeout_ms, flags);
-}
-
 static inline void
 mono_os_sem_post (MonoSemType *sem)
 {
@@ -215,100 +209,6 @@ retry:
 		goto retry;
 
 	return res != 0 ? -1 : 0;
-}
-
-static inline int sem_timedwait_alternative(sem_t *sem, const struct timespec *abs_timeout) {
-    struct timespec sleep_interval;
-    sleep_interval.tv_sec = 0;
-    sleep_interval.tv_nsec = 10000000;  // 10 milliseconds
-
-    while (1) {
-		int res = sem_trywait(sem);
-        if (res == 0) {
-            // 获取到了信号量，返回成功
-            return 0;
-        }
-		if (errno == EINTR)
-		{
-			return -1;
-		}
-
-        // 获取信号量失败，检查是否超时
-        struct timespec current_time;
-        clock_gettime(CLOCK_REALTIME, &current_time);
-        if (current_time.tv_sec > abs_timeout->tv_sec ||
-            (current_time.tv_sec == abs_timeout->tv_sec && current_time.tv_nsec > abs_timeout->tv_nsec)) {
-            // 已经超时，返回失败
-			errno == ETIMEDOUT;
-            return -1;
-        }
-
-        // 休眠一段时间后再次尝试
-        nanosleep(&sleep_interval, NULL);
-		if (errno == EINTR)
-		{
-			return -1;
-		}
-    }
-}
-
-static inline MonoSemTimedwaitRet
-mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSemFlags flags)
-{
-	struct timespec ts, copy;
-	struct timespec t; // 更改为 timespec
-	int res;
-
-	if (timeout_ms == 0) {
-		res = sem_trywait (sem);
-		if (G_UNLIKELY (res != 0 && errno != EINTR && errno != EAGAIN))
-			g_error ("%s: sem_trywait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
-
-		if (res == 0)
-			return MONO_SEM_TIMEDWAIT_RET_SUCCESS;
-		else if (errno == EINTR)
-			return MONO_SEM_TIMEDWAIT_RET_ALERTED;
-		else if (errno == EAGAIN)
-			return MONO_SEM_TIMEDWAIT_RET_TIMEDOUT;
-		else
-			g_assert_not_reached ();
-	}
-
-	if (timeout_ms == MONO_INFINITE_WAIT)
-		return (MonoSemTimedwaitRet) mono_os_sem_wait (sem, flags);
-
-	res = clock_gettime (CLOCK_REALTIME, &t); // 更改为 clock_gettime
-	if (G_UNLIKELY (res != 0))
-		g_error ("%s: clock_gettime failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
-
-	ts.tv_sec = timeout_ms / 1000 + t.tv_sec;
-	ts.tv_nsec = (timeout_ms % 1000) * 1000000 + t.tv_nsec; // 修改为 tv_nsec
-	while (ts.tv_nsec >= MONO_NSEC_PER_SEC) {
-		ts.tv_nsec -= MONO_NSEC_PER_SEC;
-		ts.tv_sec++;
-	}
-
-	copy = ts;
-
-
-retry:
-	res = sem_timedwait (sem, &ts);
-	if (G_UNLIKELY (res != 0 && errno != EINTR && errno != ETIMEDOUT))
-		g_error ("%s: sem_timedwait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
-
-	if (res != 0 && errno == EINTR && !(flags & MONO_SEM_FLAGS_ALERTABLE)) {
-		ts = copy;
-		goto retry;
-	}
-
-	if (res == 0)
-		return MONO_SEM_TIMEDWAIT_RET_SUCCESS;
-	else if (errno == EINTR)
-		return MONO_SEM_TIMEDWAIT_RET_ALERTED;
-	else if (errno == ETIMEDOUT)
-		return MONO_SEM_TIMEDWAIT_RET_TIMEDOUT;
-	else
-		g_assert_not_reached ();
 }
 
 static inline MonoSemTimedwaitRet
@@ -379,6 +279,114 @@ mono_os_sem_post (MonoSemType *sem)
 		g_error ("%s: sem_post failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
 }
 
+#ifdef USE_FM_SEMAPHORE
+
+#include "fm-sem.h"
+
+typedef fm_sem_t MonoFMSemType;
+
+static inline void
+mono_os_fm_sem_init (MonoFMSemType *sem, int value)
+{
+	int res;
+
+	res = fm_sem_init (sem, 0, value);
+	if (G_UNLIKELY (res != 0))
+		g_error ("%s: fm_sem_init failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+}
+
+static inline void
+mono_os_fm_sem_destroy (MonoFMSemType *sem)
+{
+	//do nothing
+}
+
+static inline int
+mono_os_fm_sem_wait (MonoFMSemType *sem, MonoSemFlags flags)
+{
+	int res;
+
+retry:
+	res = fm_sem_wait (sem);
+	if (G_UNLIKELY (res != 0 && errno != EINTR))
+		g_error ("%s: fm_sem_wait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+
+	if (res != 0 && errno == EINTR && !(flags & MONO_SEM_FLAGS_ALERTABLE))
+		goto retry;
+
+	return res != 0 ? -1 : 0;
+}
+
+static inline MonoSemTimedwaitRet
+mono_os_fm_sem_timedwait (MonoFMSemType *sem, guint32 timeout_ms, MonoSemFlags flags)
+{
+	struct timespec ts, copy;
+	struct timeval t;
+	int res;
+
+	if (timeout_ms == 0) {
+		res = fm_sem_trywait (sem);
+		if (G_UNLIKELY (res != 0 && errno != EINTR && errno != EAGAIN))
+			g_error ("%s: fm_sem_trywait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+
+		if (res == 0)
+			return MONO_SEM_TIMEDWAIT_RET_SUCCESS;
+		else if (errno == EINTR)
+			return MONO_SEM_TIMEDWAIT_RET_ALERTED;
+		else if (errno == EAGAIN)
+			return MONO_SEM_TIMEDWAIT_RET_TIMEDOUT;
+		else
+			g_assert_not_reached ();
+	}
+
+	if (timeout_ms == MONO_INFINITE_WAIT)
+		return (MonoSemTimedwaitRet) mono_os_fm_sem_wait (sem, flags);
+
+	res = gettimeofday (&t, NULL);
+	if (G_UNLIKELY (res != 0))
+		g_error ("%s: gettimeofday failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+
+	ts.tv_sec = timeout_ms / 1000 + t.tv_sec;
+	ts.tv_nsec = (timeout_ms % 1000) * 1000000 + t.tv_usec * 1000;
+	while (ts.tv_nsec >= MONO_NSEC_PER_SEC) {
+		ts.tv_nsec -= MONO_NSEC_PER_SEC;
+		ts.tv_sec++;
+	}
+
+	copy = ts;
+
+retry:
+	res = fm_sem_timedwait (sem, &ts);
+	if (G_UNLIKELY (res != 0 && errno != EINTR && errno != ETIMEDOUT))
+		g_error ("%s: fm_sem_timedwait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+
+	if (res != 0 && errno == EINTR && !(flags & MONO_SEM_FLAGS_ALERTABLE)) {
+		ts = copy;
+		goto retry;
+	}
+
+	if (res == 0)
+		return MONO_SEM_TIMEDWAIT_RET_SUCCESS;
+	else if (errno == EINTR)
+		return MONO_SEM_TIMEDWAIT_RET_ALERTED;
+	else if (errno == ETIMEDOUT)
+		return MONO_SEM_TIMEDWAIT_RET_TIMEDOUT;
+	else
+		g_assert_not_reached ();
+}
+
+static inline void
+mono_os_fm_sem_post (MonoFMSemType *sem)
+{
+	int res;
+
+	res = fm_sem_post (sem);
+	if (G_UNLIKELY (res != 0))
+		g_error ("%s: fm_sem_post failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+}
+
+#endif
+
 #else
 
 #include <mono/utils/mono-compiler.h>
@@ -419,12 +427,6 @@ mono_os_sem_destroy (MonoSemType *sem)
 
 MONO_PROFILER_API MonoSemTimedwaitRet
 mono_os_sem_timedwait (MonoSemType *sem, guint32 timeout_ms, MonoSemFlags flags);
-
-static inline MonoSemTimedwaitRet
-mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSemFlags flags)
-{
-	return mono_os_sem_timedwait(sem, timeout_ms, flags);
-}
 
 static inline int
 mono_os_sem_wait (MonoSemType *sem, MonoSemFlags flags)

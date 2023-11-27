@@ -130,7 +130,11 @@ typedef struct {
 
 	ThreadPoolWorkerCounter counters;
 
+#ifdef USE_FM_SEMAPHORE
+	MonoCoopFMSem parked_threads_sem;
+#else	
 	MonoCoopSem parked_threads_sem;
+#endif	
 	gint32 parked_threads_count;
 
 	volatile gint32 work_items_count;
@@ -220,7 +224,11 @@ rand_next (guint32 min, guint32 max)
 static void
 destroy (gpointer data)
 {
+#ifdef USE_FM_SEMAPHORE
+	mono_coop_fm_sem_destroy(&worker.parked_threads_sem);
+#else	
 	mono_coop_sem_destroy (&worker.parked_threads_sem);
+#endif	
 
 	mono_coop_mutex_destroy (&worker.worker_creation_lock);
 
@@ -241,7 +249,12 @@ mono_threadpool_worker_init (MonoThreadPoolWorkerCallback callback)
 
 	worker.callback = callback;
 
+#ifdef USE_FM_SEMAPHORE
+	mono_coop_fm_sem_init (&worker.parked_threads_sem, 0);
+#else
 	mono_coop_sem_init (&worker.parked_threads_sem, 0);
+#endif	
+	
 	worker.parked_threads_count = 0;
 
 	worker.worker_creation_current_second = -1;
@@ -384,7 +397,12 @@ worker_park (void)
 			new_ = old + 1;
 		} while (mono_atomic_cas_i32 (&worker.parked_threads_count, new_, old) != old);
 
-		switch (mono_coop_sem_timedwait_alternative (&worker.parked_threads_sem, rand_next (5 * 1000, 60 * 1000), MONO_SEM_FLAGS_ALERTABLE)) {
+#ifdef USE_FM_SEMAPHORE
+		switch (mono_coop_fm_sem_timedwait (&worker.parked_threads_sem, rand_next (5 * 1000, 60 * 1000), MONO_SEM_FLAGS_ALERTABLE))
+#else
+		switch (mono_coop_sem_timedwait (&worker.parked_threads_sem, rand_next (5 * 1000, 60 * 1000), MONO_SEM_FLAGS_ALERTABLE))
+#endif
+		{
 		case MONO_SEM_TIMEDWAIT_RET_SUCCESS:
 			break;
 		case MONO_SEM_TIMEDWAIT_RET_ALERTED:
@@ -441,7 +459,11 @@ worker_try_unpark (void)
 	} while (mono_atomic_cas_i32 (&worker.parked_threads_count, new_, old) != old);
 
 	if (res)
+#ifdef USE_FM_SEMAPHORE
+		mono_coop_fm_sem_post (&worker.parked_threads_sem);
+#else	
 		mono_coop_sem_post (&worker.parked_threads_sem);
+#endif		
 
 	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try unpark worker, success? %s",
 		GUINT_TO_POINTER (MONO_NATIVE_THREAD_ID_TO_UINT (mono_native_thread_id_get ())), res ? "yes" : "no");

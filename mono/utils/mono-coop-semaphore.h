@@ -59,14 +59,53 @@ mono_coop_sem_timedwait (MonoCoopSem *sem, guint timeout_ms, MonoSemFlags flags)
 	return res;
 }
 
+static inline void
+mono_coop_sem_post (MonoCoopSem *sem)
+{
+	mono_os_sem_post (&sem->s);
+}
+
+#ifdef USE_FM_SEMAPHORE
+
+typedef struct _MonoCoopFMSem MonoCoopFMSem;
+struct _MonoCoopFMSem {
+	MonoFMSemType s;
+};
+
+static inline void
+mono_coop_fm_sem_init (MonoCoopFMSem *sem, int value)
+{
+	mono_os_fm_sem_init (&sem->s, value);
+}
+
+static inline void
+mono_coop_fm_sem_destroy (MonoCoopFMSem *sem)
+{
+	mono_os_fm_sem_destroy (&sem->s);
+}
+
+static inline gint
+mono_coop_fm_sem_wait (MonoCoopFMSem *sem, MonoSemFlags flags)
+{
+	gint res;
+
+	MONO_ENTER_GC_SAFE;
+
+	res = mono_os_fm_sem_wait (&sem->s, flags);
+
+	MONO_EXIT_GC_SAFE;
+
+	return res;
+}
+
 static inline MonoSemTimedwaitRet
-mono_coop_sem_timedwait_alternative (MonoCoopSem *sem, guint timeout_ms, MonoSemFlags flags)
+mono_coop_fm_sem_timedwait (MonoCoopFMSem *sem, guint timeout_ms, MonoSemFlags flags)
 {
 	MonoSemTimedwaitRet res;
 
 	MONO_ENTER_GC_SAFE;
 
-	res = mono_os_sem_timedwait_alternative (&sem->s, timeout_ms, flags);
+	res = mono_os_fm_sem_timedwait (&sem->s, timeout_ms, flags);
 
 	MONO_EXIT_GC_SAFE;
 
@@ -74,9 +113,11 @@ mono_coop_sem_timedwait_alternative (MonoCoopSem *sem, guint timeout_ms, MonoSem
 }
 
 static inline void
-mono_coop_sem_post (MonoCoopSem *sem)
+mono_coop_fm_sem_post (MonoCoopFMSem *sem)
 {
-	mono_os_sem_post (&sem->s);
+	mono_os_fm_sem_post (&sem->s);
 }
+
+#endif
 
 #endif /* __MONO_COOP_SEMAPHORE_H__ */
