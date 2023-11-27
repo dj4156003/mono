@@ -31,8 +31,8 @@ struct fm_sem_t {
  * @param[in] val Expected value of the futex word
  * @return 0 on success; -1 on error
  */
-static inline int futex(int *uaddr, int futex_op, int val) {
-    return syscall(__NR_futex, uaddr, futex_op, val, NULL, NULL, 0);
+static inline int futex(int *uaddr, int futex_op, int val, const struct timespec* timeout) {
+    return syscall(__NR_futex, uaddr, futex_op, val, timeout, NULL, 0);
 }
 
 /**
@@ -41,7 +41,7 @@ static inline int futex(int *uaddr, int futex_op, int val) {
  * @param[in,out] initval Value to be initialised to
  * @return On success, returns 0
  */
-static inline int fm_sem_init(fm_sem_t *sem, uint32_t initval) {
+static inline int fm_sem_init(struct fm_sem_t *sem, uint32_t initval) {
     g_assert(sem);
     atomic_init(&sem->value, initval);
     return 0;
@@ -54,7 +54,7 @@ static inline int fm_sem_init(fm_sem_t *sem, uint32_t initval) {
  * call blocks  until it becomes possible to perform the decrement
  * @return On success, returns 0
  */
-int fm_sem_wait(fm_sem_t *sem) {
+int fm_sem_wait(struct fm_sem_t *sem) {
     g_assert(sem);
     uint32_t value = 1;
 
@@ -63,7 +63,7 @@ int fm_sem_wait(fm_sem_t *sem) {
                                                     memory_order_acquire,
                                                     memory_order_relaxed)) {
         if(value == 0) {
-            futex(&sem->value, FUTEX_WAIT_PRIVATE, 0);
+            futex(&sem->value, FUTEX_WAIT_PRIVATE, 0, NULL);
             value = 1;
         }
     }
@@ -76,7 +76,7 @@ int fm_sem_wait(fm_sem_t *sem) {
  * @param[in,out] sem Pointer to semaphore
  * @return On success, returns 0; On failure, returns -1
  */
-int fm_sem_trywait(fm_sem_t *sem) {
+int fm_sem_trywait(struct fm_sem_t *sem) {
     g_assert(sem);
     uint32_t value = atomic_load_explicit(&sem->value, memory_order_acquire);
 
@@ -98,10 +98,10 @@ int fm_sem_trywait(fm_sem_t *sem) {
  * @param[in,out] sem Pointer to semaphore
  * @return On success, returns 0
  */
-int fm_sem_post(fm_sem_t *sem) {
+int fm_sem_post(struct fm_sem_t *sem) {
     g_assert(sem);
     atomic_fetch_add_explicit(&sem->value, 1, memory_order_release);
-    futex(&sem->value, FUTEX_WAKE_PRIVATE, 1);
+    futex(&sem->value, FUTEX_WAKE_PRIVATE, 1, NULL);
     return 0;
 }
 
@@ -113,25 +113,16 @@ int fm_sem_post(fm_sem_t *sem) {
  * call blocks until it becomes possible to perform the decrement or the timeout expires
  * @return On success, returns 0; on timeout, returns -1
  */
-int fm_sem_timedwait(fm_sem_t *sem, uint32_t timeout_ms) {
+int fm_sem_timedwait(struct fm_sem_t *sem, const struct timespec* timeout) {
     g_assert(sem);
     uint32_t value = 1;
-
-    struct timespec timeout, now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    timeout.tv_sec = now.tv_sec + timeout_ms / 1000;
-    timeout.tv_nsec = now.tv_nsec + (timeout_ms % 1000) * 1000000;
-    while (timeout.tv_nsec >= MONO_NSEC_PER_SEC) {
-        timeout.tv_nsec -= MONO_NSEC_PER_SEC;
-        timeout.tv_sec++;
-    }
 
     while (!atomic_compare_exchange_weak_explicit(&sem->value,
                                                   &value, value - 1,
                                                   memory_order_acquire,
                                                   memory_order_relaxed)) {
         if (value == 0) {
-            int res = futex(&sem->value, FUTEX_WAIT_BITSET_PRIVATE, 0, &timeout, NULL, 0);
+            int res = futex(&sem->value, FUTEX_WAIT_PRIVATE, 0, timeout);
             if (res == -1 && (errno == ETIMEDOUT || error = EINTR) {
                 return -1;
             }

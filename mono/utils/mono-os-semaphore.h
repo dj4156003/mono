@@ -283,14 +283,14 @@ mono_os_sem_post (MonoSemType *sem)
 
 #include "fm-sem.h"
 
-typedef fm_sem_t MonoFMSemType;
+typedef struct fm_sem_t MonoFMSemType;
 
 static inline void
 mono_os_fm_sem_init (MonoFMSemType *sem, int value)
 {
 	int res;
 
-	res = fm_sem_init (sem, 0, value);
+	res = fm_sem_init (sem, value);
 	if (G_UNLIKELY (res != 0))
 		g_error ("%s: fm_sem_init failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
 }
