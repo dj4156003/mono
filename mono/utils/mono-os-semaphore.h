@@ -256,7 +256,7 @@ static inline MonoSemTimedwaitRet
 mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSemFlags flags)
 {
 	struct timespec ts, copy;
-	struct timeval t;
+	struct timespec t; // 更改为 timespec
 	int res;
 
 	if (timeout_ms == 0) {
@@ -277,12 +277,12 @@ mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSem
 	if (timeout_ms == MONO_INFINITE_WAIT)
 		return (MonoSemTimedwaitRet) mono_os_sem_wait (sem, flags);
 
-	res = gettimeofday (&t, NULL);
+	res = clock_gettime (CLOCK_REALTIME, &t); // 更改为 clock_gettime
 	if (G_UNLIKELY (res != 0))
-		g_error ("%s: gettimeofday failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
+		g_error ("%s: clock_gettime failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
 
 	ts.tv_sec = timeout_ms / 1000 + t.tv_sec;
-	ts.tv_nsec = (timeout_ms % 1000) * 1000000 + t.tv_usec * 1000;
+	ts.tv_nsec = (timeout_ms % 1000) * 1000000 + t.tv_nsec; // 修改为 tv_nsec
 	while (ts.tv_nsec >= MONO_NSEC_PER_SEC) {
 		ts.tv_nsec -= MONO_NSEC_PER_SEC;
 		ts.tv_sec++;
@@ -290,8 +290,9 @@ mono_os_sem_timedwait_alternative (MonoSemType *sem, guint32 timeout_ms, MonoSem
 
 	copy = ts;
 
+
 retry:
-	res = sem_timedwait_alternative (sem, &ts);
+	res = sem_timedwait (sem, &ts);
 	if (G_UNLIKELY (res != 0 && errno != EINTR && errno != ETIMEDOUT))
 		g_error ("%s: sem_timedwait failed with \"%s\" (%d)", __func__, g_strerror (errno), errno);
 
