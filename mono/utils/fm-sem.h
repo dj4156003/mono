@@ -31,7 +31,7 @@ struct fm_sem_t {
  * @param[in] val Expected value of the futex word
  * @return 0 on success; -1 on error
  */
-static inline int futex(int *uaddr, int futex_op, int val, const struct timespec* timeout) {
+static inline int futex(_Atomic int *uaddr, int futex_op, int val, const struct timespec* timeout) {
     return syscall(__NR_futex, uaddr, futex_op, val, timeout, NULL, 0);
 }
 
@@ -123,7 +123,7 @@ int fm_sem_timedwait(struct fm_sem_t *sem, const struct timespec* timeout) {
                                                   memory_order_relaxed)) {
         if (value == 0) {
             int res = futex(&sem->value, FUTEX_WAIT_PRIVATE, 0, timeout);
-            if (res == -1 && (errno == ETIMEDOUT || errno = EINTR) {
+            if (res == -1 && (errno == ETIMEDOUT || errno == EINTR) {
                 return -1;
             }
             value = 1;
