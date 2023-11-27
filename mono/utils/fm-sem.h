@@ -56,7 +56,7 @@ static inline int fm_sem_init(struct fm_sem_t *sem, uint32_t initval) {
  */
 int fm_sem_wait(struct fm_sem_t *sem) {
     g_assert(sem);
-    uint32_t value = 1;
+    int value = 1;
 
     while(!atomic_compare_exchange_weak_explicit(&sem->value,
                                                     &value, value - 1,
@@ -78,7 +78,7 @@ int fm_sem_wait(struct fm_sem_t *sem) {
  */
 int fm_sem_trywait(struct fm_sem_t *sem) {
     g_assert(sem);
-    uint32_t value = atomic_load_explicit(&sem->value, memory_order_acquire);
+    int value = atomic_load_explicit(&sem->value, memory_order_acquire);
 
     while (value > 0) {
         if (atomic_compare_exchange_weak_explicit(&sem->value,
@@ -115,7 +115,7 @@ int fm_sem_post(struct fm_sem_t *sem) {
  */
 int fm_sem_timedwait(struct fm_sem_t *sem, const struct timespec* timeout) {
     g_assert(sem);
-    uint32_t value = 1;
+    int value = 1;
 
     while (!atomic_compare_exchange_weak_explicit(&sem->value,
                                                   &value, value - 1,
@@ -123,7 +123,7 @@ int fm_sem_timedwait(struct fm_sem_t *sem, const struct timespec* timeout) {
                                                   memory_order_relaxed)) {
         if (value == 0) {
             int res = futex(&sem->value, FUTEX_WAIT_PRIVATE, 0, timeout);
-            if (res == -1 && (errno == ETIMEDOUT || errno == EINTR) {
+            if (res == -1 && (errno == ETIMEDOUT || errno == EINTR)) {
                 return -1;
             }
             value = 1;
