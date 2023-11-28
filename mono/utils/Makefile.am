@@ -125,6 +125,7 @@ monoutils_sources = \
 	mono-poll.c		\
 	mono-path.c		\
 	fm-sem.h        \
+	fm-sem.c        \
 	mono-os-semaphore.h	\
 	mono-coop-semaphore.h		\
 	mono-sigcontext.h	\
