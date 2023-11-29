@@ -2307,6 +2307,10 @@ mono_thread_current_not_assert (void)
 	return mono_thread_internal_current ();
 #else
 	MonoDomain *domain = mono_domain_get ();
+	if (!domain)
+	{
+		return NULL;
+	}
 	MonoInternalThread *internal = mono_thread_internal_current ();
 	MonoThread **current_thread_ptr;
 
