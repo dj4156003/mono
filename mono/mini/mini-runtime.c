@@ -5213,7 +5213,7 @@ mono_get_runtime_build_version (void)
 char*
 mono_get_runtime_build_info (void)
 {
-	return "6.13.0 (explicit/d983533a Sun Nov 19 10:54:39 UTC 2023)";
+	return g_strdup("6.13.0 (explicit/d983533a Sun Nov 19 10:54:39 UTC 2023)");
 	// if (mono_build_date)
 	// 	return g_strdup_printf ("%s (%s %s)", VERSION, FULL_VERSION, mono_build_date);
 	// else
