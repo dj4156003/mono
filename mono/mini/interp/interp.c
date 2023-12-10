@@ -3240,7 +3240,7 @@ interp_exec_method (InterpFrame *frame, ThreadContext *context, FrameClauseArgs 
 	const guint16 *ip = NULL;
 	unsigned char *locals = NULL;
 	int call_args_offset;
-	int retur_offset;
+	int return_offset;
 
 #if DEBUG_INTERP
 	int tracing = global_tracing;
