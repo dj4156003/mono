@@ -5023,7 +5023,7 @@ MINT_IN_CASE(MINT_BRTRUE_I8_SP) ZEROP_SP(gint64, !=); MINT_IN_BREAK;
 
 			newobj_class = (MonoClass*) frame->imethod->data_items [token];
 
-			LOCAL_VAR (ip [1], MonoObject*) = ves_array_create (newobj_class, param_count, (stackval*)(locals + ip [2]), error);
+			LOCAL_VAR (ip [1], MonoObject*) = ves_array_create (frame->imethod->domain, newobj_class, param_count, (stackval*)(locals + ip [2]), error);
 			if (!is_ok (error))
 				THROW_EX (mono_error_convert_to_exception (error), ip);
 			ip += 5;
