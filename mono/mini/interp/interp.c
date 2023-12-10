@@ -3256,7 +3256,7 @@ interp_exec_method (InterpFrame *frame, ThreadContext *context, FrameClauseArgs 
 	const guint16 *ip = NULL;
 	unsigned char *locals = NULL;
 	int call_args_offset;
-	int retur_offset;
+	int return_offset;
 
 #if DEBUG_INTERP
 	int tracing = global_tracing;
@@ -6739,7 +6739,7 @@ MINT_IN_CASE(MINT_BRTRUE_I8_SP) ZEROP_SP(gint64, !=); MINT_IN_BREAK;
 			ip += 4;
 			MINT_IN_BREAK;
 		}
-		
+
 		MINT_IN_CASE(MINT_MOV_8_2)
 			LOCAL_VAR (ip [1], guint64) = LOCAL_VAR (ip [2], guint64);
 			LOCAL_VAR (ip [3], guint64) = LOCAL_VAR (ip [4], guint64);
