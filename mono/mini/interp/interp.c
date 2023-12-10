@@ -3328,10 +3328,6 @@ main_loop:
 			++ip;
 			mono_break ();
 			MINT_IN_BREAK;
-		MINT_IN_CASE(MINT_LDNULL)
-			LOCAL_VAR (ip [1], gpointer) = NULL;
-			ip += 2;
-			MINT_IN_BREAK;
 		MINT_IN_CASE(MINT_INIT_ARGLIST) {
 			const guint16 *call_ip = frame->parent->state.ip - 6;
 			g_assert_checked (*call_ip == MINT_CALL_VARARG);
@@ -3389,6 +3385,10 @@ main_loop:
 			LOCAL_VAR (ip [1], gint32) = READ32 (ip + 2);
 			ip += 4;
 			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_LDC_I8_0)
+			LOCAL_VAR (ip [1], gint64) = 0;
+			ip += 2;
+			MINT_IN_BREAK;			
 		MINT_IN_CASE(MINT_LDC_I8)
 			LOCAL_VAR (ip [1], gint64) = READ64 (ip + 2);
 			ip += 6;
@@ -3753,6 +3753,12 @@ call:
 		MINT_IN_CASE(MINT_RET)
 			frame->retval [0] = LOCAL_VAR (ip [1], stackval);
 			goto exit_frame;
+		MINT_IN_CASE(MINT_RET_I4_IMM)
+			frame->retval [0].data.i = (gint16)ip [1];
+			goto exit_frame;
+		MINT_IN_CASE(MINT_RET_I8_IMM)
+			frame->retval [0].data.l = (gint16)ip [1];
+			goto exit_frame;			
 		MINT_IN_CASE(MINT_RET_VOID)
 			goto exit_frame;
 		MINT_IN_CASE(MINT_RET_VT) {
@@ -4453,10 +4459,18 @@ call:
 			LOCAL_VAR (ip [1], gint32) = LOCAL_VAR (ip [2], gint32) + 1;
 			ip += 3;
 			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_ADD_I4_IMM)
+			LOCAL_VAR (ip [1], gint32) = LOCAL_VAR (ip [2], gint32) + (gint16)ip [3];
+			ip += 4;
+			MINT_IN_BREAK;			
 		MINT_IN_CASE(MINT_ADD1_I8)
 			LOCAL_VAR (ip [1], gint64) = LOCAL_VAR (ip [2], gint64) + 1;
 			ip += 3;
 			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_ADD_I8_IMM)
+			LOCAL_VAR (ip [1], gint64) = LOCAL_VAR (ip [2], gint64) + (gint16)ip [3];
+			ip += 4;
+			MINT_IN_BREAK;			
 		MINT_IN_CASE(MINT_SUB_I4)
 			BINOP(gint32, -);
 			MINT_IN_BREAK;
@@ -4620,6 +4634,30 @@ call:
 		MINT_IN_CASE(MINT_SHR_UN_I8)
 			SHIFTOP(guint64, >>);
 			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHL_I4_IMM)
+			LOCAL_VAR (ip [1], gint32) = LOCAL_VAR (ip [2], gint32) << ip [3];
+			ip += 4;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHL_I8_IMM)
+			LOCAL_VAR (ip [1], gint64) = LOCAL_VAR (ip [2], gint64) << ip [3];
+			ip += 4;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHR_I4_IMM)
+			LOCAL_VAR (ip [1], gint32) = LOCAL_VAR (ip [2], gint32) >> ip [3];
+			ip += 4;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHR_I8_IMM)
+			LOCAL_VAR (ip [1], gint64) = LOCAL_VAR (ip [2], gint64) >> ip [3];
+			ip += 4;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHR_UN_I4_IMM)
+			LOCAL_VAR (ip [1], guint32) = LOCAL_VAR (ip [2], guint32) >> ip [3];
+			ip += 4;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_SHR_UN_I8_IMM)
+			LOCAL_VAR (ip [1], guint64) = LOCAL_VAR (ip [2], guint64) >> ip [3];
+			ip += 4;
+			MINT_IN_BREAK;			
 		MINT_IN_CASE(MINT_NEG_I4)
 			LOCAL_VAR (ip [1], gint32) = - LOCAL_VAR (ip [2], gint32);
 			ip += 3;
@@ -5001,7 +5039,7 @@ call:
 			MINT_IN_BREAK;
 		}
 		MINT_IN_CASE(MINT_INTRINS_MARVIN_BLOCK) {
-			interp_intrins_marvin_block (LOCAL_VAR (ip [1], guint32*), LOCAL_VAR (ip [2], guint32*));
+			interp_intrins_marvin_block ((guint32*)(locals + ip [1]), (guint32*)(locals + ip [2]));
 			ip += 3;
 			MINT_IN_BREAK;
 		}
