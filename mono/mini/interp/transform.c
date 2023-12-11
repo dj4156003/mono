@@ -2707,7 +2707,7 @@ interp_inline_newobj (TransformData *td, MonoMethod *target_method, MonoMethodSi
 		interp_ins_set_sreg (newobj_fast, dreg);
 		newobj_fast->data [0] = ALIGN_TO (vtsize, MINT_STACK_SLOT_SIZE);
 	} else {
-		MonoVTable *vtable = mono_class_vtable_checked (klass, error);
+        MonoVTable *vtable = mono_class_vtable_checked (td->rtm->domain, klass, error);
 		goto_if_nok (error, fail);
 		newobj_fast = interp_add_ins (td, MINT_NEWOBJ_INLINED);
 		interp_ins_set_dreg (newobj_fast, dreg);
