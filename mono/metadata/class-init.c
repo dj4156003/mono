@@ -842,6 +842,7 @@ mono_class_create_generic_inst (MonoGenericClass *gclass)
 	klass->this_arg.byref = TRUE;
 	klass->enumtype = gklass->enumtype;
 	klass->valuetype = gklass->valuetype;
+	klass->unity_user_data = NULL;
 
 
 	if (gklass->image->assembly_name && !strcmp (gklass->image->assembly_name, "System.Numerics.Vectors") && !strcmp (gklass->name_space, "System.Numerics") && !strcmp (gklass->name, "Vector`1")) {
@@ -1075,6 +1076,7 @@ mono_class_create_bounded_array (MonoClass *eclass, guint32 rank, gboolean bound
 	klass->type_token = 0;
 	klass->parent = parent;
 	klass->instance_size = mono_class_instance_size (klass->parent);
+	klass->unity_user_data = NULL;
 
 	if (m_class_get_byval_arg (eclass)->type == MONO_TYPE_TYPEDBYREF) {
 		/*Arrays of those two types are invalid.*/
@@ -1441,6 +1443,7 @@ mono_class_create_ptr (MonoType *type)
 	result->min_align = sizeof (gpointer);
 	result->element_class = el_class;
 	result->blittable = TRUE;
+	result->unity_user_data = NULL;
 
 	if (el_class->enumtype)
 		result->cast_class = el_class->element_class;
