@@ -42,7 +42,7 @@ MonoImage    *mono_image_open_from_data_full (char *data, uint32_t data_len, mon
                                          MonoImageOpenStatus *status, mono_bool refonly);
 MONO_API MONO_RT_EXTERNAL_ONLY
 MonoImage    *mono_image_open_from_data_with_name (char *data, uint32_t data_len, mono_bool need_copy,
-                                                   MonoImageOpenStatus *status, mono_bool refonly, const char *name);
+                                                   MonoImageOpenStatus *status, mono_bool refonly, const char *name, mono_bool override_exist);
 MONO_API void          mono_image_fixup_vtable (MonoImage *image);
 MONO_API MONO_RT_EXTERNAL_ONLY
 MonoImage             *mono_image_loaded   (const char *name);

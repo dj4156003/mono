@@ -2507,7 +2507,7 @@ mono_alc_load_raw_bytes (MonoAssemblyLoadContext *alc, guint8 *assembly_data, gu
 {
 	MonoAssembly *ass = NULL;
 	MonoImageOpenStatus status;
-	MonoImage *image = mono_image_open_from_data_internal (alc, (char*)assembly_data, raw_assembly_len, TRUE, NULL, refonly, FALSE, NULL, NULL);
+	MonoImage *image = mono_image_open_from_data_internal (alc, (char*)assembly_data, raw_assembly_len, TRUE, NULL, refonly, FALSE, NULL, NULL, FALSE);
 
 	if (!image) {
 		mono_error_set_bad_image_by_name (error, "In memory assembly", "0x%p", assembly_data);

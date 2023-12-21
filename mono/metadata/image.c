@@ -1958,7 +1958,7 @@ mono_image_get_name_with_culture_if_needed (MonoImage *image)
 }
 
 static MonoImage *
-register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic)
+register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic, gboolean override_exist)
 {
 	MonoImage *image2;
 	char *name = image->name;
@@ -1977,8 +1977,25 @@ register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic)
 
 	GHashTable *loaded_images_by_name = mono_loaded_images_get_by_name_hash (li, image->ref_only);
 	g_hash_table_insert (loaded_images, name, image);
-	if (image->assembly_name && (g_hash_table_lookup (loaded_images_by_name, image->assembly_name) == NULL))
-		g_hash_table_insert (loaded_images_by_name, (char *) image->assembly_name, image);
+	if (image->assembly_name)
+	{
+		MonoImage* prevImage = (MonoImage*)g_hash_table_lookup (loaded_images_by_name, image->assembly_name);
+		if (prevImage == NULL || override_exist)
+		{
+			if (prevImage != NULL)
+			{
+				if (!strcmp(prevImage->guid, image->guid))
+				{
+					mono_image_addref (prevImage);
+					mono_images_unlock ();
+					mono_image_close (image);
+					return prevImage;
+				}
+				g_hash_table_remove(loaded_images_by_name, (char*) image->assembly_name);
+			}
+			g_hash_table_insert (loaded_images_by_name, (char *) image->assembly_name, image);
+		}
+	}
 	mono_images_unlock ();
 
 	if (mono_is_problematic_image (image)) {
@@ -1990,7 +2007,7 @@ register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic)
 }
 
 MonoImage *
-mono_image_open_from_data_internal (MonoAssemblyLoadContext *alc, char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, gboolean metadata_only, const char *name, const char *filename)
+mono_image_open_from_data_internal (MonoAssemblyLoadContext *alc, char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, gboolean metadata_only, const char *name, const char *filename, gboolean override_exist)
 {
 	MonoCLIImageInfo *iinfo;
 	MonoImage *image;
@@ -2028,7 +2045,7 @@ mono_image_open_from_data_internal (MonoAssemblyLoadContext *alc, char *data, gu
 	if (image == NULL)
 		return NULL;
 
-	return register_image (mono_alc_get_loaded_images (alc), image, NULL);
+	return register_image (mono_alc_get_loaded_images (alc), image, NULL, override_exist);
 }
 
 MonoImage *
@@ -2037,7 +2054,7 @@ mono_image_open_from_data_alc (MonoAssemblyLoadContextGCHandle alc_gchandle, cha
 	MonoImage *result;
 	MONO_ENTER_GC_UNSAFE;
 	MonoAssemblyLoadContext *alc = mono_domain_default_alc (mono_domain_get ());
-	result = mono_image_open_from_data_internal (alc, data, data_len, need_copy, status, FALSE, FALSE, name, name);
+	result = mono_image_open_from_data_internal (alc, data, data_len, need_copy, status, FALSE, FALSE, name, name, FALSE);
 	MONO_EXIT_GC_UNSAFE;
 	return result;
 }
@@ -2046,12 +2063,12 @@ mono_image_open_from_data_alc (MonoAssemblyLoadContextGCHandle alc_gchandle, cha
  * mono_image_open_from_data_with_name:
  */
 MonoImage *
-mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, const char *name)
+mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, const char *name, gboolean override_exist)
 {
 	MonoImage *result;
 	MONO_ENTER_GC_UNSAFE;
 	MonoDomain *domain = mono_domain_get ();
-	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, name, name);
+	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, name, name, FALSE, override_exist);
 	MONO_EXIT_GC_UNSAFE;
 	return result;
 }
@@ -2065,7 +2082,7 @@ mono_image_open_from_data_full (char *data, guint32 data_len, gboolean need_copy
 	MonoImage *result;
 	MONO_ENTER_GC_UNSAFE;
 	MonoDomain *domain = mono_domain_get ();
-	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, NULL, NULL);
+	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, NULL, NULL, FALSE);
 	MONO_EXIT_GC_UNSAFE;
 	return result;
 }
@@ -2079,7 +2096,7 @@ mono_image_open_from_data (char *data, guint32 data_len, gboolean need_copy, Mon
 	MonoImage *result;
 	MONO_ENTER_GC_UNSAFE;
 	MonoDomain *domain = mono_domain_get ();
-	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, FALSE, FALSE, NULL, NULL);
+	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, FALSE, FALSE, NULL, NULL, FALSE);
 	MONO_EXIT_GC_UNSAFE;
 	return result;
 }
@@ -2132,7 +2149,7 @@ mono_image_open_from_module_handle (MonoAssemblyLoadContext *alc, HMODULE module
 	if (image == NULL)
 		return NULL;
 
-	return register_image (mono_alc_get_loaded_images (alc), image, NULL);
+	return register_image (mono_alc_get_loaded_images (alc), image, NULL, FALSE);
 }
 #endif
 
@@ -2245,7 +2262,7 @@ mono_image_open_a_lot_parameterized (MonoLoadedImages *li, MonoAssemblyLoadConte
 			return image;
 		}
 
-		return mono_image_open_from_module_handle (alc, module_handle, absfname, FALSE, status);
+		return mono_image_open_from_module_handle (alc, module_handle, absfname, FALSE, status, FALSE);
 	}
 #endif
 
@@ -2288,7 +2305,7 @@ mono_image_open_a_lot_parameterized (MonoLoadedImages *li, MonoAssemblyLoadConte
 	if (image == NULL)
 		return NULL;
 
-	return register_image (li, image, problematic);
+	return register_image (li, image, problematic, FALSE);
 }
 
 MonoImage *

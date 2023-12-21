@@ -2446,7 +2446,7 @@ open_from_bundle_internal (MonoAssemblyLoadContext *alc, const char *filename, M
 	char *name = is_satellite ? g_strdup (filename) : g_path_get_basename (filename);
 	for (int i = 0; !image && bundles [i]; ++i) {
 		if (strcmp (bundles [i]->name, name) == 0) {
-			image = mono_image_open_from_data_internal (alc, (char*)bundles [i]->data, bundles [i]->size, FALSE, status, refonly, FALSE, name, name);
+			image = mono_image_open_from_data_internal (alc, (char*)bundles [i]->data, bundles [i]->size, FALSE, status, refonly, FALSE, name, name, FALSE);
 			break;
 		}
 	}
