@@ -2068,7 +2068,7 @@ mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need
 	MonoImage *result;
 	MONO_ENTER_GC_UNSAFE;
 	MonoDomain *domain = mono_domain_get ();
-	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, name, name, FALSE, override_exist);
+	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, name, name, override_exist);
 	MONO_EXIT_GC_UNSAFE;
 	return result;
 }
