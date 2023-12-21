@@ -2262,7 +2262,7 @@ mono_image_open_a_lot_parameterized (MonoLoadedImages *li, MonoAssemblyLoadConte
 			return image;
 		}
 
-		return mono_image_open_from_module_handle (alc, module_handle, absfname, FALSE, status, FALSE);
+		return mono_image_open_from_module_handle (alc, module_handle, absfname, FALSE, status);
 	}
 #endif
 
