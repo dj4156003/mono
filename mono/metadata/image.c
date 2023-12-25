@@ -1986,11 +1986,13 @@ register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic, g
 			{
 				if (!strcmp(prevImage->guid, image->guid))
 				{
+					mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_ASSEMBLY, "Image %s exist, guid equal , use prev image", prevImage->assembly_name);
 					mono_image_addref (prevImage);
 					mono_images_unlock ();
 					mono_image_close (image);
 					return prevImage;
 				}
+				mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_ASSEMBLY, "Image %s exist, guid not equal , use cur image", image->assembly_name);
 				g_hash_table_remove(loaded_images_by_name, (char*) image->assembly_name);
 			}
 			g_hash_table_insert (loaded_images_by_name, (char *) image->assembly_name, image);
