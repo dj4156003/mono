@@ -1979,6 +1979,7 @@ register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic, g
 	g_hash_table_insert (loaded_images, name, image);
 	if (image->assembly_name)
 	{
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_ASSEMBLY, "Image %s try insert to loaded_images_by_name", image->assembly_name);
 		MonoImage* prevImage = (MonoImage*)g_hash_table_lookup (loaded_images_by_name, image->assembly_name);
 		if (prevImage == NULL || override_exist)
 		{
@@ -1997,6 +1998,10 @@ register_image (MonoLoadedImages *li, MonoImage *image, gboolean *problematic, g
 			}
 			g_hash_table_insert (loaded_images_by_name, (char *) image->assembly_name, image);
 		}
+	}
+	else
+	{
+		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_ASSEMBLY, "Image %s assembly name not exist", image->name);
 	}
 	mono_images_unlock ();
 
