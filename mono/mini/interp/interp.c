@@ -503,7 +503,10 @@ mono_interp_get_imethod (MonoDomain *domain, MonoMethod *method, MonoError *erro
 	imethod = (InterpMethod*)mono_internal_hash_table_lookup (&info->interp_code_hash, method);
 	mono_domain_jit_code_hash_unlock (domain);
 	if (imethod)
+	{
+		g_assert(imethod->method);
 		return imethod;
+	}
 
 	sig = mono_method_signature_internal (method);
 
