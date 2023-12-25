@@ -504,7 +504,7 @@ mono_interp_get_imethod (MonoDomain *domain, MonoMethod *method, MonoError *erro
 	mono_domain_jit_code_hash_unlock (domain);
 	if (imethod)
 	{
-		g_assert(imethod->method);
+		g_assert(imethod->method && ((long)(imethod->method)) > 0x2c);
 		return imethod;
 	}
 
