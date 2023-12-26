@@ -7410,7 +7410,6 @@ interp_metadata_update_init (MonoError *error)
 		mono_error_set_execution_engine (error, "Interpreter inlining must be turned off for metadata updates");
 }
 
-#ifdef ENABLE_METADATA_UPDATE
 static void
 metadata_update_backup_frames (MonoDomain *domain, MonoThreadInfo *info, InterpFrame *frame)
 {
@@ -7456,18 +7455,16 @@ metadata_update_prepare_to_invalidate (MonoDomain *domain)
 
 	/* (2) invalidate all the registered imethods */
 }
-#endif
+
 
 
 static void
 interp_invalidate_transformed (MonoDomain *domain)
 {
 	gboolean need_stw_restart = FALSE;
-#ifdef ENABLE_METADATA_UPDATE
 	need_stw_restart = TRUE;
 	mono_gc_stop_world ();
 	metadata_update_prepare_to_invalidate (domain);
-#endif
 	MonoJitDomainInfo *info = domain_jit_info (domain);
 	mono_domain_jit_code_hash_lock (domain);
 	mono_internal_hash_table_apply (&info->interp_code_hash, invalidate_transform);
@@ -7515,6 +7512,12 @@ register_interp_stats (void)
 static const MonoEECallbacks mono_interp_callbacks = {
 	MONO_EE_CALLBACKS
 };
+
+void
+mono_ee_interp_invalidate(MonoDomain* domain)
+{
+	interp_invalidate_transformed(domain);
+}
 
 void
 mono_ee_interp_init (const char *opts)

@@ -45,6 +45,8 @@ typedef struct _InterpMethodArguments InterpMethodArguments;
  */
 MONO_API void mono_ee_interp_init (const char *);
 
+MONO_API void mono_ee_interp_invalidate(MonoDomain* domain);
+
 #ifdef TARGET_WASM
 
 gpointer
