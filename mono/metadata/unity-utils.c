@@ -837,6 +837,7 @@ clear_cached_method_vtable (MonoVTable *vtable)
 
 void mono_unity_domain_clear_method_table_and_static_data(MonoDomain* domain)
 {
+	int i;
 	MonoMemoryManager *memory_manager = mono_domain_memory_manager (domain);
 
 	mono_loader_lock ();
