@@ -752,6 +752,8 @@ get_virtual_method_fast (InterpMethod *imethod, MonoVTable *vtable, int offset)
 
 	if (!table [offset]) {
 		InterpMethod *target_imethod = get_virtual_method (imethod, vtable);
+		g_assert(target_imethod->method);
+		g_assert((long)(target_imethod->domain) > 2);
 		/* Lazily initialize the method table slot */
 		mono_mem_manager_lock (memory_manager);
 		if (!table [offset]) {
@@ -776,6 +778,13 @@ get_virtual_method_fast (InterpMethod *imethod, MonoVTable *vtable, int offset)
 			if (!get_target_imethod ((GSList*)table [offset], imethod))
 				table [offset] = append_imethod (memory_manager, (GSList*)table [offset], imethod, target_imethod);
 			mono_mem_manager_unlock (memory_manager);
+			g_assert(target_imethod->method);
+			g_assert((long)(target_imethod->domain) > 2);
+		}
+		else
+		{
+			g_assert(target_imethod->method);
+			g_assert((long)(target_imethod->domain) > 2);
 		}
 		return target_imethod;
 	}
@@ -3579,6 +3588,8 @@ main_loop:
 			slot = (gint16)ip [3];
 			ip += 4;
 			cmethod = get_virtual_method_fast (cmethod, this_arg->vtable, slot);
+			g_assert(cmethod->method);
+			g_assert((long)(cmethod->domain) > 2);
 			if (m_class_is_valuetype (this_arg->vtable->klass) && m_class_is_valuetype (cmethod->method->klass)) {
 				/* unbox */
 				gpointer unboxed = mono_object_unbox_internal (this_arg);
