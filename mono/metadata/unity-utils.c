@@ -31,6 +31,7 @@
 #include <mono/metadata/monitor.h>
 #include <mono/metadata/appdomain.h>
 #include <mono/metadata/external-only.h>
+#include <mono/metadata/loader-internals.h>
 #include <mono/utils/mono-string.h>
 #include <mono/utils/mono-stack-unwinding.h>
 #include <mono/utils/mono-threads.h>
@@ -802,6 +803,63 @@ void mono_unity_domain_unload (MonoDomain* domain, MonoUnityExceptionFunc callba
 {
 	MonoObject *exc = NULL;
 	mono_domain_try_unload (domain, &exc, callback);
+}
+
+static G_GNUC_UNUSED void
+zero_static_data (MonoVTable *vtable)
+{
+	MonoClass *klass = vtable->klass;
+	void *data;
+
+	if (m_class_has_static_refs (klass) && (data = mono_vtable_get_static_field_data (vtable)))
+		mono_gc_bzero_aligned (data, mono_class_data_size (klass));
+}
+
+static void
+clear_cached_method_vtable (MonoVTable *vtable)
+{
+	MonoClass *klass = vtable->klass;
+	MonoDomain *domain = vtable->domain;
+	MonoClassRuntimeInfo *runtime_info;
+	void *data;
+
+	runtime_info = m_class_get_runtime_info (klass);
+	if (runtime_info && runtime_info->max_domain >= domain->domain_id)
+	{
+		MonoVTable* vtable = runtime_info->domain_vtables [domain->domain_id];
+		if (vtable && vtable->interp_vtable)
+		{
+			int vtable_size = m_class_get_vtable_size(klass);
+			memset(vtable->interp_vtable, 0, vtable_size * sizeof (gpointer));
+		}
+	}
+}
+
+void mono_unity_domain_clear_method_table_and_static_data(MonoDomain* domain)
+{
+	MonoMemoryManager *memory_manager = mono_domain_memory_manager (domain);
+
+	mono_loader_lock ();
+	mono_domain_lock (domain);
+	mono_mem_manager_lock (memory_manager);
+	/*
+	 * We need to make sure that we don't have any remsets
+	 * pointing into static data of the to-be-freed domain because
+	 * at the next collections they would be invalid.  So what we
+	 * do is we first zero all static data and then do a minor
+	 * collection.  Because all references in the static data will
+	 * now be null we won't do any unnecessary copies and after
+	 * the collection there won't be any more remsets.
+	 */
+	for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
+		zero_static_data ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
+
+	for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
+		clear_cached_method_vtable ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
+
+	mono_mem_manager_unlock (memory_manager);
+	mono_domain_unlock (domain);
+	mono_loader_unlock ();
 }
 
 //array

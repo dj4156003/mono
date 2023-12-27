@@ -118,6 +118,7 @@ MONO_API void mono_unity_domain_install_finalize_runtime_invoke(MonoDomain* doma
 MONO_API void mono_unity_domain_install_capture_context_runtime_invoke(MonoDomain* domain, UnityRuntimeInvokeFunction callback);
 MONO_API void mono_unity_domain_install_capture_context_method(MonoDomain* domain, void* callback);
 MONO_API void mono_unity_domain_unload (MonoDomain *domain, MonoUnityExceptionFunc callback);
+MONO_API void mono_unity_domain_clear_method_table_and_static_data(MonoDomain* domain);
 
 //array
 MONO_API int mono_unity_array_get_element_size(MonoClass *arr_class);
