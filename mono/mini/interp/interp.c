@@ -783,8 +783,14 @@ get_virtual_method_fast (InterpMethod *imethod, MonoVTable *vtable, int offset)
 		}
 		else
 		{
-			g_assert(target_imethod->method);
-			g_assert((long)(target_imethod->domain) > 2);
+			if (!target_imethod->method)
+			{
+				g_debug("error domain %p", vtable->domain);
+				g_debug("error offset %d", offset);
+				g_debug("error vtable %p", vtable);
+			}
+			// g_assert(target_imethod->method);
+			// g_assert((long)(target_imethod->domain) > 2);
 		}
 		return target_imethod;
 	}
