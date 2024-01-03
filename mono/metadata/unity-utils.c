@@ -852,8 +852,8 @@ void mono_unity_domain_clear_method_table_and_static_data(MonoDomain* domain)
 	 * now be null we won't do any unnecessary copies and after
 	 * the collection there won't be any more remsets.
 	 */
-	for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
-		zero_static_data ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
+	// for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
+	// 	zero_static_data ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
 
 	for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
 		clear_cached_method_vtable ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
