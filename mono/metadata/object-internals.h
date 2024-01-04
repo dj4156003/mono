@@ -937,6 +937,9 @@ mono_domain_get_tls_key    (void);
 gint32
 mono_domain_get_tls_offset (void);
 
+gboolean 
+mono_is_interpreter_enabled(void);
+
 /* Reflection and Reflection.Emit support */
 
 /*

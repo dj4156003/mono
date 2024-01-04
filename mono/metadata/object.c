@@ -756,6 +756,12 @@ mono_get_runtime_callbacks (void)
 	return &callbacks;
 }
 
+gboolean 
+mono_is_interpreter_enabled(void)
+{
+	return callbacks.is_interpreter_enabled();
+}
+
 void
 mono_install_imt_trampoline_builder (MonoImtTrampolineBuilder func)
 {

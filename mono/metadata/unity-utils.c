@@ -815,9 +815,24 @@ zero_static_data (MonoVTable *vtable)
 		mono_gc_bzero_aligned (data, mono_class_data_size (klass));
 }
 
+static size_t get_imt_table_bytes(MonoClass *klass, gboolean use_interpreter)
+{
+	size_t imt_table_bytes;
+	if (m_class_get_interface_offsets_count (klass)) {
+		imt_table_bytes = sizeof (gpointer) * (MONO_IMT_SIZE);
+		/* Interface table for the interpreter */
+		if (use_interpreter)
+			imt_table_bytes *= 2;
+	} else {
+		imt_table_bytes = 0;
+	}
+	return imt_table_bytes;
+}
+
 static void
 clear_cached_method_vtable (MonoVTable *vtable)
 {
+	gboolean use_interpreter = mono_is_interpreter_enabled();
 	MonoClass *klass = vtable->klass;
 	MonoDomain *domain = vtable->domain;
 	MonoClassRuntimeInfo *runtime_info;
@@ -827,10 +842,20 @@ clear_cached_method_vtable (MonoVTable *vtable)
 	if (runtime_info && runtime_info->max_domain >= domain->domain_id)
 	{
 		MonoVTable* vtable = runtime_info->domain_vtables [domain->domain_id];
-		if (vtable && vtable->interp_vtable)
+		if (vtable)
 		{
-			int vtable_size = m_class_get_vtable_size(klass);
-			memset(vtable->interp_vtable, 0, vtable_size * sizeof (gpointer));
+			if (vtable->interp_vtable)
+			{
+				int vtable_size = m_class_get_vtable_size(klass);
+				memset(vtable->interp_vtable, 0, vtable_size * sizeof (gpointer));
+			}
+
+			if (use_interpreter)
+			{
+				size_t imt_table_bytes = get_imt_table_bytes(klass, use_interpreter);
+				char* imt_method_table = (((char*)vtable) - imt_table_bytes);
+				memset(imt_method_table, 0, imt_table_bytes / 2);
+			}
 		}
 	}
 }
