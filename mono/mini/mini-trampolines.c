@@ -244,7 +244,7 @@ mini_resolve_imt_method (MonoVTable *vt, gpointer *vtable_slot, MonoMethod *imt_
 
 		/* Avoid loading metadata or creating a generic vtable if possible */
 		if (lookup_aot && !m_class_is_valuetype (vt->klass)) {
-			aot_addr = (guint8 *)mono_aot_get_method_from_vt_slot (mono_domain_get (), vt, interface_offset + mono_method_get_vtable_slot (imt_method), error);
+			aot_addr = (guint8 *)mono_aot_get_method_from_vt_slot (mono_get_root_domain (), vt, interface_offset + mono_method_get_vtable_slot (imt_method), error);
 			return_val_if_nok (error, NULL);
 		} else {
 			aot_addr = NULL;
@@ -830,7 +830,7 @@ mono_vcall_trampoline (host_mgreg_t *regs, guint8 *code, int slot, guint8 *tramp
 		vtable_slot = &(vt->vtable [slot]);
 
 		/* Avoid loading metadata or creating a generic vtable if possible */
-		addr = mono_aot_get_method_from_vt_slot (mono_domain_get (), vt, slot, error);
+		addr = mono_aot_get_method_from_vt_slot (mono_get_root_domain (), vt, slot, error);
 		goto_if_nok (error, leave);
 		if (addr && !m_class_is_valuetype (vt->klass)) {
 			if (mono_domain_owns_vtable_slot (mono_domain_get (), vtable_slot))
@@ -944,7 +944,7 @@ mono_aot_trampoline (host_mgreg_t *regs, guint8 *code, guint8 *token_info,
 	token_info += sizeof (gpointer);
 	token = *(guint32*)token_info;
 
-	addr = mono_aot_get_method_from_token (mono_domain_get (), image, token, error);
+	addr = mono_aot_get_method_from_token (mono_get_root_domain (), image, token, error);
 	if (!is_ok (error))
 		mono_error_cleanup (error);
 	if (!addr) {

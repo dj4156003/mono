@@ -3774,9 +3774,10 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 
 	nmethods = amodule->info.nmethods;
 
-	if (domain != mono_get_root_domain ())
-		/* FIXME: */
-		return NULL;
+	// if (domain != mono_get_root_domain ())
+	// 	/* FIXME: */
+	// 	return NULL;
+	domain = mono_get_root_domain();
 
 	orig_addr = addr;
 	addr = MINI_FTNPTR_TO_ADDR (addr);
@@ -5301,7 +5302,7 @@ mono_aot_patch_plt_entry (gpointer aot_module, guint8 *code, guint8 *plt_entry, 
 	 * is AppDomain:InvokeInDomain, so this is the same check as in 
 	 * mono_method_same_domain () but without loading the metadata for the method.
 	 */
-	if (mono_domain_get () == mono_get_root_domain ()) {
+	/*if (mono_domain_get () == mono_get_root_domain ())*/ {
 		if (!amodule) {
 			amodule = find_aot_module (code);
 		}

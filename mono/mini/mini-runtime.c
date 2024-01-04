@@ -2646,7 +2646,7 @@ lookup_start:
 
 		mono_class_init_internal (method->klass);
 
-		code = mono_aot_get_method (domain, method, error);
+		code = mono_aot_get_method (mono_get_root_domain(), method, error);
 		if (code) {
 			MonoVTable *vtable;
 
@@ -2655,7 +2655,7 @@ lookup_start:
 				 * The suspend code needs to be able to lookup these methods by ip in async context,
 				 * so preload their jit info.
 				 */
-				MonoJitInfo *ji = mini_jit_info_table_find (domain, code, NULL);
+				MonoJitInfo *ji = mini_jit_info_table_find (mono_get_root_domain(), code, NULL);
 				g_assert (ji);
 			}
 
@@ -2894,10 +2894,10 @@ mono_jit_search_all_backends_for_jit_info (MonoDomain *domain, MonoMethod *metho
 
 		/* Might be AOTed code */
 		mono_class_init_internal (method->klass);
-		code = mono_aot_get_method (domain, method, oerror);
+		code = mono_aot_get_method (mono_get_root_domain(), method, oerror);
 		if (code) {
 			mono_error_assert_ok (oerror);
-			ji = mono_jit_info_table_find (domain, code);
+			ji = mono_jit_info_table_find (mono_get_root_domain(), code);
 		} else {
 			if (!is_ok (oerror))
 				mono_error_cleanup (oerror);
