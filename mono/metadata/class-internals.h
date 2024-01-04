@@ -1618,6 +1618,18 @@ m_class_alloc0 (MonoDomain *domain, MonoClass *klass, guint size)
 	return mono_mem_manager_alloc0 (m_class_get_mem_manager (domain, klass), size);
 }
 
+static inline void *
+m_class_interp_alloc (MonoDomain *domain, MonoClass *klass, guint size)
+{
+	return mono_mem_manager_interp_alloc (m_class_get_mem_manager (domain, klass), size);
+}
+
+static inline void *
+m_class_interp_alloc0 (MonoDomain *domain, MonoClass *klass, guint size)
+{
+	return mono_mem_manager_interp_alloc0 (m_class_get_mem_manager (domain, klass), size);
+}
+
 static inline MonoMemoryManager*
 m_method_get_mem_manager (MonoDomain *domain, MonoMethod *method)
 {

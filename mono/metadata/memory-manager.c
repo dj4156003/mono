@@ -12,6 +12,7 @@ memory_manager_init (MonoMemoryManager *memory_manager, MonoDomain *domain, gboo
 	mono_coop_mutex_init_recursive (&memory_manager->lock);
 
 	memory_manager->mp = mono_mempool_new ();
+	memory_manager->interp_mp = mono_mempool_new ();
 	memory_manager->code_mp = mono_code_manager_new ();
 
 	memory_manager->class_vtable_array = g_ptr_array_new ();
@@ -83,6 +84,7 @@ memory_manager_delete (MonoMemoryManager *memory_manager, gboolean debug_unload)
 
 	if (debug_unload) {
 		mono_mempool_invalidate (memory_manager->mp);
+		mono_mempool_invalidate (memory_manager->interp_mp);
 		mono_code_manager_invalidate (memory_manager->code_mp);
 	} else {
 #ifndef DISABLE_PERFCOUNTERS
@@ -91,6 +93,8 @@ memory_manager_delete (MonoMemoryManager *memory_manager, gboolean debug_unload)
 #endif
 		mono_mempool_destroy (memory_manager->mp);
 		memory_manager->mp = NULL;
+		mono_mempool_destroy (memory_manager->interp_mp);
+		memory_manager->interp_mp = NULL;
 		mono_code_manager_destroy (memory_manager->code_mp);
 		memory_manager->code_mp = NULL;
 	}
@@ -111,6 +115,15 @@ mono_mem_manager_free_singleton (MonoSingletonMemoryManager *memory_manager, gbo
 
 	memory_manager_delete (&memory_manager->memory_manager, debug_unload);
 	g_free (memory_manager);
+}
+
+void
+mono_mem_manager_reset_interp (MonoMemoryManager *memory_manager)
+{
+	g_assert (!memory_manager->freeing);
+
+	mono_mempool_destroy (memory_manager->interp_mp);
+	memory_manager->interp_mp = mono_mempool_new();
 }
 
 void
@@ -167,6 +180,48 @@ mono_mem_manager_alloc0_nolock (MonoMemoryManager *memory_manager, guint size)
 	mono_atomic_fetch_add_i32 (&mono_perfcounters->loader_bytes, size);
 #endif
 	return mono_mempool_alloc0 (memory_manager->mp, size);
+}
+
+void *
+mono_mem_manager_interp_alloc (MonoMemoryManager *memory_manager, guint size)
+{
+	void *res;
+
+	mono_mem_manager_lock (memory_manager);
+	res = mono_mem_manager_interp_alloc_nolock (memory_manager, size);
+	mono_mem_manager_unlock (memory_manager);
+
+	return res;
+}
+
+void *
+mono_mem_manager_interp_alloc_nolock (MonoMemoryManager *memory_manager, guint size)
+{
+#ifndef DISABLE_PERFCOUNTERS
+	mono_atomic_fetch_add_i32 (&mono_perfcounters->loader_bytes, size);
+#endif
+	return mono_mempool_alloc (memory_manager->interp_mp, size);
+}
+
+void *
+mono_mem_manager_interp_alloc0 (MonoMemoryManager *memory_manager, guint size)
+{
+	void *res;
+
+	mono_mem_manager_lock (memory_manager);
+	res = mono_mem_manager_interp_alloc0_nolock (memory_manager, size);
+	mono_mem_manager_unlock (memory_manager);
+
+	return res;
+}
+
+void *
+mono_mem_manager_interp_alloc0_nolock (MonoMemoryManager *memory_manager, guint size)
+{
+#ifndef DISABLE_PERFCOUNTERS
+	mono_atomic_fetch_add_i32 (&mono_perfcounters->loader_bytes, size);
+#endif
+	return mono_mempool_alloc0 (memory_manager->interp_mp, size);
 }
 
 char*

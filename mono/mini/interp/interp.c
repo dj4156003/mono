@@ -683,10 +683,10 @@ append_imethod (MonoMemoryManager *memory_manager, GSList *list, InterpMethod *i
 	GSList *ret;
 	InterpVTableEntry *entry;
 
-	entry = (InterpVTableEntry*) mono_mem_manager_alloc_nolock (memory_manager, sizeof (InterpVTableEntry));
+	entry = (InterpVTableEntry*) mono_mem_manager_interp_alloc_nolock (memory_manager, sizeof (InterpVTableEntry));
 	entry->imethod = imethod;
 	entry->target_imethod = target_imethod;
-	ret = g_slist_append_mempool (memory_manager->mp, list, entry);
+	ret = g_slist_append_mempool (memory_manager->interp_mp, list, entry);
 
 	return ret;
 }
@@ -718,7 +718,7 @@ alloc_method_table (MonoVTable *vtable, int offset)
 	gpointer *table;
 
 	if (offset >= 0) {
-		table = (gpointer*)m_class_alloc0 (vtable->domain, vtable->klass, m_class_get_vtable_size (vtable->klass) * sizeof (gpointer));
+		table = (gpointer*)m_class_interp_alloc0 (vtable->domain, vtable->klass, m_class_get_vtable_size (vtable->klass) * sizeof (gpointer));
 		vtable->interp_vtable = table;
 	} else {
 		table = (gpointer*)vtable;

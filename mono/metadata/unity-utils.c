@@ -883,6 +883,8 @@ void mono_unity_domain_clear_method_table_and_static_data(MonoDomain* domain)
 	for (i = 0; i < memory_manager->class_vtable_array->len; ++i)
 		clear_cached_method_vtable ((MonoVTable *)g_ptr_array_index (memory_manager->class_vtable_array, i));
 
+	mono_mem_manager_reset_interp(memory_manager);		
+
 	mono_mem_manager_unlock (memory_manager);
 	mono_domain_unlock (domain);
 	mono_loader_unlock ();

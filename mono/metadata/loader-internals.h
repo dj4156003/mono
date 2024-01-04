@@ -58,6 +58,7 @@ struct _MonoMemoryManager {
 	MonoCoopMutex lock;
 
 	MonoMemPool *mp;
+	MonoMemPool *interp_mp;
 	MonoCodeManager *code_mp;
 
 	GPtrArray *class_vtable_array;
@@ -126,6 +127,9 @@ mono_mem_manager_free_singleton (MonoSingletonMemoryManager *memory_manager, gbo
 void
 mono_mem_manager_free_objects_singleton (MonoSingletonMemoryManager *memory_manager);
 
+void 
+mono_mem_manager_reset_interp(MonoMemoryManager *memory_manager);
+
 void
 mono_mem_manager_lock (MonoMemoryManager *memory_manager);
 
@@ -143,6 +147,18 @@ mono_mem_manager_alloc0 (MonoMemoryManager *memory_manager, guint size);
 
 void *
 mono_mem_manager_alloc0_nolock (MonoMemoryManager *memory_manager, guint size);
+
+void *
+mono_mem_manager_interp_alloc (MonoMemoryManager *memory_manager, guint size);
+
+void *
+mono_mem_manager_interp_alloc_nolock (MonoMemoryManager *memory_manager, guint size);
+
+void *
+mono_mem_manager_interp_alloc0 (MonoMemoryManager *memory_manager, guint size);
+
+void *
+mono_mem_manager_interp_alloc0_nolock (MonoMemoryManager *memory_manager, guint size);
 
 void *
 mono_mem_manager_code_reserve (MonoMemoryManager *memory_manager, int size);
