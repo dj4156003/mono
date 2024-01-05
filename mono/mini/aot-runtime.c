@@ -3988,7 +3988,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 			goto cleanup;
 
 		if (!ref.method && !mono_aot_only && !ref.no_aot_trampoline && (ji->type == MONO_PATCH_INFO_METHOD) && (mono_metadata_token_table (ref.token) == MONO_TABLE_METHOD)) {
-			ji->data.target = mono_create_ftnptr (mono_domain_get (), mono_create_jit_trampoline_from_token (ref.image, ref.token));
+			ji->data.target = mono_create_ftnptr (mono_get_root_domain (), mono_create_jit_trampoline_from_token (ref.image, ref.token));
 			ji->type = MONO_PATCH_INFO_ABS;
 		}
 		else {
@@ -4060,7 +4060,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 	case MONO_PATCH_INFO_SWITCH:
 		ji->data.table = (MonoJumpInfoBBTable *)mono_mempool_alloc0 (mp, sizeof (MonoJumpInfoBBTable));
 		ji->data.table->table_size = decode_value (p, &p);
-		table = (void **)mono_domain_alloc (mono_domain_get (), sizeof (gpointer) * ji->data.table->table_size);
+		table = (void **)mono_domain_alloc (mono_get_root_domain (), sizeof (gpointer) * ji->data.table->table_size);
 		ji->data.table->table = (MonoBasicBlock**)table;
 		for (i = 0; i < ji->data.table->table_size; i++)
 			table [i] = (gpointer)(gssize)decode_value (p, &p);
@@ -4069,7 +4069,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 	case MONO_PATCH_INFO_R4_GOT: {
 		guint32 val;
 		
-		ji->data.target = mono_domain_alloc0 (mono_domain_get (), sizeof (float));
+		ji->data.target = mono_domain_alloc0 (mono_get_root_domain (), sizeof (float));
 		val = decode_value (p, &p);
 		*(float*)ji->data.target = *(float*)&val;
 		break;
@@ -4080,7 +4080,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 		guint64 v;
 
 		// FIXME: Align to 16 bytes ?
-		ji->data.target = mono_domain_alloc0 (mono_domain_get (), sizeof (double));
+		ji->data.target = mono_domain_alloc0 (mono_get_root_domain (), sizeof (double));
 
 		val [0] = decode_value (p, &p);
 		val [1] = decode_value (p, &p);
@@ -4774,7 +4774,7 @@ mono_aot_find_method_index (MonoMethod *method)
 static gboolean
 init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMethod *method, MonoClass *init_class, MonoError *error)
 {
-	MonoDomain *domain = mono_domain_get ();
+	MonoDomain *domain = mono_get_root_domain ();
 	MonoMemPool *mp;
 	MonoClass *klass_to_run_ctor = NULL;
 	gboolean from_plt = method == NULL;
@@ -5373,7 +5373,7 @@ mono_aot_plt_resolve (gpointer aot_module, host_mgreg_t *regs, guint8 *code, Mon
 		}
 		no_ftnptr = TRUE;
 	} else {
-		target = (guint8 *)mono_resolve_patch_target (NULL, mono_domain_get (), NULL, &ji, TRUE, error);
+		target = (guint8 *)mono_resolve_patch_target (NULL, mono_get_root_domain (), NULL, &ji, TRUE, error);
 		if (!is_ok (error)) {
 			mono_mempool_destroy (mp);
 			return NULL;
@@ -5406,7 +5406,7 @@ mono_aot_plt_resolve (gpointer aot_module, host_mgreg_t *regs, guint8 *code, Mon
 #ifdef PPC_USES_FUNCTION_DESCRIPTOR
 		g_assert (((gpointer*)target) [2] != 0);
 #endif
-		target = (guint8 *)mono_create_ftnptr (mono_domain_get (), target);
+		target = (guint8 *)mono_create_ftnptr (mono_get_root_domain (), target);
 	}
 
 	mono_mempool_destroy (mp);
@@ -5437,7 +5437,7 @@ init_plt (MonoAotModule *amodule)
 		return;
 
 	tramp = mono_create_specific_trampoline (amodule, MONO_TRAMPOLINE_AOT_PLT, mono_get_root_domain (), NULL);
-	tramp = mono_create_ftnptr (mono_domain_get (), tramp);
+	tramp = mono_create_ftnptr (mono_get_root_domain (), tramp);
 
 	amodule_lock (amodule);
 
@@ -6131,7 +6131,7 @@ mono_aot_get_static_rgctx_trampoline (gpointer ctx, gpointer addr)
 	}
 
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), MINI_ADDR_TO_FTNPTR (code));
+	return mono_create_ftnptr (mono_get_root_domain (), MINI_ADDR_TO_FTNPTR (code));
 }
 
 gpointer
@@ -6149,7 +6149,7 @@ mono_aot_get_unbox_arbitrary_trampoline (gpointer addr)
 	}
 
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), MINI_ADDR_TO_FTNPTR (code));
+	return mono_create_ftnptr (mono_get_root_domain (), MINI_ADDR_TO_FTNPTR (code));
 }
 
 static int
@@ -6313,7 +6313,7 @@ mono_aot_get_unbox_trampoline (MonoMethod *method, gpointer addr)
 	amodule->unbox_tramp_per_method [method_index] = code;
 
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), code);
+	return mono_create_ftnptr (mono_get_root_domain (), code);
 }
 
 gpointer
@@ -6339,14 +6339,14 @@ mono_aot_get_lazy_fetch_trampoline (guint32 slot)
 		info [0] = GUINT_TO_POINTER (slot);
 		info [1] = mono_create_specific_trampoline (GUINT_TO_POINTER (slot), MONO_TRAMPOLINE_RGCTX_LAZY_FETCH, mono_get_root_domain (), NULL);
 		code = mono_aot_get_static_rgctx_trampoline (info, addr);
-		return mono_create_ftnptr (mono_domain_get (), code);
+		return mono_create_ftnptr (mono_get_root_domain (), code);
 	}
 
 	symbol = mono_get_rgctx_fetch_trampoline_name (slot);
 	code = load_function (amodule, symbol);
 	g_free (symbol);
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), code);
+	return mono_create_ftnptr (mono_get_root_domain (), code);
 }
 
 static void
@@ -6427,7 +6427,7 @@ mono_aot_get_gsharedvt_arg_trampoline (gpointer arg, gpointer addr)
 	}
 
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), MINI_ADDR_TO_FTNPTR (code));
+	return mono_create_ftnptr (mono_get_root_domain (), MINI_ADDR_TO_FTNPTR (code));
 }
 
 #ifdef MONO_ARCH_HAVE_FTNPTR_ARG_TRAMPOLINE
@@ -6448,7 +6448,7 @@ mono_aot_get_ftnptr_arg_trampoline (gpointer arg, gpointer addr)
 	}
 
 	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), MINI_ADDR_TO_FTNPTR (code));
+	return mono_create_ftnptr (mono_get_root_domain (), MINI_ADDR_TO_FTNPTR (code));
 }
 #endif
 
