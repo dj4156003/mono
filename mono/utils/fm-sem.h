@@ -9,6 +9,7 @@
 #include <sys/types.h>
 
 #include <stdatomic.h>
+#include <time.h>
 
 /// Semaphore structure
 struct fm_sem_t {
