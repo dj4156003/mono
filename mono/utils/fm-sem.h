@@ -6,6 +6,8 @@
 #include <sys/time.h>
 #endif
 
+#include <sys/types.h>
+
 #include <stdatomic.h>
 
 /// Semaphore structure

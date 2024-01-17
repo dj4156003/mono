@@ -1,23 +1,20 @@
 #ifdef USE_FM_SEMAPHORE
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif
+#endif /* ndef _GNU_SOURCE */
 
+
+#include "fm-sem.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 
+#include <glib.h>
+
 #include <sys/syscall.h>
 #include <linux/futex.h>
-#include <stdatomic.h>
-#include "fm-sem.h"
-
-/// Semaphore structure
-struct fm_sem_t {
-    /// Value of semaphore
-    _Atomic int value;
-};
+#include <errno.h>
 
 /**
  * @brief Fast user-space locking
