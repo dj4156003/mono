@@ -13,7 +13,7 @@
 
 
 /// Semaphore structure
-struct fm_sem_t；
+struct fm_sem_t;
 
 int fm_sem_init(struct fm_sem_t **sem, int initval);
 
