@@ -91,7 +91,7 @@ mono_coop_fm_sem_wait (MonoCoopFMSem *sem, MonoSemFlags flags)
 
 	MONO_ENTER_GC_SAFE;
 
-	res = mono_os_fm_sem_wait (&sem->s, flags);
+	res = mono_os_fm_sem_wait (sem->s, flags);
 
 	MONO_EXIT_GC_SAFE;
 
@@ -105,7 +105,7 @@ mono_coop_fm_sem_timedwait (MonoCoopFMSem *sem, guint timeout_ms, MonoSemFlags f
 
 	MONO_ENTER_GC_SAFE;
 
-	res = mono_os_fm_sem_timedwait (&sem->s, timeout_ms, flags);
+	res = mono_os_fm_sem_timedwait (sem->s, timeout_ms, flags);
 
 	MONO_EXIT_GC_SAFE;
 
@@ -115,7 +115,7 @@ mono_coop_fm_sem_timedwait (MonoCoopFMSem *sem, guint timeout_ms, MonoSemFlags f
 static inline void
 mono_coop_fm_sem_post (MonoCoopFMSem *sem)
 {
-	mono_os_fm_sem_post (&sem->s);
+	mono_os_fm_sem_post (sem->s);
 }
 
 #endif
