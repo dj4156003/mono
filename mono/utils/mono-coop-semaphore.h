@@ -69,7 +69,7 @@ mono_coop_sem_post (MonoCoopSem *sem)
 
 typedef struct _MonoCoopFMSem MonoCoopFMSem;
 struct _MonoCoopFMSem {
-	MonoFMSemType s;
+	MonoFMSemType* s;
 };
 
 static inline void

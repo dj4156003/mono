@@ -17,6 +17,12 @@
 #include <linux/futex.h>
 #include <errno.h>
 
+struct fm_sem_t
+{
+    /// Value of semaphore
+    _Atomic int value;
+};
+
 /**
  * @brief Fast user-space locking
  * @param[in] uaddr Pointer to futex word
@@ -34,10 +40,15 @@ static inline int futex(_Atomic int *uaddr, int futex_op, int val, const struct 
  * @param[in,out] initval Value to be initialised to
  * @return On success, returns 0
  */
-int fm_sem_init(struct fm_sem_t *sem, int initval) {
-    g_assert(sem);
-    atomic_init(&sem->value, initval);
+int fm_sem_init(struct fm_sem_t **sem, int initval) {
+    *sem = g_malloc(sizeof(fm_sem_t));
+    atomic_init(&((*sem)->value), initval);
     return 0;
+}
+
+void fm_sem_destroy(struct fm_sem_t **sem) {
+    g_free(*sem);
+    *sem = NULL;
 }
 
 /**

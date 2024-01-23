@@ -286,7 +286,7 @@ mono_os_sem_post (MonoSemType *sem)
 typedef struct fm_sem_t MonoFMSemType;
 
 static inline void
-mono_os_fm_sem_init (MonoFMSemType *sem, int value)
+mono_os_fm_sem_init (MonoFMSemType **sem, int value)
 {
 	int res;
 
@@ -296,9 +296,9 @@ mono_os_fm_sem_init (MonoFMSemType *sem, int value)
 }
 
 static inline void
-mono_os_fm_sem_destroy (MonoFMSemType *sem)
+mono_os_fm_sem_destroy (MonoFMSemType **sem)
 {
-	//do nothing
+	fm_sem_destroy(sem);
 }
 
 static inline int

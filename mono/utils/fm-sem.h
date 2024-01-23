@@ -13,12 +13,11 @@
 
 
 /// Semaphore structure
-struct fm_sem_t {
-    /// Value of semaphore
-    _Atomic int value;
-};
+struct fm_sem_t；
 
-int fm_sem_init(struct fm_sem_t *sem, int initval);
+int fm_sem_init(struct fm_sem_t **sem, int initval);
+
+void fm_sem_destroy(struct fm_sem_t **sem);
 
 int fm_sem_wait(struct fm_sem_t *sem);
 
