@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <linux/futex.h>
 #include <errno.h>
+#include <stdatomic.h>
 
 struct fm_sem_t
 {
