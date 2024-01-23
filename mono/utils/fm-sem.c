@@ -41,7 +41,10 @@ static inline int futex(_Atomic int *uaddr, int futex_op, int val, const struct 
  * @return On success, returns 0
  */
 int fm_sem_init(struct fm_sem_t **sem, int initval) {
-    *sem = g_malloc(sizeof(fm_sem_t));
+    if (*sem == NULL)
+    {
+        *sem = g_malloc(sizeof(struct fm_sem_t));
+    }
     atomic_init(&((*sem)->value), initval);
     return 0;
 }
