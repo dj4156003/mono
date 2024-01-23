@@ -2,14 +2,14 @@
 #define _FM_SEM_H
 
 #ifdef USE_FM_SEMAPHORE
+
+#include <time.h>
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
 
-#include <sys/types.h>
-
 #include <stdatomic.h>
-#include <time.h>
+
 
 /// Semaphore structure
 struct fm_sem_t {
