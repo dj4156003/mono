@@ -131,7 +131,9 @@ typedef struct {
 	ThreadPoolWorkerCounter counters;
 
 #ifdef USE_FM_SEMAPHORE
-	MonoCoopFMSem parked_threads_sem;
+	// MonoCoopFMSem parked_threads_sem;
+	MonoCoopMutex parked_threads_lock;
+	MonoCoopCond parked_threads_cond;
 #else	
 	MonoCoopSem parked_threads_sem;
 #endif	
@@ -225,7 +227,9 @@ static void
 destroy (gpointer data)
 {
 #ifdef USE_FM_SEMAPHORE
-	mono_coop_fm_sem_destroy(&worker.parked_threads_sem);
+	// mono_coop_fm_sem_destroy(&worker.parked_threads_sem);
+	mono_coop_cond_destroy(&worker.parked_threads_lock);
+	mono_coop_cond_destroy(&worker.parked_threads_cond);
 #else	
 	mono_coop_sem_destroy (&worker.parked_threads_sem);
 #endif	
@@ -250,7 +254,9 @@ mono_threadpool_worker_init (MonoThreadPoolWorkerCallback callback)
 	worker.callback = callback;
 
 #ifdef USE_FM_SEMAPHORE
-	mono_coop_fm_sem_init (&worker.parked_threads_sem, 0);
+	// mono_coop_fm_sem_init (&worker.parked_threads_sem, 0);
+	mono_coop_mutex_init (&worker.parked_threads_lock);
+	mono_coop_cond_init (&worker.parked_threads_cond);
 #else
 	mono_coop_sem_init (&worker.parked_threads_sem, 0);
 #endif	
@@ -371,37 +377,79 @@ mono_threadpool_worker_request (void)
 	mono_refcount_dec (&worker);
 }
 
+#ifdef USE_FM_SEMAPHORE
+static void
+worker_wait_interrupt (gpointer unused)
+{
+	/* If the runtime is not shutting down, we are not using this mechanism to wake up a unparked thread, and if the
+	 * runtime is shutting down, then we need to wake up ALL the threads.
+	 * It might be a bit wasteful, but I witnessed shutdown hang where the main thread would abort and then wait for all
+	 * background threads to exit (see mono_thread_manage). This would go wrong because not all threadpool threads would
+	 * be unparked. It would end up getting unstucked because of the timeout, but that would delay shutdown by 5-60s. */
+	if (!mono_runtime_is_shutting_down ())
+		return;
+
+	if (!mono_refcount_tryinc (&worker))
+		return;
+
+	mono_coop_mutex_lock (&worker.parked_threads_lock);
+	mono_coop_cond_broadcast (&worker.parked_threads_cond);
+	mono_coop_mutex_unlock (&worker.parked_threads_lock);
+
+	mono_refcount_dec (&worker);
+}
+#endif
+
 /* return TRUE if timeout, FALSE otherwise (worker unpark or interrupt) */
 static gboolean
 worker_park (void)
 {
 	gboolean timeout = FALSE;
 	gboolean interrupted = FALSE;
+#ifndef USE_FM_SEMAPHORE	
 	gint32 old, new_;
+#endif	
 
 	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] worker parking",
 		GUINT_TO_POINTER (MONO_NATIVE_THREAD_ID_TO_UINT (mono_native_thread_id_get ())));
 
+#ifdef USE_FM_SEMAPHORE
+	mono_coop_mutex_lock (&worker.parked_threads_lock);
+#endif	
 	if (!mono_runtime_is_shutting_down ()) {
 		ThreadPoolWorkerCounter counter;
 
+#ifdef USE_FM_SEMAPHORE
+		MonoInternalThread* thread = mono_thread_internal_current ();
+		g_assert (thread);		
+#endif
 		COUNTER_ATOMIC (counter, {
 			counter._.working --;
 			counter._.parked ++;
 		});
 
+#ifdef USE_FM_SEMAPHORE
+		worker.parked_threads_count += 1;
+		mono_thread_info_install_interrupt (worker_wait_interrupt, NULL, &interrupted);
+		if (interrupted)
+			goto done;
+#else
 		do {
 			old = mono_atomic_load_i32 (&worker.parked_threads_count);
 			g_assert (old >= G_MININT32);
 
 			new_ = old + 1;
 		} while (mono_atomic_cas_i32 (&worker.parked_threads_count, new_, old) != old);
+#endif		
 
 #ifdef USE_FM_SEMAPHORE
-		switch (mono_coop_fm_sem_timedwait (&worker.parked_threads_sem, rand_next (5 * 1000, 60 * 1000), MONO_SEM_FLAGS_ALERTABLE))
+		if (mono_coop_cond_timedwait (&worker.parked_threads_cond, &worker.parked_threads_lock, rand_next (5 * 1000, 60 * 1000)) != 0)
+			timeout = TRUE;
+		mono_thread_info_uninstall_interrupt (&interrupted);
+done:
+		worker.parked_threads_count -= 1;			
 #else
 		switch (mono_coop_sem_timedwait (&worker.parked_threads_sem, rand_next (5 * 1000, 60 * 1000), MONO_SEM_FLAGS_ALERTABLE))
-#endif
 		{
 		case MONO_SEM_TIMEDWAIT_RET_SUCCESS:
 			break;
@@ -424,12 +472,17 @@ worker_park (void)
 				new_ = old - 1;
 			} while (mono_atomic_cas_i32 (&worker.parked_threads_count, new_, old) != old);
 		}
+#endif		
 
 		COUNTER_ATOMIC (counter, {
 			counter._.working ++;
 			counter._.parked --;
 		});
 	}
+
+#ifdef USE_FM_SEMAPHORE	
+	mono_coop_mutex_unlock (&worker.parked_threads_lock);	
+#endif	
 
 	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] worker unparking, timeout? %s interrupted? %s",
 		GUINT_TO_POINTER (MONO_NATIVE_THREAD_ID_TO_UINT (mono_native_thread_id_get ())), timeout ? "yes" : "no", interrupted ? "yes" : "no");
@@ -440,12 +493,25 @@ worker_park (void)
 static gboolean
 worker_try_unpark (void)
 {
+#ifdef USE_FM_SEMAPHORE
+	gboolean res = FALSE;
+#else	
 	gboolean res = TRUE;
 	gint32 old, new_;
+#endif	
 
 	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_THREADPOOL, "[%p] try unpark worker",
 		GUINT_TO_POINTER (MONO_NATIVE_THREAD_ID_TO_UINT (mono_native_thread_id_get ())));
 
+#ifdef USE_FM_SEMAPHORE
+	
+	mono_coop_mutex_lock (&worker.parked_threads_lock);
+	if (worker.parked_threads_count > 0) {
+		mono_coop_cond_signal (&worker.parked_threads_cond);
+		res = TRUE;
+	}
+	mono_coop_mutex_unlock (&worker.parked_threads_lock);
+#else
 	do {
 		old = mono_atomic_load_i32 (&worker.parked_threads_count);
 		g_assert (old > G_MININT32);
@@ -459,9 +525,6 @@ worker_try_unpark (void)
 	} while (mono_atomic_cas_i32 (&worker.parked_threads_count, new_, old) != old);
 
 	if (res)
-#ifdef USE_FM_SEMAPHORE
-		mono_coop_fm_sem_post (&worker.parked_threads_sem);
-#else	
 		mono_coop_sem_post (&worker.parked_threads_sem);
 #endif		
 
