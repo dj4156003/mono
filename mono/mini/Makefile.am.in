@@ -227,7 +227,8 @@ AM_CPPFLAGS = $(LIBGC_CPPFLAGS)
 mono_sgen_SOURCES =
 mono_sgen_CFLAGS = $(AM_CFLAGS) @CXX_REMOVE_CFLAGS@
 
-BUILD_DATE = $(shell SOURCE_DATE_EPOCH="$${SOURCE_DATE_EPOCH:-$$(date +%s)}" ;date -u -d "@$$SOURCE_DATE_EPOCH" 2>/dev/null || date -u -r "$$SOURCE_DATE_EPOCH" 2>/dev/null || date -u)
+#don't write build date to .S, for the same md5
+#BUILD_DATE = $(shell SOURCE_DATE_EPOCH="$${SOURCE_DATE_EPOCH:-$$(date +%s)}" ;date -u -d "@$$SOURCE_DATE_EPOCH" 2>/dev/null || date -u -r "$$SOURCE_DATE_EPOCH" 2>/dev/null || date -u)
 
 # We build this after libmono was built so it contains the date when the final
 # link was done
