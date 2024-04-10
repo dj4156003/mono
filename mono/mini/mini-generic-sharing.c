@@ -3837,6 +3837,9 @@ mono_generic_sharing_cleanup (void)
 	mono_remove_image_unload_hook (mono_class_unregister_image_generic_subclasses, NULL);
 
 	g_hash_table_destroy (generic_subclass_hash);
+    /// Modified by zx start
+    generic_subclass_hash = NULL;
+    /// Modified by zx end
 }
 
 /*

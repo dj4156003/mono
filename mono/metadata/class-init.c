@@ -458,6 +458,9 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	klass->name = name;
 	klass->name_space = nspace;
+    /// Modified by zx start
+    klass->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	MONO_PROFILER_RAISE (class_loading, (klass));
 
@@ -842,7 +845,9 @@ mono_class_create_generic_inst (MonoGenericClass *gclass)
 	klass->this_arg.byref = TRUE;
 	klass->enumtype = gklass->enumtype;
 	klass->valuetype = gklass->valuetype;
-
+    /// Modified by zx start
+    klass->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	if (gklass->image->assembly_name && !strcmp (gklass->image->assembly_name, "System.Numerics.Vectors") && !strcmp (gklass->name_space, "System.Numerics") && !strcmp (gklass->name, "Vector`1")) {
 		g_assert (gclass->context.class_inst);
@@ -1213,6 +1218,9 @@ mono_class_create_bounded_array (MonoClass *eclass, guint32 rank, gboolean bound
 			g_hash_table_insert (image->array_cache, eclass, list);
 		}
 	}
+    /// Modified by zx start
+    klass->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	mono_loader_unlock ();
 
@@ -1325,6 +1333,9 @@ make_generic_param_class (MonoGenericParam *param)
 	klass->min_align = min_align;
 	mono_memory_barrier ();
 	klass->size_inited = 1;
+    /// Modified by zx start
+    klass->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	mono_class_setup_supertypes (klass);
 
@@ -1441,6 +1452,9 @@ mono_class_create_ptr (MonoType *type)
 	result->min_align = sizeof (gpointer);
 	result->element_class = el_class;
 	result->blittable = TRUE;
+    /// Modified by zx start
+    result->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	if (el_class->enumtype)
 		result->cast_class = el_class->element_class;
@@ -1489,19 +1503,25 @@ mono_class_create_ptr (MonoType *type)
 
 	return result;
 }
-
+/// Modified by zx start
+static GHashTable *mono_class_ptr_hash = NULL;
+/// Modified by zx end
 MonoClass *
 mono_class_create_fnptr (MonoMethodSignature *sig)
 {
 	MonoClass *result, *cached;
-	static GHashTable *ptr_hash = NULL;
+    /// Modified by zx start
+	//static GHashTable *ptr_hash = NULL;
+    /// Modified by zx end
 
 	/* FIXME: These should be allocate from a mempool as well, but which one ? */
 
 	mono_loader_lock ();
-	if (!ptr_hash)
-		ptr_hash = g_hash_table_new (mono_aligned_addr_hash, NULL);
-	cached = (MonoClass *)g_hash_table_lookup (ptr_hash, sig);
+    /// Modified by zx start
+	if (!mono_class_ptr_hash)
+        mono_class_ptr_hash = g_hash_table_new (mono_aligned_addr_hash, NULL);
+	cached = (MonoClass *)g_hash_table_lookup (mono_class_ptr_hash, sig);
+    /// Modified by zx end
 	mono_loader_unlock ();
 	if (cached)
 		return cached;
@@ -1522,12 +1542,16 @@ mono_class_create_fnptr (MonoMethodSignature *sig)
 	result->this_arg.byref = TRUE;
 	result->blittable = TRUE;
 	result->inited = TRUE;
+    /// Modified by zx start
+    result->wrapped_pointer = NULL;
+    /// Modified by zx end
 
 	mono_class_setup_supertypes (result);
 
 	mono_loader_lock ();
-
-	cached = (MonoClass *)g_hash_table_lookup (ptr_hash, sig);
+    /// Modified by zx start
+	cached = (MonoClass *)g_hash_table_lookup (mono_class_ptr_hash, sig);
+    /// Modified by zx end
 	if (cached) {
 		g_free (result);
 		mono_loader_unlock ();
@@ -1538,9 +1562,9 @@ mono_class_create_fnptr (MonoMethodSignature *sig)
 
 	UnlockedAdd (&classes_size, sizeof (MonoClassPointer));
 	++class_pointer_count;
-
-	g_hash_table_insert (ptr_hash, sig, result);
-
+    /// Modified by zx start
+	g_hash_table_insert (mono_class_ptr_hash, sig, result);
+    /// Modified by zx end
 	mono_loader_unlock ();
 
 	MONO_PROFILER_RAISE (class_loaded, (result));
@@ -2690,6 +2714,9 @@ mono_get_unique_iid (MonoClass *klass)
 	return iid;
 }
 
+/// Modified by zx start
+static int szarray_vtable_size[3] = { 0 };
+/// Modified by zx end
 /**
  * mono_class_init_internal:
  * \param klass the class to initialize
@@ -2805,8 +2832,9 @@ mono_class_init_internal (MonoClass *klass)
 		/* SZARRAY can have 3 vtable layouts, with and without the stelemref method and enum element type
 		 * The first slot if for array with.
 		 */
-		static int szarray_vtable_size[3] = { 0 };
-
+        /// Modified by zx start
+		//static int szarray_vtable_size[3] = { 0 };
+        /// Modified by zx end
 		int slot;
 
 		if (MONO_TYPE_IS_REFERENCE (m_class_get_byval_arg (m_class_get_element_class (klass))))
@@ -4046,8 +4074,10 @@ MONO_NO_SANITIZE_THREAD
 void
 mono_classes_init (void)
 {
-	mono_os_mutex_init (&classes_mutex);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_os_mutex_init (&classes_mutex);
+    /// Modified by zx end
 	mono_native_tls_alloc (&setup_fields_tls_id, NULL);
 	mono_native_tls_alloc (&init_pending_tls_id, NULL);
 
@@ -4085,5 +4115,36 @@ mono_classes_cleanup (void)
 	if (global_interface_bitset)
 		mono_bitset_free (global_interface_bitset);
 	global_interface_bitset = NULL;
-	mono_os_mutex_destroy (&classes_mutex);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_os_mutex_destroy (&classes_mutex);
+    
+    generic_array_method_num = 0;
+    generic_array_method_info = NULL;
+    classes_size = 0;
+    inflated_classes_size = 0;
+    mono_inflated_methods_size = 0;
+    class_def_count = 0;
+    class_gtd_count = 0;
+    class_ginst_count = 0;
+    class_gparam_count = 0;
+    class_array_count = 0;
+    class_pointer_count = 0;
+    record_gclass_instantiation = 0;
+    if (gclass_recorded_list)
+    {
+        g_slist_free (gclass_recorded_list);
+        gclass_recorded_list = NULL;
+    }
+    if (mono_class_ptr_hash)
+    {
+        g_hash_table_destroy(mono_class_ptr_hash);
+        mono_class_ptr_hash = NULL;
+    }
+    
+    finalize_slot = -1;
+    szarray_vtable_size[0] = 0;
+    szarray_vtable_size[1] = 0;
+    szarray_vtable_size[2] = 0;
+    /// Modified by zx end
 }

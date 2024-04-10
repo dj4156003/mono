@@ -45,6 +45,10 @@ typedef struct _InterpMethodArguments InterpMethodArguments;
  */
 MONO_API void mono_ee_interp_init (const char *);
 
+/// Modified by zx start
+MONO_API void mono_ee_interp_cleanup (void);
+/// Modified by zx end
+
 #ifdef TARGET_WASM
 
 gpointer

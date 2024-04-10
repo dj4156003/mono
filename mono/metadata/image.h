@@ -94,6 +94,11 @@ MONO_API mono_bool     mono_image_has_authenticode_entry (MonoImage *image);
 
 mono_bool mono_has_pdb_checksum (char *raw_data, uint32_t raw_data_len);
 
+/// Modified by zx start
+MONO_API void          mono_image_set_wrapped_pointer (MonoImage* image, void* ptr);
+MONO_API void*         mono_image_get_wrapped_pointer (MonoImage* image);
+/// Modified by zx end
+
 MONO_END_DECLS
 
 #endif

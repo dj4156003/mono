@@ -119,6 +119,17 @@ GC_INNER void GC_bl_init(void)
     GC_clear_bl(GC_old_stack_bl);
     GC_clear_bl(GC_incomplete_stack_bl);
 }
+/// Modified by zx start
+void GC_bl_cleanup(void)
+{
+    GC_old_normal_bl = NULL;
+    GC_incomplete_normal_bl = NULL;
+    GC_old_stack_bl = NULL;
+    GC_incomplete_stack_bl = NULL;
+    GC_total_stack_black_listed = 0;
+    GC_black_list_spacing = MINHINCR * HBLKSIZE;
+}
+/// Modified by zx end
 
 STATIC void GC_clear_bl(word *doomed)
 {

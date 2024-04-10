@@ -8351,12 +8351,24 @@ tiered_patcher (MiniTieredPatchPointContext *ctx, gpointer patchsite)
 void 
 mono_interp_transform_init (void)
 {
-	mono_os_mutex_init_recursive(&calc_section);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_os_mutex_init_recursive(&calc_section);
+    /// Modified by zx end
 #ifdef ENABLE_EXPERIMENT_TIERED
 	mini_tiered_register_callsite_patcher (tiered_patcher, TIERED_PATCH_KIND_INTERP);
 #endif
 }
+
+/// Modified by zx start
+void
+mono_interp_transform_cleanup(void)
+{
+    if (!mono_is_reboot())
+        mono_os_mutex_destroy(&calc_section);
+    memset(&mono_interp_stats, 0, sizeof(MonoInterpStats));
+}
+/// Modified by zx end
 
 void
 mono_interp_transform_method (InterpMethod *imethod, ThreadContext *context, MonoError *error)

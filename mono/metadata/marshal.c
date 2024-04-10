@@ -189,11 +189,22 @@ ves_icall_string_new_wrapper_impl (const char *text, MonoError *error)
 	return text ? mono_string_new_handle (mono_domain_get (), text, error) : NULL_HANDLE_STRING;
 }
 
+/// Modified by zx start
+static gboolean module_initialized = FALSE;
+static MonoClass *string_builder_class = NULL;
+static MonoMethod *sb_ctor = NULL ;
+static MonoMethodSignature *cctor_signature = NULL;
+static MonoMethodSignature *finalize_signature = NULL;
+static MonoMethod *dynamic_method = NULL;
+static MonoMethod *cached_methods [STELEMREF_KIND_COUNT] = { NULL }; /*object iface sealed regular*/
+static MonoMethodSignature *cached_signature = NULL;
+/// Modified by zx end
 void
 mono_marshal_init (void)
 {
-	static gboolean module_initialized = FALSE;
-
+    /// Modified by zx start
+	//static gboolean module_initialized = FALSE;
+    /// Modified by zx end
 	if (!module_initialized) {
 		module_initialized = TRUE;
 		mono_coop_mutex_init_recursive (&marshal_mutex);
@@ -266,12 +277,32 @@ mono_marshal_init (void)
 void
 mono_marshal_cleanup (void)
 {
+    /// Modified by zx start
+    int i = 0;
+    /// Modified by zx end
 	mono_cominterop_cleanup ();
 
 	mono_native_tls_free (load_type_info_tls_id);
 	mono_native_tls_free (last_error_tls_id);
 	mono_coop_mutex_destroy (&marshal_mutex);
 	marshal_mutex_initialized = FALSE;
+    /// Modified by zx start
+    mono_uninstall_marshal_callbacks();
+    
+    module_initialized = FALSE;
+    
+    string_builder_class = NULL;
+    sb_ctor = NULL;
+    cctor_signature = NULL;
+    finalize_signature = NULL;
+    dynamic_method = NULL;
+    
+    for (; i < STELEMREF_KIND_COUNT; ++i)
+    {
+        cached_methods [i]  = NULL;
+    }
+    cached_signature = NULL;
+    /// Modified by zx end
 }
 
 void
@@ -2559,8 +2590,10 @@ mono_marshal_get_runtime_invoke_full (MonoMethod *method, gboolean virtual_, gbo
 	GHashTable **cache_table = NULL;
 	MonoClass *target_klass;
 	MonoMethod *res = NULL;
-	static MonoMethodSignature *cctor_signature = NULL;
-	static MonoMethodSignature *finalize_signature = NULL;
+    /// Modified by zx start
+//	static MonoMethodSignature *cctor_signature = NULL;
+//	static MonoMethodSignature *finalize_signature = NULL;
+    /// Modified by zx end
 	char *name;
 	const char *param_names [16];
 	WrapperInfo *info;
@@ -2772,14 +2805,18 @@ mono_marshal_get_runtime_invoke (MonoMethod *method, gboolean virtual_)
 MonoMethod*
 mono_marshal_get_runtime_invoke_dynamic (void)
 {
-	static MonoMethod *method;
+    /// Modified by zx start
+	//static MonoMethod *method;
+    /// Modified by zx end
 	MonoMethodSignature *csig;
 	MonoMethodBuilder *mb;
 	char *name;
 	WrapperInfo *info;
 
-	if (method)
-		return method;
+    /// Modified by zx start
+	if (dynamic_method)
+		return dynamic_method;
+    /// Modified by zx end
 
 	csig = mono_metadata_signature_alloc (mono_defaults.corlib, 4);
 
@@ -2802,14 +2839,17 @@ mono_marshal_get_runtime_invoke_dynamic (void)
 
 	mono_marshal_lock ();
 	/* double-checked locking */
-	if (!method)
-		method = mono_mb_create (mb, csig, 16, info);
+    /// Modify by zx start
+	if (!dynamic_method)
+        dynamic_method = mono_mb_create (mb, csig, 16, info);
+    /// Modify by zx end
 
 	mono_marshal_unlock ();
 
 	mono_mb_free (mb);
-
-	return method;
+    /// Modify by zx start
+	return dynamic_method;
+    /// Modify by zx end
 }
 
 /*
@@ -4464,8 +4504,11 @@ mono_marshal_get_strelemref_wrapper_name (MonoStelemrefKind kind)
 MonoMethod*
 mono_marshal_get_virtual_stelemref_wrapper (MonoStelemrefKind kind)
 {
-	static MonoMethod *cached_methods [STELEMREF_KIND_COUNT] = { NULL }; /*object iface sealed regular*/
-	static MonoMethodSignature *signature;
+    /// Modified by zx start
+//	static MonoMethod *cached_methods [STELEMREF_KIND_COUNT] = { NULL }; /*object iface sealed regular*/
+//	static MonoMethodSignature *signature;
+    /// Modified by zx start
+
 	MonoMethodBuilder *mb;
 	MonoMethod *res;
 	char *name;
@@ -4482,8 +4525,9 @@ mono_marshal_get_virtual_stelemref_wrapper (MonoStelemrefKind kind)
 	name = g_strdup_printf ("virt_stelemref_%s", mono_marshal_get_strelemref_wrapper_name (kind));
 	mb = mono_mb_new (mono_defaults.object_class, name, MONO_WRAPPER_STELEMREF);
 	g_free (name);
-
-	if (!signature) {
+    /// Modified by zx start
+	if (!cached_signature) {
+    /// Modified by zx end
 		MonoMethodSignature *sig = mono_metadata_signature_alloc (mono_defaults.corlib, 2);
 
 		/* void this::stelemref (size_t idx, void* value) */
@@ -4491,7 +4535,9 @@ mono_marshal_get_virtual_stelemref_wrapper (MonoStelemrefKind kind)
 		sig->hasthis = TRUE;
 		sig->params [0] = int_type; /* this is a natural sized int */
 		sig->params [1] = object_type;
-		signature = sig;
+        /// Modified by zx start
+        cached_signature = sig;
+        /// Modified by zx end
 	}
 
 	param_names [0] = "index";
@@ -4500,7 +4546,9 @@ mono_marshal_get_virtual_stelemref_wrapper (MonoStelemrefKind kind)
 
 	info = mono_wrapper_info_create (mb, WRAPPER_SUBTYPE_VIRTUAL_STELEMREF);
 	info->d.virtual_stelemref.kind = kind;
-	res = mono_mb_create (mb, signature, 4, info);
+    /// Modified by zx start
+	res = mono_mb_create (mb, cached_signature, 4, info);
+    /// Modified by zx end
 	res->flags |= METHOD_ATTRIBUTE_VIRTUAL;
 
 	mono_marshal_lock ();
@@ -6335,6 +6383,16 @@ mono_install_marshal_callbacks (MonoMarshalCallbacks *cb)
 	cb_inited = TRUE;
 }
 
+/// Modified by zx start
+void
+mono_uninstall_marshal_callbacks (void)
+{
+    g_assert (cb_inited);
+    g_assert (marshal_cb.version == MONO_MARSHAL_CALLBACKS_VERSION);
+    memset(&marshal_cb, 0, sizeof(MonoMarshalCallbacks));
+    cb_inited = FALSE;
+}
+/// Modified by zx end
 static MonoMarshalCallbacks *
 get_marshal_cb (void)
 {

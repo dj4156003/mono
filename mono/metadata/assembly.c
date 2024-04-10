@@ -1155,10 +1155,13 @@ mono_assemblies_init (void)
 #ifndef DISABLE_GAC
 	check_extra_gac_path_env ();
 #endif
-
-	mono_os_mutex_init_recursive (&assemblies_mutex);
-	mono_os_mutex_init (&assembly_binding_mutex);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_init_recursive (&assemblies_mutex);
+        mono_os_mutex_init (&assembly_binding_mutex);
+    }
+    /// Modified by zx end
 #ifndef DISABLE_DESKTOP_LOADER
 	assembly_remapping_table = g_hash_table_new (g_str_hash, g_str_equal);
 
@@ -2003,6 +2006,9 @@ free_assembly_load_hooks (void)
 		next = hook->next;
 		g_free (hook);
 	}
+    /// Modified by zx start
+    assembly_load_hook = NULL;
+    /// Modified by zx end
 }
 
 typedef struct AssemblySearchHook AssemblySearchHook;
@@ -2112,6 +2118,10 @@ free_assembly_search_hooks (void)
 		next = hook->next;
 		g_free (hook);
 	}
+    /// Modified by zx start
+    assembly_search_hook = NULL;
+    corlib = NULL;
+    /// Modified by zx end
 }
 
 /**
@@ -2297,11 +2307,16 @@ free_assembly_preload_hooks (void)
 		next = hook->next;
 		g_free (hook);
 	}
-
+    /// Modified by zx start
+    assembly_preload_hook = NULL;
+    /// Modified by zx end
 	for (hook = assembly_refonly_preload_hook; hook; hook = next) {
 		next = hook->next;
 		g_free (hook);
 	}
+    /// Modified by zx start
+    assembly_refonly_preload_hook = NULL;
+    /// Modified by zx end
 }
 
 typedef struct AssemblyAsmCtxFromPathHook AssemblyAsmCtxFromPathHook;
@@ -2374,6 +2389,9 @@ free_assembly_asmctx_from_path_hooks (void)
 		next = hook->next;
 		g_free (hook);
 	}
+    /// Modified by zx start
+    assembly_asmctx_from_path_hook = NULL;
+    /// Modified by zx end
 }
 
 static gchar *
@@ -5020,9 +5038,13 @@ void
 mono_assemblies_cleanup (void)
 {
 	GSList *l;
-
-	mono_os_mutex_destroy (&assemblies_mutex);
-	mono_os_mutex_destroy (&assembly_binding_mutex);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_destroy (&assemblies_mutex);
+        mono_os_mutex_destroy (&assembly_binding_mutex);
+    }
+    /// Modified by zx end
 
 	for (l = loaded_assembly_bindings; l; l = l->next) {
 		MonoAssemblyBindingInfo *info = (MonoAssemblyBindingInfo *)l->data;
@@ -5031,11 +5053,46 @@ mono_assemblies_cleanup (void)
 		g_free (info);
 	}
 	g_slist_free (loaded_assembly_bindings);
-
+    /// Modified by zx start
+    loaded_assembly_bindings = NULL;
+    
+//    if (loaded_assemblies)
+//    {
+//        MonoAssembly* ass = (MonoAssembly *)l->data;
+//        //g_free (ass);
+//    }
+    g_list_free(loaded_assemblies);
+    loaded_assemblies = NULL;
+    bundles = NULL;
+    satellite_bundles = NULL;
+    
+#ifndef DISABLE_DESKTOP_LOADER
+    if (assembly_remapping_table)
+    {
+        g_hash_table_destroy(assembly_remapping_table);
+        assembly_remapping_table = NULL;
+    }
+#endif
+    /// Modified by zx end
 	free_assembly_asmctx_from_path_hooks ();
 	free_assembly_load_hooks ();
 	free_assembly_search_hooks ();
 	free_assembly_preload_hooks ();
+    /// Modified by zx start
+    for (int i = 0; i < 3; ++ i)
+    {
+        if (default_path[i] != NULL)
+        {
+            g_free(default_path[i]);
+            default_path[i] = NULL;
+        }
+    }
+    assemblies_path = NULL;
+#ifndef DISABLE_GAC
+    extra_gac_paths = NULL;
+#endif
+    /// Modified by zx end
+
 }
 
 /*LOCKING takes the assembly_binding lock*/
@@ -5320,3 +5377,22 @@ mono_asmctx_get_name (const MonoAssemblyContext *asmctx)
 	g_assert (asmctx->kind >= 0 && asmctx->kind <= MONO_ASMCTX_LAST);
 	return names [asmctx->kind];
 }
+/// Modified by zx start
+void
+mono_assembly_set_wrapped_pointer (MonoAssembly* assembly, void* ptr)
+{
+    if (!assembly)
+        return;
+    
+    assembly->wrapped_pointer = ptr;
+}
+
+void*
+mono_assembly_get_wrapped_pointer (MonoAssembly* assembly)
+{
+    if (!assembly)
+        return NULL;
+    
+    return assembly->wrapped_pointer;
+}
+/// Modified by zx end

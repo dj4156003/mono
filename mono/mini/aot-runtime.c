@@ -246,6 +246,12 @@ static MonoLoadAotDataFunc aot_data_load_func;
 static MonoFreeAotDataFunc aot_data_free_func;
 static gpointer aot_data_func_user_data;
 
+/// Modified by zx start
+static gpointer generic_trampolines [MONO_TRAMPOLINE_NUM];
+static gboolean special_trampo_inited;
+static guint32 num_trampolines;
+/// Modified by zx end
+
 static void
 init_plt (MonoAotModule *info);
 
@@ -2496,8 +2502,10 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	amodule->trampolines [MONO_AOT_TRAMP_FTNPTR_ARG] = (guint8 *)info->ftnptr_arg_trampolines;
 	amodule->trampolines [MONO_AOT_TRAMP_UNBOX_ARBITRARY] = (guint8 *)info->unbox_arbitrary_trampolines;
 
-	if (mono_is_corlib_image (assembly->image) || !strcmp (assembly->aname.name, "mscorlib") || !strcmp (assembly->aname.name, "System.Private.CoreLib"))
+    /// Modified by zx start
+    if (mono_is_corlib_image (assembly->image) || !strcmp (assembly->aname.name, "mscorlib") || !strcmp (assembly->aname.name, "System.Private.CoreLib"))
 		mscorlib_aot_module = amodule;
+    /// Modified by zx end
 
 	/* Compute method addresses */
 	amodule->methods = (void **)g_malloc0 (amodule->info.nmethods * sizeof (gpointer));
@@ -2577,9 +2585,10 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	if (amodule->llvm_code_start)
 		mono_jit_info_add_aot_module (assembly->image, amodule->llvm_code_start, amodule->llvm_code_end);
 #endif
-
-	assembly->image->aot_module = amodule;
-
+    /// Modified by zx start
+    assembly->image->aot_module = amodule;
+    /// Modified by zx end
+    ///
 	if (mono_aot_only && !mono_llvm_only) {
 		char *code;
 		find_amodule_symbol (amodule, "specific_trampolines_page", (gpointer *)&code);
@@ -2678,8 +2687,13 @@ mono_aot_register_module (gpointer *aot_info)
 void
 mono_aot_init (void)
 {
-	mono_os_mutex_init_recursive (&aot_mutex);
-	mono_os_mutex_init_recursive (&aot_page_mutex);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_init_recursive (&aot_mutex);
+        mono_os_mutex_init_recursive (&aot_page_mutex);
+    }
+    /// Modified by zx end
 	aot_modules = g_hash_table_new (NULL, NULL);
 
 	mono_install_assembly_load_hook_v2 (load_aot_module, NULL, FALSE);
@@ -2697,6 +2711,35 @@ void
 mono_aot_cleanup (void)
 {
 	g_hash_table_destroy (aot_modules);
+    /// Modified by zx start
+    aot_modules = NULL;
+    mono_last_aot_method = -1;
+    
+    g_hash_table_destroy(static_aot_modules);
+    static_aot_modules = NULL;
+    
+    container_assm_name = NULL;
+    container_amodule = NULL;
+    ji_to_amodule = NULL;
+    code_to_method_flags = NULL;
+    
+    mono_last_aot_method = -1;
+    make_unreadable = FALSE;
+    name_table_accesses = 0;
+    n_pagefaults = 0;
+    aot_code_low_addr = (gssize)-1;
+    aot_code_high_addr = 0;
+    async_jit_info_size = 0;
+    
+    mscorlib_aot_module = NULL;
+    
+    for (int i = 0; i < MONO_TRAMPOLINE_NUM; ++ i)
+    {
+        generic_trampolines[i] = NULL;
+    }
+    special_trampo_inited = FALSE;
+    num_trampolines = 0;
+    /// Modified by zx end
 }
 
 /*
@@ -4279,8 +4322,11 @@ decode_patches (MonoAotModule *amodule, MonoMemPool *mp, int n_patches, gboolean
 
 	patches = (MonoJumpInfo *)mono_mempool_alloc0 (mp, sizeof (MonoJumpInfo) * n_patches);
 	for (i = 0; i < n_patches; ++i) {
-		guint8 *p = amodule->blob + mono_aot_get_offset (got_info_offsets, got_offsets [i]);
-
+        /// Modified by zx start
+        guint32 gotOff = got_offsets [i];
+        guint32 off2 = mono_aot_get_offset (got_info_offsets, gotOff);
+		guint8 *p = amodule->blob + off2;
+        /// Modified by zx end
 		ji = &patches [i];
 		ji->type = (MonoJumpInfoType)decode_value (p, &p);
 
@@ -4655,6 +4701,11 @@ inst_is_private (MonoGenericInst *inst)
 	return FALSE;
 }
 
+/// Modified by zx start
+/// Only For Test
+MonoAotModule *g_amodule[100];
+int g_amoduleIndex = 0;
+/// Modified by zx end
 gboolean
 mono_aot_can_dedup (MonoMethod *method)
 {
@@ -4770,6 +4821,56 @@ mono_aot_find_method_index (MonoMethod *method)
 	return find_aot_method (method, &out_amodule);
 }
 
+/// Modified by zx start
+static MonoJumpInfo *g_ji[10000];
+static int g_ji_index = 0;
+static MonoJumpInfoType g_ji_types[10000];
+
+
+typedef struct {
+    gpointer key;
+    gpointer *got;
+    guint32 *got_slots;
+    guint32 number;
+} GotInfo;
+
+static GotInfo g_gotInfo[10000];
+static int g_got_index = 0;
+
+void
+free_runtime_aot(void)
+{
+    int i = 0;
+    for (;i < g_amoduleIndex; ++i)
+    {
+        MonoAotModule * aot =g_amodule[i];
+        //free(aot->got);
+        aot->got = NULL;
+        //free(aot->got_info_offsets);
+        aot->got_info_offsets = NULL;
+    }
+    g_amoduleIndex = 0;
+    i = 0;
+    for (; i < g_ji_index; ++i)
+    {
+        g_ji[i]->type = g_ji_types[i];
+    }
+    g_ji_index = 0;
+    
+    i = 0;
+    int j = 0;
+    for (; i < g_got_index; ++i)
+    {
+        for (j = 0; j < g_gotInfo[i].number; ++j)
+        {
+            g_gotInfo[i].got[g_gotInfo[i].got_slots[j]] = NULL;
+        }
+    }
+    
+    mscorlib_aot_loaded = FALSE;
+}
+
+/// Modified by zx end
 static gboolean
 init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMethod *method, MonoClass *init_class, MonoError *error)
 {
@@ -4783,6 +4884,14 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 	guint8 *code;
 	MonoGenericContext *context;
 	MonoGenericContext ctx;
+    /// Modified by zx start
+    int ddddd = 0;
+    gboolean found = FALSE;
+    
+    int ddd = 0;
+    gboolean ji_found = FALSE;
+    gboolean got_found = FALSE;
+    /// Modified by zx end
 
 	/* Might be needed if the method is externally called */
 	init_plt (amodule);
@@ -4791,7 +4900,22 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 	memset (&ctx, 0, sizeof (ctx));
 
 	error_init (error);
-
+    /// Modified by zx start
+    for (;ddddd<g_amoduleIndex;++ddddd)
+    {
+        if (g_amodule[ddddd] == amodule)
+            found = TRUE;
+    }
+    if (!found)
+    {
+        g_amodule[g_amoduleIndex] = amodule;
+        ++g_amoduleIndex;
+        if (g_amoduleIndex >= 100)
+        {
+            printf("ddddd");
+        }
+    }
+    /// Modified by zx end
 	if (!info)
 		info = &amodule->blob [mono_aot_get_offset (amodule->method_info_offsets, method_index)];
 
@@ -4850,11 +4974,52 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 			mono_mempool_destroy (mp);
 			goto cleanup;
 		}
+        /// Modified by zx start
+        ddd = 0;
+        got_found = FALSE;
+
+        for (;ddd < g_got_index; ++ ddd)
+        {
+            if (g_gotInfo[ddd].key == (gpointer)method)
+            {
+                got_found = TRUE;
+                break;
+            }
+        }
+        
+        if (!got_found)
+        {
+            g_gotInfo[g_got_index].key = (gpointer)method;
+            g_gotInfo[g_got_index].got = got;
+            g_gotInfo[g_got_index].got_slots = got_slots;
+            g_gotInfo[g_got_index].number = n_patches;
+            ++g_got_index;
+        }
+        /// Modified by zx end
 
 		for (pindex = 0; pindex < n_patches; ++pindex) {
 			MonoJumpInfo *ji = &patches [pindex];
 			gpointer addr;
-
+            /// Modified by zx start
+//            ddd = 0;
+//            ji_found = FALSE;
+//
+//            for (;ddd < g_ji_index; ++ ddd)
+//            {
+//                if (g_ji[ddd] == ji)
+//                {
+//                    ji_found = TRUE;
+//                    break;
+//                }
+//            }
+//            
+//            if (!ji_found)
+//            {
+//                g_ji[g_ji_index] = ji;
+//                g_ji_types[g_ji_index] = ji->type;
+//                ++g_ji_index;
+//            }
+            /// Modified by zx end
 			/*
 			 * For SFLDA, we need to call resolve_patch_target () since the GOT slot could have
 			 * been initialized by load_method () for a static cctor before the cctor has
@@ -4867,7 +5032,9 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 					g_assert (context);
 					ji->data.method = mono_class_inflate_generic_method_checked (ji->data.method, context, error);
 					if (!is_ok (error)) {
-						g_free (got_slots);
+                        /// Modified by zx start
+						//g_free (got_slots);
+                        /// Modified by zx end
 						mono_mempool_destroy (mp);
 						return FALSE;
 					}
@@ -4881,7 +5048,9 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 				}
 				addr = mono_resolve_patch_target (method, domain, code, ji, TRUE, error);
 				if (!is_ok (error)) {
-					g_free (got_slots);
+                    /// Modified by zx start
+					//g_free (got_slots);
+                    /// Modified by zx end
 					mono_mempool_destroy (mp);
 					return FALSE;
 				}
@@ -4899,9 +5068,9 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 			}
 			ji->type = MONO_PATCH_INFO_NONE;
 		}
-
-		g_free (got_slots);
-
+        /// Modified by zx start
+		//g_free (got_slots);
+        /// Modified by zx end
 		mono_mempool_destroy (mp);
 	}
 
@@ -5695,9 +5864,9 @@ load_function_full (MonoAotModule *amodule, const char *name, MonoTrampInfo **ou
 			if (ji->type != MONO_PATCH_INFO_NONE)
 				amodule->got [got_slots [pindex]] = target;
 		}
-
-		g_free (got_slots);
-
+        /// Modified by zx start
+		//g_free (got_slots);
+        /// Modified by zx end
 		mono_mempool_destroy (mp);
 	}
 
@@ -6065,23 +6234,20 @@ mono_aot_create_specific_trampoline (gpointer arg1, MonoTrampolineType tramp_typ
 	MonoAotModule *amodule;
 	guint32 got_offset, tramp_size;
 	guint8 *code, *tramp;
-	static gpointer generic_trampolines [MONO_TRAMPOLINE_NUM];
-	static gboolean inited;
-	static guint32 num_trampolines;
 
 	if (mono_llvm_only) {
 		*code_len = 1;
 		return (gpointer)no_specific_trampoline;
 	}
-
-	if (!inited) {
+    /// Modified by zx start
+	if (!special_trampo_inited) {
 		mono_aot_lock ();
 
-		if (!inited) {
+		if (!special_trampo_inited) {
 			mono_counters_register ("Specific trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &num_trampolines);
-			inited = TRUE;
+            special_trampo_inited = TRUE;
 		}
-
+        /// Modified by zx end
 		mono_aot_unlock ();
 	}
 

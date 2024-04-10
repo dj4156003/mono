@@ -49,6 +49,10 @@ static MonoCoopMutex scan_mutex;
 
 static gboolean shutting_down;
 
+/// Modified by zx start
+static gboolean w32handle_initialized = FALSE;
+/// Modified by zx end
+
 static const gchar*
 mono_w32handle_ops_typename (MonoW32Type type);
 
@@ -148,21 +152,26 @@ mono_w32handle_unlock (MonoW32Handle *handle_data)
 void
 mono_w32handle_init (void)
 {
-	static gboolean initialized = FALSE;
-
-	if (initialized)
+    /// Modified by zx start
+	if (w32handle_initialized)
 		return;
-
+    /// Modified by zx end
 	mono_coop_mutex_init (&scan_mutex);
 
 	mono_coop_cond_init (&global_signal_cond);
 	mono_coop_mutex_init (&global_signal_mutex);
 
 	handles_slots_first = handles_slots_last = g_new0 (MonoW32HandleSlot, 1);
-
-	initialized = TRUE;
+    /// Modified by zx start
+    w32handle_initialized = TRUE;
+    shutting_down = FALSE;
+    /// Modified by zx end
 }
 
+/// Modified by zx start
+static MonoW32HandleSlot *slot_last = NULL;
+static guint32 index_last = 0;
+/// Modified by zx end
 void
 mono_w32handle_cleanup (void)
 {
@@ -170,11 +179,23 @@ mono_w32handle_cleanup (void)
 
 	g_assert (!shutting_down);
 	shutting_down = TRUE;
-
+    /// Modified by zx start
+    mono_coop_mutex_destroy (&scan_mutex);
+    mono_coop_cond_destroy (&global_signal_cond);
+    mono_coop_mutex_destroy (&global_signal_mutex);
+    /// Modified by zx end
 	for (slot = handles_slots_first; slot; slot = slot_next) {
 		slot_next = slot->next;
+        /// Modified by zx start
+        slot->next = NULL;
+        /// Modified by zx end
 		g_free (slot);
 	}
+    /// Modified by zx start
+    w32handle_initialized = FALSE;
+    slot_last = NULL;
+    index_last = 0;
+    /// Modified by zx end
 }
 
 static gsize
@@ -191,8 +212,10 @@ mono_w32handle_ops_typesize (MonoW32Type type);
 static MonoW32Handle*
 mono_w32handle_new_internal (MonoW32Type type, gpointer handle_specific)
 {
-	static MonoW32HandleSlot *slot_last = NULL;
-	static guint32 index_last = 0;
+    /// Modified by zx start
+//	static MonoW32HandleSlot *slot_last = NULL;
+//	static guint32 index_last = 0;
+    /// Modified by zx end
 	MonoW32HandleSlot *slot;
 	guint32 index;
 	gboolean retried;

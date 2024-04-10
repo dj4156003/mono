@@ -131,6 +131,11 @@ MONO_API void          mono_set_rootdir (void);
 MONO_API void          mono_set_dirs (const char *assembly_dir, const char *config_dir);
 MONO_API void          mono_set_assemblies_path (const char* path);
 MONO_API void          mono_set_assemblies_path_null_separated(const char* path);
+/// Modified by zx start
+MONO_API void          mono_assembly_set_wrapped_pointer (MonoAssembly* assembly, void* ptr);
+MONO_API void*         mono_assembly_get_wrapped_pointer (MonoAssembly* assembly);
+/// Modified by zx end
+
 MONO_END_DECLS
 
 #endif

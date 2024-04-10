@@ -277,6 +277,10 @@ gboolean mono_aot_init_llvm_method          (gpointer aot_module, gpointer metho
 GHashTable *mono_aot_get_weak_field_indexes (MonoImage *image);
 MonoAotMethodFlags mono_aot_get_method_flags (guint8 *code);
 
+/// Modified by zx start
+void free_runtime_aot(void);
+/// Modified by zx end
+
 #ifdef MONO_ARCH_CODE_EXEC_ONLY
 typedef guint32 (*MonoAotResolvePltInfoOffset)(gpointer amodule, guint32 plt_entry_index);
 #endif

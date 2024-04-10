@@ -72,18 +72,38 @@ static GENERATE_GET_CLASS_WITH_CACHE (exception_handling_clause, "System.Reflect
 static GENERATE_GET_CLASS_WITH_CACHE (type_builder, "System.Reflection.Emit", "TypeBuilder");
 static GENERATE_GET_CLASS_WITH_CACHE (dbnull, "System", "DBNull");
 
-
+/// Modified by zx start
 static int class_ref_info_handle_count;
-
+static MonoClassField *member_field;
+static MonoClassField *pos_field;
+static MonoMethod *object_to_array_ctor;
+static MonoMethod *object_construct_ctor;
+static MonoMethod *call_is_assignable_to_method = NULL;
+/// Modified by zx end
 void
 mono_reflection_init (void)
 {
-	mono_reflection_emit_init ();
-
+    /// Modified by zx start
+    if(!mono_is_reboot())
+        mono_reflection_emit_init ();
+    /// Modified by zx end
 	mono_counters_register ("MonoClass::ref_info_handle count",
 							MONO_COUNTER_METADATA | MONO_COUNTER_INT, &class_ref_info_handle_count);
 
 }
+
+/// Modified by zx start
+void
+mono_reflection_cleanup (void)
+{
+    class_ref_info_handle_count = 0;
+    member_field = NULL;
+    pos_field = NULL;
+    object_to_array_ctor = NULL;
+    object_construct_ctor = NULL;
+    call_is_assignable_to_method = NULL;
+}
+/// Modified by zx end
 
 /*
  * mono_class_get_ref_info:
@@ -937,12 +957,16 @@ add_parameter_object_to_array (MonoDomain *domain, MonoMethod *method, MonoObjec
 	MonoReflectionParameterHandle param = MONO_HANDLE_CAST (MonoReflectionParameter, mono_object_new_handle (domain, mono_class_get_mono_parameter_info_class (), error));
 	goto_if_nok (error, leave);
 
-	static MonoMethod *ctor;
-	if (!ctor) {
+    /// Modified by zx start
+	//static MonoMethod *object_to_array_ctor;
+	if (!object_to_array_ctor) {
+    /// Modified by zx end
 		MonoMethod *m = mono_class_get_method_from_name_checked (mono_class_get_mono_parameter_info_class (), ".ctor", 7, 0, error);
 		g_assert (m);
 		mono_memory_barrier ();
-		ctor = m;
+        /// Modified by zx start
+        object_to_array_ctor = m;
+        /// Modified by zx end
 	}
 
 	MonoReflectionTypeHandle rt;
@@ -1010,8 +1034,9 @@ add_parameter_object_to_array (MonoDomain *domain, MonoMethod *method, MonoObjec
 			MONO_HANDLE_RAW (member),
 			MONO_HANDLE_RAW (mobj)
 		};
-
-		mono_runtime_invoke_handle_void (ctor, MONO_HANDLE_CAST (MonoObject, param), args, error);
+        /// Modified by zx start
+		mono_runtime_invoke_handle_void (object_to_array_ctor, MONO_HANDLE_CAST (MonoObject, param), args, error);
+        /// Modified by zx end
 	}
 	goto_if_nok (error, leave);
 
@@ -1261,14 +1286,18 @@ method_body_object_construct (MonoDomain *domain, MonoClass *unused_class, MonoM
 	} else
 		local_var_sig_token = 0; //FIXME
 
-	static MonoMethod *ctor;
-	if (!ctor) {
+    /// Modified by zx start
+	//static MonoMethod *object_construct_ctor;
+	if (!object_construct_ctor) {
+    /// Modified by zx end
 		MonoMethod *tmp = mono_class_get_method_from_name_checked (mono_class_get_method_body_class (), ".ctor", 6, 0, error);
 		mono_error_assert_ok (error);
 		g_assert (tmp);
 
 		mono_memory_barrier ();
-		ctor = tmp;
+        /// Modified by zx start
+        object_construct_ctor = tmp;
+        /// Modified by zx end
 	}
 
 	MonoReflectionMethodBodyHandle ret;
@@ -1318,7 +1347,9 @@ method_body_object_construct (MonoDomain *domain, MonoClass *unused_class, MonoM
 	params [3] = &init_locals_param;
 	params [4] = &sig_token_param;
 	params [5] = &max_stack_param;
-	mono_runtime_invoke_handle_void (ctor, MONO_HANDLE_CAST (MonoObject, ret), params, error);
+    /// Modified by zx start
+	mono_runtime_invoke_handle_void (object_construct_ctor, MONO_HANDLE_CAST (MonoObject, ret), params, error);
+    /// Modified by zx end
 	mono_error_assert_ok (error);
 
 	return ret;
@@ -2399,7 +2430,9 @@ mono_reflection_get_param_info_member_and_pos (MonoReflectionParameterHandle p, 
 
 	/* These two fields are part of ParameterInfo instead of RuntimeParameterInfo, and they cannot be moved */
 
-	static MonoClassField *member_field;
+    /// Modified by zx start
+	// static MonoClassField *member_field;
+    /// Modified by zx end
 	if (!member_field) {
 		MonoClassField *f = mono_class_get_field_from_name_full (klass, "MemberImpl", NULL);
 		g_assert (f);
@@ -2409,7 +2442,9 @@ mono_reflection_get_param_info_member_and_pos (MonoReflectionParameterHandle p, 
 	mono_field_get_value_internal (MONO_HANDLE_RAW (MONO_HANDLE_CAST (MonoObject, p)), member_field, &member);
 	MONO_HANDLE_ASSIGN_RAW (member_impl, member);
 
-	static MonoClassField *pos_field;
+    /// Modified by zx start
+	// static MonoClassField *pos_field;
+    /// Modified by zx end
 	if (!pos_field) {
 		MonoClassField *f = mono_class_get_field_from_name_full (klass, "PositionImpl", NULL);
 		g_assert (f);
@@ -3113,17 +3148,18 @@ mono_reflection_call_is_assignable_to (MonoClass *klass, MonoClass *oklass, Mono
 {
 	MonoObject *res, *exc;
 	void *params [1];
-	static MonoMethod *method = NULL;
-
+    /// Modified by zx start
+	//static MonoMethod *call_is_assignable_to_method = NULL;
+    /// Modified by zx end
 	error_init (error);
-
-	if (method == NULL) {
-		method = mono_class_get_method_from_name_checked (mono_class_get_type_builder_class (), "IsAssignableTo", 1, 0, error);
+    /// Modified by zx start
+	if (call_is_assignable_to_method == NULL) {
+        call_is_assignable_to_method = mono_class_get_method_from_name_checked (mono_class_get_type_builder_class (), "IsAssignableTo", 1, 0, error);
 		mono_error_assert_ok (error);
-		g_assert (method);
+		g_assert (call_is_assignable_to_method);
 	}
-
-	/* 
+    /// Modified by zx end
+	/*
 	 * The result of mono_type_get_object_checked () might be a System.MonoType but we
 	 * need a TypeBuilder so use mono_class_get_ref_info (klass).
 	 */
@@ -3134,8 +3170,9 @@ mono_reflection_call_is_assignable_to (MonoClass *klass, MonoClass *oklass, Mono
 	return_val_if_nok (error, FALSE);
 
 	ERROR_DECL (inner_error);
-	res = mono_runtime_try_invoke (method, &mono_class_get_ref_info_raw (klass)->type.object, params, &exc, inner_error); /* FIXME use handles */
-
+    /// Modified by zx start
+	res = mono_runtime_try_invoke (call_is_assignable_to_method, &mono_class_get_ref_info_raw (klass)->type.object, params, &exc, inner_error); /* FIXME use handles */
+    /// Modified by zx end
 	if (exc || !is_ok (inner_error)) {
 		mono_error_cleanup (inner_error);
 		return FALSE;

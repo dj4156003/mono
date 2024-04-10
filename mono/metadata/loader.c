@@ -78,14 +78,19 @@ static gint32 inflated_signatures_size;
 static gint32 memberref_sig_cache_size;
 static gint32 methods_size;
 static gint32 signatures_size;
-
+/// Modified by zx start
+static gboolean mono_loader_inited = FALSE;
+/// Modified by zx end
 void
 mono_loader_init ()
 {
-	static gboolean inited;
-
+    /// Modified by zx start
+	//static gboolean inited;
+    /// Modified by zx end
 	// FIXME: potential race
-	if (!inited) {
+    /// Modified by zx start
+	if (!mono_loader_inited) {
+    /// Modified by zx end
 		mono_coop_mutex_init_recursive (&loader_mutex);
 		mono_os_mutex_init_recursive (&global_loader_data_mutex);
 		loader_lock_inited = TRUE;
@@ -103,8 +108,9 @@ mono_loader_init ()
 								MONO_COUNTER_METADATA | MONO_COUNTER_INT, &methods_size);
 		mono_counters_register ("MonoMethodSignature size",
 								MONO_COUNTER_METADATA | MONO_COUNTER_INT, &signatures_size);
-
-		inited = TRUE;
+        /// Modified by zx start
+        mono_loader_inited = TRUE;
+        /// Modified by zx end
 	}
 }
 
@@ -121,6 +127,7 @@ mono_loader_cleanup (void)
 	mono_coop_mutex_destroy (&loader_mutex);
 	mono_os_mutex_destroy (&global_loader_data_mutex);
 	loader_lock_inited = FALSE;	
+    mono_loader_inited = FALSE;
 }
 
 void
@@ -2189,3 +2196,23 @@ mono_method_get_index (MonoMethod *method)
 	}
 	return 0;
 }
+
+/// Modified by zx start
+void
+mono_method_set_wrapped_pointer (MonoMethod* method, void* ptr)
+{
+    if (!method)
+        return;
+    
+    method->wrapped_pointer = ptr;
+}
+
+void*
+mono_method_get_wrapped_pointer (MonoMethod* method)
+{
+    if (!method)
+        return NULL;
+    
+    return method->wrapped_pointer;
+}
+/// Modified by zx end

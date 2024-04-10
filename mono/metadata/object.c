@@ -253,9 +253,21 @@ static GHashTable *blocked_thread_hash;
 /* Main thread */
 static MonoThread *main_thread;
 
+/// Modified by zx start
+static gboolean main_thread_registered = FALSE;
+/// Modified by zx end
 /* Functions supplied by the runtime */
 static MonoRuntimeCallbacks callbacks;
+/// Modified by zx start
+static gboolean generic_virtual_trampolines_inited = FALSE;
+static int generic_virtual_trampolines_size = 0;
 
+static gboolean generic_virtual_invocation_inited = FALSE;
+static int generic_virtual_invocation_num_added = 0;
+static int generic_virtual_invocation_num_freed = 0;
+
+static MonoClass *object_array_klass = NULL;
+/// Modified by zx end
 /**
  * mono_thread_set_main:
  * \param thread thread to set as the main thread
@@ -268,13 +280,15 @@ void
 mono_thread_set_main (MonoThread *thread)
 {
 	MONO_REQ_GC_UNSAFE_MODE;
-
-	static gboolean registered = FALSE;
-
-	if (!registered) {
+    /// Modified by zx start
+	//static gboolean registered = FALSE;
+    /// Modified by zx end
+	if (!main_thread_registered) {
 		void *key = thread->internal_thread ? (void *) MONO_UINT_TO_NATIVE_THREAD_ID (thread->internal_thread->tid) : NULL;
 		MONO_GC_REGISTER_ROOT_SINGLE (main_thread, MONO_ROOT_SOURCE_THREADING, key, "Thread Main Object");
-		registered = TRUE;
+        /// Modified by zx start
+        main_thread_registered = TRUE;
+        /// Modified by zx end
 	}
 
 	main_thread = thread;
@@ -294,29 +308,64 @@ mono_thread_get_main (void)
 void
 mono_type_initialization_init (void)
 {
-	mono_coop_mutex_init_recursive (&type_initialization_section);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_init_recursive (&type_initialization_section);
+    }
+    /// Modified by zx end
 	type_initialization_hash = g_hash_table_new (NULL, NULL);
 	blocked_thread_hash = g_hash_table_new (NULL, NULL);
-	mono_coop_mutex_init (&ldstr_section);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_init (&ldstr_section);
+    }
+    /// Modified by zx end
 	mono_register_jit_icall (ves_icall_string_alloc, mono_icall_sig_object_int, FALSE);
 }
 
 void
 mono_type_initialization_cleanup (void)
 {
-#if 0
+    /// Modified by zx start
+//#if 0
+    /// Modified by zx end
 	/* This is causing race conditions with
 	 * mono_release_type_locks
 	 */
-	mono_coop_mutex_destroy (&type_initialization_section);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_destroy (&type_initialization_section);
+    }
+    /// Modified by zx end
 	g_hash_table_destroy (type_initialization_hash);
 	type_initialization_hash = NULL;
-#endif
-	mono_coop_mutex_destroy (&ldstr_section);
+//#endif
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_destroy (&ldstr_section);
+    }
+    /// Modified by zx end
 	g_hash_table_destroy (blocked_thread_hash);
 	blocked_thread_hash = NULL;
 
 	free_main_args ();
+    /// Modified by zx start
+    main_thread = NULL;
+    main_thread_registered = FALSE;
+    
+    generic_virtual_trampolines_inited = FALSE;
+    generic_virtual_trampolines_size = 0;
+
+    generic_virtual_invocation_inited = FALSE;
+    generic_virtual_invocation_num_added = 0;
+    generic_virtual_invocation_num_freed = 0;
+    
+    object_array_klass = NULL;
+    /// Modified by zx end
 }
 
 static MonoException*
@@ -1735,14 +1784,16 @@ gpointer
 (mono_method_alloc_generic_virtual_trampoline) (MonoMemoryManager *mem_manager, int size)
 {
 	MONO_REQ_GC_NEUTRAL_MODE;
-
-	static gboolean inited = FALSE;
-	static int generic_virtual_trampolines_size = 0;
-
-	if (!inited) {
+    /// Modified by zx start
+//	static gboolean inited = FALSE;
+//	static int generic_virtual_trampolines_size = 0;
+    /// Modified by zx end
+	if (!generic_virtual_trampolines_inited) {
 		mono_counters_register ("Generic virtual trampoline bytes",
 				MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &generic_virtual_trampolines_size);
-		inited = TRUE;
+        /// Modified by zx start
+        generic_virtual_trampolines_inited = TRUE;
+        /// Modified by zx end
 	}
 	generic_virtual_trampolines_size += size;
 
@@ -1817,11 +1868,11 @@ mono_method_add_generic_virtual_invocation (MonoDomain *domain, MonoVTable *vtab
 											MonoMethod *method, gpointer code)
 {
 	MONO_REQ_GC_NEUTRAL_MODE;
-
-	static gboolean inited = FALSE;
-	static int num_added = 0;
-	static int num_freed = 0;
-
+    /// Modified by zx start
+//	static gboolean inited = FALSE;
+//	static int num_added = 0;
+//	static int num_freed = 0;
+    /// Modified by zx end
 	GenericVirtualCase *gvc, *list;
 	MonoImtBuilderEntry *entries;
 	int i;
@@ -1831,11 +1882,13 @@ mono_method_add_generic_virtual_invocation (MonoDomain *domain, MonoVTable *vtab
 	if (!domain->generic_virtual_cases)
 		domain->generic_virtual_cases = g_hash_table_new (mono_aligned_addr_hash, NULL);
 
-	if (!inited) {
-		mono_counters_register ("Generic virtual cases", MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &num_added);
-		mono_counters_register ("Freed IMT trampolines", MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &num_freed);
-		inited = TRUE;
+    /// Modified by zx start
+	if (!generic_virtual_invocation_inited) {
+		mono_counters_register ("Generic virtual cases", MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &generic_virtual_invocation_num_added);
+		mono_counters_register ("Freed IMT trampolines", MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &generic_virtual_invocation_num_freed);
+        generic_virtual_invocation_inited = TRUE;
 	}
+    /// Modified by zx end
 
 	/* Check whether the case was already added */
 	list = (GenericVirtualCase *)g_hash_table_lookup (domain->generic_virtual_cases, vtable_slot);
@@ -1855,8 +1908,9 @@ mono_method_add_generic_virtual_invocation (MonoDomain *domain, MonoVTable *vtab
 		gvc->next = (GenericVirtualCase *)g_hash_table_lookup (domain->generic_virtual_cases, vtable_slot);
 
 		g_hash_table_insert (domain->generic_virtual_cases, vtable_slot, gvc);
-
-		num_added++;
+        /// Modified by zx start
+        generic_virtual_invocation_num_added++;
+        /// Modified by zx end
 	}
 
 	if (++gvc->count == THUNK_THRESHOLD) {
@@ -1891,8 +1945,10 @@ mono_method_add_generic_virtual_invocation (MonoDomain *domain, MonoVTable *vtab
 				g_free (g_ptr_array_index (sorted, i));
 			g_ptr_array_free (sorted, TRUE);
 
+            /// Modified by zx start
 			if (old_thunk != vtable_trampoline && old_thunk != imt_trampoline)
-				num_freed ++;
+                generic_virtual_invocation_num_freed ++;
+            /// Modified by zx end
 		}
 	}
 
@@ -7227,7 +7283,26 @@ mono_object_get_class (MonoObject *obj)
 {
 	MONO_EXTERNAL_ONLY_GC_UNSAFE (MonoClass*, mono_object_class (obj));
 }
-
+/// Modified by zx start
+void
+mono_object_replace_vtable(MonoObject *obj, MonoVTable* table)
+{
+    obj->vtable->klass = table->klass;
+    obj->vtable->domain = table->domain;
+    obj->vtable->type = table->type;
+    obj->vtable->gc_bits = table->gc_bits;
+    obj->vtable->gc_descr = table->gc_descr;
+    obj->vtable->has_static_fields = table->has_static_fields;
+    obj->vtable->imt_collisions_bitmap = table->imt_collisions_bitmap;
+    obj->vtable->init_failed = table->init_failed;
+    obj->vtable->initialized = table->initialized;
+    obj->vtable->interface_bitmap = table->interface_bitmap;
+    obj->vtable->interp_vtable = table->interp_vtable;
+    obj->vtable->max_interface_id = table->max_interface_id;
+    obj->vtable->runtime_generic_context = table->runtime_generic_context;
+    //obj->vtable = table;
+}
+/// Modified by zx end
 guint
 mono_object_get_size_internal (MonoObject* o)
 {
@@ -8492,8 +8567,9 @@ mono_message_invoke (MonoThreadInfo *thread_info_current_var,
 		     MonoObject **exc, MonoArray **out_args, MonoError *error) 
 {
 	MONO_REQ_GC_UNSAFE_MODE;
-
-	static MonoClass *object_array_klass;
+    /// Modified by zx start
+	//static MonoClass *object_array_klass;
+    /// Modified by zx end
 	error_init (error);
 
 	MonoDomain *domain; 

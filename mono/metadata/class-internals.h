@@ -95,6 +95,9 @@ struct _MonoMethod {
 	 * If is_generic is TRUE, the generic_container is stored in image->property_hash, 
 	 * using the key MONO_METHOD_PROP_GENERIC_CONTAINER.
 	 */
+    /// Modified by zx start
+    void *wrapped_pointer;
+    /// Modified by zx end
 };
 
 struct _MonoMethodWrapper {
@@ -1038,16 +1041,35 @@ MonoClass* mono_class_get_##shortname##_class (void);
 
 #define GENERATE_TRY_GET_CLASS_WITH_CACHE_DECL(shortname) \
 MonoClass* mono_class_try_get_##shortname##_class (void);
+/// Modified by zx start
+void
+mono_loader_lock           (void);
+
+void
+mono_loader_unlock         (void);
+
+void
+mono_add_managed_pointer(void** pointer);
+
+void
+mono_free_managed_pointer();
+/// Modified by zx end
 
 // GENERATE_GET_CLASS_WITH_CACHE attempts mono_class_load_from_name whenever
 // its cache is null. i.e. potentially repeatedly, though it is expected to succeed
 // the first time.
 //
+/// Modified by zx start
 #define GENERATE_GET_CLASS_WITH_CACHE(shortname,name_space,name) \
 MonoClass*	\
 mono_class_get_##shortname##_class (void)	\
 {	\
-	static MonoClass *tmp_class;	\
+	static MonoClass *tmp_class = NULL;	\
+    static gboolean inited = FALSE; \
+    if (!inited) {\
+        mono_add_managed_pointer((void**)&tmp_class);    \
+        inited = TRUE;\
+    }\
 	MonoClass *klass = tmp_class;	\
 	if (!klass) {	\
 		klass = mono_class_load_from_name (mono_defaults.corlib, name_space, name);	\
@@ -1056,29 +1078,34 @@ mono_class_get_##shortname##_class (void)	\
 	}	\
 	return klass;	\
 }
-
+/// Modified by zx end
 // GENERATE_TRY_GET_CLASS_WITH_CACHE attempts mono_class_load_from_name approximately
 // only once. i.e. if it fails, it will return null and not retry.
 // In a race it might try a few times, but not indefinitely.
 //
 // FIXME This maybe has excessive volatile/barriers.
 //
+/// Modified by zx start
 #define GENERATE_TRY_GET_CLASS_WITH_CACHE(shortname,name_space,name) \
 MonoClass*	\
 mono_class_try_get_##shortname##_class (void)	\
 {	\
-	static volatile MonoClass *tmp_class;	\
-	static volatile gboolean inited;	\
+	static volatile MonoClass *tmp_class = NULL;	\
+    static gboolean inited = FALSE; \
+    if (!inited) {\
+        mono_add_managed_pointer((void**)&tmp_class);    \
+        inited = TRUE;\
+    }\
 	MonoClass *klass = (MonoClass *)tmp_class;	\
 	mono_memory_barrier ();	\
-	if (!inited) {	\
+	if (!klass) {	\
 		klass = mono_class_try_load_from_name (mono_defaults.corlib, name_space, name);	\
 		tmp_class = klass;	\
 		mono_memory_barrier ();	\
-		inited = TRUE;	\
 	}	\
 	return klass;	\
 }
+/// Modified by zx end
 
 GENERATE_TRY_GET_CLASS_WITH_CACHE_DECL (safehandle)
 
@@ -1112,12 +1139,13 @@ mono_loader_init           (void);
 void
 mono_loader_cleanup        (void);
 
-void
-mono_loader_lock           (void);
-
-void
-mono_loader_unlock         (void);
-
+/// Modified by zx start
+//void
+//mono_loader_lock           (void);
+//
+//void
+//mono_loader_unlock         (void);
+/// Modified by zx ebd
 void
 mono_loader_lock_track_ownership (gboolean track);
 
@@ -1132,6 +1160,10 @@ mono_loader_unlock_if_inited (void);
 
 void
 mono_reflection_init       (void);
+/// Modified by zx start
+void
+mono_reflection_cleanup       (void);
+/// Modified by zx end
 
 void
 mono_icall_init            (void);
@@ -1573,8 +1605,14 @@ mono_method_has_unmanaged_callers_only_attribute (MonoMethod *method);
 //
 // These macros cannot be wrapped in do/while as they inject "name" into invoking scope.
 //
+/// Modified by zx start
 #define MONO_STATIC_POINTER_INIT(type, name)					\
-	static type *static_ ## name;						\
+	static type *static_ ## name = NULL;			\
+    static gboolean static_ ## name ## _inited = FALSE; \
+    if (!static_ ## name ## _inited) {\
+        mono_add_managed_pointer((void**)&static_ ## name);     \
+        static_ ## name ## _inited = TRUE; \
+    }\
 	type *name; 								\
 	name = static_ ## name;							\
 	if (!name) {								\
@@ -1585,6 +1623,7 @@ mono_method_has_unmanaged_callers_only_attribute (MonoMethod *method);
 			mono_atomic_store_seq (&static_ ## name, name);		\
 		}								\
 	}									\
+/// Modified by zx end
 
 static inline gboolean
 m_field_get_offset (MonoClassField *field)

@@ -124,6 +124,10 @@ void
 mono_runtime_init_tls (void)
 {
 	mono_marshal_init_tls ();
+    /// Modified by zx start
+    shutting_down_inited = FALSE;
+    shutting_down = FALSE;
+    /// Modified by zx end
 }
 
 guint8*

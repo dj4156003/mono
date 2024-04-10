@@ -233,6 +233,10 @@ image_removed (const struct mach_header *hdr32, intptr_t vmaddr_slide)
 void
 mono_w32process_platform_init_once (void)
 {
+    /// Modified by zx start
+    if (mono_is_reboot())
+        return;
+    /// Modified by zx end
 	mono_os_mutex_init (&images_mutex);
 	images = g_hash_table_new_full (NULL, NULL, NULL, &mono_dyld_image_info_free);
 

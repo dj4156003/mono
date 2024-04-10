@@ -8578,6 +8578,10 @@ mono_install_icall_table_callbacks (const MonoIcallTableCallbacks *cb)
 void
 mono_icall_init (void)
 {
+    /// Modified by zx start
+    if (mono_is_reboot())
+        return;
+    /// Modified by zx end
 #ifndef DISABLE_ICALL_TABLES
 	mono_icall_table_init ();
 #endif
@@ -8600,13 +8604,23 @@ mono_icall_unlock (void)
 void
 mono_icall_cleanup (void)
 {
-	g_hash_table_destroy (icall_hash);
-	mono_os_mutex_destroy (&icall_mutex);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        g_hash_table_destroy (icall_hash);
+        icall_hash = NULL;
+        mono_os_mutex_destroy (&icall_mutex);
+    }
+    /// Modified by zx end
 }
 
 static void
 add_internal_call_with_flags (const char *name, gconstpointer method, guint32 flags)
 {
+    /// Modified by zx start
+    if (mono_is_reboot())
+        return;
+    /// Modified by zx end
 	char *key = g_strdup (name);
 	MonoIcallHashTableValue *value = g_new (MonoIcallHashTableValue, 1);
 	if (key && value) {
@@ -9047,54 +9061,105 @@ ICALL_SIGS
 ICALL_SIGS
 #undef ICALL_SIG
 
+/// Modified by zx start
+typedef struct {
+    int length;
+    gsize *data;
+} SubArray;
+
+static SubArray g_sig_types_array[1000];
+static gboolean is_init_icall = FALSE;
+/// Modified by zx end
 void
 mono_create_icall_signatures (void)
 {
-	// Fixup the mostly statically initialized icall signatures.
-	//   x = m_class_get_byval_arg (x)
-	//   Initialize ret with params [0] and params [i] with params [i + 1].
-	//   ptrref is special
-	//
-	// FIXME This is a bit obscure.
+    /// Modified by zx start
+    // Fixup the mostly statically initialized icall signatures.
+    //   x = m_class_get_byval_arg (x)
+    //   Initialize ret with params [0] and params [i] with params [i + 1].
+    //   ptrref is special
+    //
+    // FIXME This is a bit obscure.
 
-	typedef MonoMethodSignature G_MAY_ALIAS MonoMethodSignature_a;
-	typedef gsize G_MAY_ALIAS gsize_a;
+    typedef MonoMethodSignature G_MAY_ALIAS MonoMethodSignature_a;
+    typedef gsize G_MAY_ALIAS gsize_a;
 
-	MonoType * const lookup [ ] = {
-		m_class_get_byval_arg (mono_defaults.boolean_class), // ICALL_SIG_TYPE_bool
-		m_class_get_byval_arg (mono_defaults.double_class),	 // ICALL_SIG_TYPE_double
-		m_class_get_byval_arg (mono_defaults.single_class),  // ICALL_SIG_TYPE_float
-		m_class_get_byval_arg (mono_defaults.int32_class),	 // ICALL_SIG_TYPE_int
-		m_class_get_byval_arg (mono_defaults.int16_class),	 // ICALL_SIG_TYPE_int16
-		m_class_get_byval_arg (mono_defaults.sbyte_class),	 // ICALL_SIG_TYPE_int8
-		m_class_get_byval_arg (mono_defaults.int64_class),	 // ICALL_SIG_TYPE_long
-		m_class_get_byval_arg (mono_defaults.object_class),	 // ICALL_SIG_TYPE_obj
-		m_class_get_byval_arg (mono_defaults.int_class),	 // ICALL_SIG_TYPE_ptr
-		mono_class_get_byref_type (mono_defaults.int_class), // ICALL_SIG_TYPE_ptrref
-		m_class_get_byval_arg (mono_defaults.string_class),	 // ICALL_SIG_TYPE_string
-		m_class_get_byval_arg (mono_defaults.uint16_class),	 // ICALL_SIG_TYPE_uint16
-		m_class_get_byval_arg (mono_defaults.uint32_class),	 // ICALL_SIG_TYPE_uint32
-		m_class_get_byval_arg (mono_defaults.byte_class),	 // ICALL_SIG_TYPE_uint8
-		m_class_get_byval_arg (mono_defaults.uint64_class),	 // ICALL_SIG_TYPE_ulong
-		m_class_get_byval_arg (mono_defaults.void_class),	 // ICALL_SIG_TYPE_void
-		m_class_get_byval_arg (mono_defaults.int_class),	 // ICALL_SIG_TYPE_sizet
-	};
+    MonoType * const lookup [ ] = {
+        m_class_get_byval_arg (mono_defaults.boolean_class), // ICALL_SIG_TYPE_bool
+        m_class_get_byval_arg (mono_defaults.double_class),     // ICALL_SIG_TYPE_double
+        m_class_get_byval_arg (mono_defaults.single_class),  // ICALL_SIG_TYPE_float
+        m_class_get_byval_arg (mono_defaults.int32_class),     // ICALL_SIG_TYPE_int
+        m_class_get_byval_arg (mono_defaults.int16_class),     // ICALL_SIG_TYPE_int16
+        m_class_get_byval_arg (mono_defaults.sbyte_class),     // ICALL_SIG_TYPE_int8
+        m_class_get_byval_arg (mono_defaults.int64_class),     // ICALL_SIG_TYPE_long
+        m_class_get_byval_arg (mono_defaults.object_class),     // ICALL_SIG_TYPE_obj
+        m_class_get_byval_arg (mono_defaults.int_class),     // ICALL_SIG_TYPE_ptr
+        mono_class_get_byref_type (mono_defaults.int_class), // ICALL_SIG_TYPE_ptrref
+        m_class_get_byval_arg (mono_defaults.string_class),     // ICALL_SIG_TYPE_string
+        m_class_get_byval_arg (mono_defaults.uint16_class),     // ICALL_SIG_TYPE_uint16
+        m_class_get_byval_arg (mono_defaults.uint32_class),     // ICALL_SIG_TYPE_uint32
+        m_class_get_byval_arg (mono_defaults.byte_class),     // ICALL_SIG_TYPE_uint8
+        m_class_get_byval_arg (mono_defaults.uint64_class),     // ICALL_SIG_TYPE_ulong
+        m_class_get_byval_arg (mono_defaults.void_class),     // ICALL_SIG_TYPE_void
+        m_class_get_byval_arg (mono_defaults.int_class),     // ICALL_SIG_TYPE_sizet
+    };
 
-	MonoMethodSignature_a *sig = (MonoMethodSignature*)&mono_icall_signatures;
-	int n;
-	while ((n = sig->param_count)) {
-		--sig->param_count; // remove ret
-		gsize_a *types = (gsize_a*)(sig + 1);
-		for (int i = 0; i < n; ++i) {
-			gsize index = *types++;
-			g_assert (index < G_N_ELEMENTS (lookup));
-			// Casts on next line are attempt to follow strict aliasing rules,
-			// to ensure reading from *types precedes writing
-			// to params [].
-			*(gsize*)(i ? &sig->params [i - 1] : &sig->ret) = (gsize)lookup [index];
-		}
-		sig = (MonoMethodSignature*)types;
-	}
+    gboolean useNew = TRUE;
+    MonoMethodSignature_a *sig = (MonoMethodSignature*)&mono_icall_signatures;
+    if (is_init_icall)
+        ++ sig->param_count;
+    int sig_index = 0;
+    int n;
+    while ((n = sig->param_count)) {
+        --sig->param_count; // remove ret
+        gsize_a *types = (gsize_a*)(sig + 1);
+        
+        if (useNew)
+        {
+            if (!is_init_icall)
+            {
+                g_sig_types_array[sig_index].length = n;
+                g_sig_types_array[sig_index].data = malloc(n * sizeof(gsize));
+            }
+        }
+        gsize index;
+        for (int i = 0; i < n; ++i) {
+            
+            if (useNew)
+            {
+                if (!is_init_icall)
+                {
+                    g_sig_types_array[sig_index].data[i] = *types;
+                }
+                index = g_sig_types_array[sig_index].data[i];
+            }else
+            {
+                index = *types;
+            }
+
+            g_assert (index < G_N_ELEMENTS (lookup));
+            // Casts on next line are attempt to follow strict aliasing rules,
+            // to ensure reading from *types precedes writing
+            // to params [].
+            *(gsize*)(i ? &sig->params [i - 1] : &sig->ret) = (gsize)lookup [index];
+            gsize index2 = *types;
+            
+            printf("  %d:%zu ", i, index);
+
+            types ++;
+        }
+        printf("\n");
+        sig = (MonoMethodSignature*)types;
+        if (is_init_icall)
+            ++ sig->param_count;
+        ++ sig_index;
+        
+        if (sig_index > 127)
+            break;
+    }
+    
+    is_init_icall = TRUE;
+    /// Modified by zx end
 }
 
 void

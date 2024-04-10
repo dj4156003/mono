@@ -54,6 +54,10 @@ MONO_API MONO_RT_EXTERNAL_ONLY void
 mono_thread_detach (MonoThread *thread);
 MONO_API void mono_thread_exit (void);
 
+/// Modified by zx start
+MONO_API MONO_RT_EXTERNAL_ONLY void
+mono_thread_reattach (MonoDomain *domain, MonoThread *oldthread);
+/// Modified by zx end
 MONO_API MONO_RT_EXTERNAL_ONLY void
 mono_threads_attach_tools_thread (void);
 

@@ -1224,7 +1224,9 @@ mono_class_inflate_generic_method_full_checked (MonoMethod *method, MonoClass *k
 	result->is_generic = FALSE;
 	result->sre_method = FALSE;
 	result->signature = NULL;
-
+    /// Modified by zx start
+    result->wrapped_pointer = NULL;
+    /// Modified by zx end
 	if (method->wrapper_type) {
 		MonoMethodWrapper *mw = (MonoMethodWrapper*)method;
 		MonoMethodWrapper *resw = (MonoMethodWrapper*)result;
@@ -5677,6 +5679,58 @@ mono_find_method_in_metadata (MonoClass *klass, const char *name, int param_coun
 	return res;
 }
 
+/// Modified by zx start
+MonoMethod*
+mono_find_method_in_metadata_sig_checker (MonoClass *klass, const char *name, int param_count, const char* sigChecker)
+{
+    MonoImage *klass_image = m_class_get_image (klass);
+    MonoMethod *res = NULL;
+    int i;
+    char* checker = NULL;
+    /* Search directly in the metadata to avoid calling setup_methods () */
+    int first_idx = mono_class_get_first_method_idx (klass);
+    int mcount = mono_class_get_method_count (klass);
+    for (i = 0; i < mcount; ++i) {
+        ERROR_DECL (error);
+        guint32 cols [MONO_METHOD_SIZE];
+        MonoMethod *method;
+        MonoMethodSignature *sig;
+
+        /* first_idx points into the methodptr table */
+        mono_metadata_decode_table_row (klass_image, MONO_TABLE_METHOD, first_idx + i, cols, MONO_METHOD_SIZE);
+
+        if (!strcmp (mono_metadata_string_heap (klass_image, cols [MONO_METHOD_NAME]), name)) {
+            method = mono_get_method_checked (klass_image, MONO_TOKEN_METHOD_DEF | (first_idx + i + 1), klass, NULL, error);
+            if (!method) {
+                mono_error_cleanup (error); /* FIXME don't swallow the error */
+                continue;
+            }
+            if (param_count == -1) {
+                res = method;
+                break;
+            }
+            sig = mono_method_signature_checked (method, error);
+            if (!sig) {
+                mono_error_cleanup (error); /* FIXME don't swallow the error */
+                continue;
+            }
+            if (sig->param_count == param_count) {
+                checker = mono_signature_get_desc(sig, TRUE);
+                if (strcmp(checker, sigChecker) == 0)
+                {
+                    g_free(checker);
+                    res = method;
+                    break;
+                }
+                g_free(checker);
+            }
+        }
+    }
+
+    return res;
+}
+/// Modified by zx end
+
 /**
  * mono_class_get_method_from_name_flags:
  * \param klass where to look for the method
@@ -5757,6 +5811,68 @@ mono_class_get_method_from_name_checked (MonoClass *klass, const char *name,
 
 	return res;
 }
+
+/// Modified by zx start
+MonoMethod*
+mono_class_get_method_from_name_sig_checked(MonoClass* klass, const char* name, int param_count, const char* sigDesc)
+{
+    MonoMethod* method = NULL;
+
+    mono_class_init_internal(klass);
+
+    if (mono_class_is_ginst(klass) && !m_class_get_methods(klass))
+    {
+        MonoClass* container_class = mono_class_get_generic_class(klass)->container_class;
+        method = mono_class_get_method_from_name_sig_checked(container_class, name, param_count, sigDesc);
+
+        if (method)
+        {
+            MonoError error;
+            error_init (&error);
+            method = mono_class_inflate_generic_method_full_checked(method, klass, mono_class_get_context(klass), &error);
+
+            if (!is_ok(&error))
+            {
+                mono_error_cleanup(&error);
+                return NULL;
+            }
+        }
+
+        return method;
+    }
+
+    if (m_class_get_methods(klass) || !MONO_CLASS_HAS_STATIC_METADATA(klass))
+    {
+        mono_class_setup_methods(klass);
+
+        gpointer iter = NULL;
+        while ((method = mono_class_get_methods(klass, &iter)) != NULL)
+        {
+            if (strcmp(mono_method_get_name(method), name) == 0)
+            {
+                MonoMethodSignature* sig = mono_method_signature_internal(method);
+                if (sig && mono_signature_get_param_count(sig) == param_count)
+                {
+                    char* methodSigDesc = mono_signature_get_desc(sig, TRUE);
+                    if (strcmp(methodSigDesc, sigDesc) == 0)
+                    {
+                        g_free(methodSigDesc);
+                        return method;
+                    }
+                    g_free(methodSigDesc);
+                }
+            }
+        }
+    }
+    else
+    {
+        return mono_find_method_in_metadata_sig_checker (klass, name, param_count, sigDesc);;
+    }
+
+    return NULL;
+}
+/// Modified by zx end
+
 
 gboolean
 mono_class_has_failure (const MonoClass *klass)
@@ -6698,3 +6814,55 @@ mono_class_has_default_constructor (MonoClass *klass, gboolean public_only)
 	}
 	return FALSE;
 }
+
+/// Modified by zx start
+GArray *g_managedStaticPointers = NULL;
+
+void
+mono_add_managed_pointer(void** pointer)
+{
+    if (!g_managedStaticPointers)
+        g_managedStaticPointers = g_array_new(FALSE, FALSE, sizeof(void**));
+    
+    g_array_append_val (g_managedStaticPointers, pointer);
+}
+
+void
+mono_free_managed_pointer(void)
+{
+    gint i;
+    
+    if (g_managedStaticPointers == NULL)
+        return;
+    
+    for (i = 0; i < g_managedStaticPointers->len; i++)
+    {
+        void** pointer = g_array_index (g_managedStaticPointers, void**, i);
+        *pointer = NULL;
+    }
+    if (!mono_is_reboot())
+    {
+        g_array_free (g_managedStaticPointers, TRUE);
+        g_managedStaticPointers = NULL;
+    }
+}
+
+void
+mono_class_set_wrapped_pointer (MonoClass* kclass, void* ptr)
+{
+    if (!kclass)
+        return;
+    
+    kclass->wrapped_pointer = ptr;
+}
+
+void*
+mono_class_get_wrapped_pointer (MonoClass* kclass)
+{
+    if (!kclass)
+        return NULL;
+    
+    return kclass->wrapped_pointer;
+}
+
+/// Modified by zx end

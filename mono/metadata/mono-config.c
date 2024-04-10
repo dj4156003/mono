@@ -537,6 +537,9 @@ mono_config_cleanup (void)
 	if (config_handlers)
 		g_hash_table_destroy (config_handlers);
 	g_free (mono_cfg_dir);
+    /// Modified by zx start
+    mono_cfg_dir = NULL;
+    /// Modified by zx end
 }
 
 /* FIXME: error handling */

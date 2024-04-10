@@ -373,8 +373,21 @@ STATIC void * GC_mark_thread(void * id)
       GC_log_printf("Starting mark helper for mark number %lu\n",
                     (unsigned long)my_mark_no);
 #   endif
+    /// Modified by zx start
+    if (GC_thread_destoryed_count > 0)
+        break;
+    /// Modified by zx end
+      
     GC_help_marker(my_mark_no);
   }
+    /// Modified by zx start
+    GC_thread_destoryed_count--;
+    if (GC_thread_destoryed_count == 0) {
+        GC_notify_all_destroyed();
+    }
+    GC_release_mark_lock();
+    return NULL;
+    /// Modified by zx end
 }
 
 STATIC pthread_t GC_mark_threads[MAX_MARKERS];
@@ -390,6 +403,9 @@ STATIC pthread_t GC_mark_threads[MAX_MARKERS];
 
 GC_INNER void GC_start_mark_threads_inner(void)
 {
+    /// Modified by zx start
+    GC_ASSERT(GC_is_first_init());
+    /// Modified by zx end
     int i;
     pthread_attr_t attr;
 #   ifndef NO_MARKER_SPECIAL_SIGMASK
@@ -525,13 +541,19 @@ void GC_push_thread_structures(void)
 /* As "next" and "status" fields are unused, no need to push this.      */
 static struct GC_Thread_Rep first_thread;
 
+/// Modified by zx start
+static GC_bool first_thread_used = FALSE;
+/// Modified by zx end
+
 /* Add a thread to GC_threads.  We assume it wasn't already there.      */
 /* Caller holds allocation lock.                                        */
 STATIC GC_thread GC_new_thread(pthread_t id)
 {
     int hv = THREAD_TABLE_INDEX(id);
     GC_thread result;
-    static GC_bool first_thread_used = FALSE;
+    /// Modified by zx start
+    ///static GC_bool first_thread_used = FALSE;
+    /// Modified by zx end
 
 #   ifdef DEBUG_THREADS
         GC_log_printf("Creating thread %p\n", (void *)id);
@@ -2279,7 +2301,80 @@ GC_INNER void GC_notify_all_marker(void)
     }
 }
 
+/// Modified by zx start
+
+static pthread_cond_t destory_cv = PTHREAD_COND_INITIALIZER;
+
+STATIC void GC_wait_destroyed(void)
+{
+    ASSERT_CANCEL_DISABLED();
+    UNSET_MARK_LOCK_HOLDER;
+    if (pthread_cond_wait(&destory_cv, &mark_mutex) != 0) {
+        ABORT("pthread_cond_wait failed");
+    }
+    GC_ASSERT(GC_mark_lock_holder == NO_THREAD);
+    SET_MARK_LOCK_HOLDER;
+}
+
+GC_INNER void GC_notify_all_destroyed(void)
+{
+    GC_ASSERT(GC_mark_lock_holder == NUMERIC_THREAD_ID(pthread_self()));
+    if (pthread_cond_broadcast(&destory_cv) != 0) {
+        ABORT("pthread_cond_broadcast failed");
+    }
+}
+
+GC_INNER void GC_destroy_all_marker_thread(void)
+{
+    signed_word count;
+    GC_acquire_mark_lock();
+    GC_thread_destoryed_count = GC_markers_m1;
+    count = GC_thread_destoryed_count;
+    GC_help_wanted = TRUE;
+    ++GC_mark_no;
+    GC_notify_all_marker();
+    GC_release_mark_lock();
+    if (count != 0) {
+      GC_ASSERT(count > 0);
+        GC_acquire_mark_lock();
+        while (GC_thread_destoryed_count > 0) {
+            GC_wait_destroyed();
+        }
+        GC_release_mark_lock();
+    }
+    GC_help_wanted = FALSE;
+    for (word index = 0; index < MAX_MARKERS; ++ index)
+    {
+        GC_mark_threads[index] = 0;
+    }
+    GC_markers_m1 = 0;
+    GC_mark_no = 0;
+}
+
 #endif /* PARALLEL_MARK */
+
+void GC_clear_threads(void)
+{
+#ifdef PARALLEL_MARK
+    int index;
+    for (index = 0; index < MAX_MARKERS - 1; ++ index)
+    {
+        marker_sp[index] = 0;
+# if defined(GC_DARWIN_THREADS) && !defined(GC_NO_THREADS_DISCOVERY)
+        marker_mach_threads[index] = 0;
+# endif //defined(GC_DARWIN_THREADS) && !defined(GC_NO_THREADS_DISCOVERY)
+    }
+    
+    GC_destroy_all_marker_thread();
+    available_markers_m1 = 0;
+#endif
+    memset(GC_threads, 0, sizeof(GC_threads));
+    GC_thr_initialized = FALSE;
+    parallel_initialized = FALSE;
+    first_thread_used = FALSE;
+    GC_fl_builder_count = 0;
+}
+/// Modified by zx end
 
 #ifdef PTHREAD_REGISTER_CANCEL_WEAK_STUBS
   /* Workaround "undefined reference" linkage errors on some targets. */

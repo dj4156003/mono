@@ -2123,6 +2123,10 @@ guint32   mono_type_to_stloc_coerce         (MonoType *type);
 guint     mini_type_to_stind                (MonoCompile* cfg, MonoType *type);
 MonoStackType mini_type_to_stack_type       (MonoCompile *cfg, MonoType *t);
 MonoJitInfo* mini_lookup_method             (MonoDomain *domain, MonoMethod *method, MonoMethod *shared);
+/// Modified by zx start
+void mini_lookup_method_init                (void);
+void mini_lookup_method_cleanup             (void);
+/// Modified by zx end
 guint32   mono_reverse_branch_op            (guint32 opcode);
 void      mono_disassemble_code             (MonoCompile *cfg, guint8 *code, int size, char *id);
 MonoJumpInfoTarget mono_call_to_patch       (MonoCallInst *call);

@@ -78,11 +78,19 @@ STATIC struct fnlz_roots_s {
   struct finalizable_object *finalize_now;
 } GC_fnlz_roots = { NULL, NULL };
 
-void GC_clear_finalizable_object_table()
+void GC_clear_finalizable_object_table(void)
 {
     log_fo_table_size = -1;
     GC_fnlz_roots.fo_head = NULL;
     GC_fnlz_roots.finalize_now = NULL;
+    /// Modified by zx start
+    GC_dl_hashtbl.head = NULL;
+    GC_dl_hashtbl.entries = 0;
+    GC_dl_hashtbl.log_size = -1;
+    GC_ll_hashtbl.entries = 0;
+    GC_ll_hashtbl.head = NULL;
+    GC_ll_hashtbl.log_size = -1;
+    /// Modified by zx end
 }
 
 #ifdef AO_HAVE_store

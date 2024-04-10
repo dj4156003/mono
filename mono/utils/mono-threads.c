@@ -32,6 +32,7 @@
 #include <mono/utils/mono-threads-coop.h>
 #include <mono/utils/mono-threads-debug.h>
 #include <mono/utils/os-event.h>
+#include <mono/metadata/metadata.h>
 #include <mono/utils/w32api.h>
 #include <glib.h>
 
@@ -95,7 +96,58 @@ static guint32 sleepWarnDuration = SLEEP_DURATION_BEFORE_WARNING,
 	    sleepAbortDuration = SLEEP_DURATION_BEFORE_ABORT;
 
 static int suspend_posts, resume_posts, abort_posts, waits_done, pending_ops;
+/// Modified by zx start
+struct MonoThreadWrapperInfo
+{
+    MonoThreadInfo* info;
+    MonoNativeThreadId id;
+    struct MonoThreadWrapperInfo* next;
+    struct MonoThreadWrapperInfo* prev;
+};
 
+static struct MonoThreadWrapperInfo* custome_threads_head = NULL;
+static struct MonoThreadWrapperInfo* custome_threads_tail = NULL;
+
+static 
+void insert_to_custome_threads(struct MonoThreadWrapperInfo* item)
+{
+    if (custome_threads_tail == NULL)
+    {
+        custome_threads_head = item;
+        custome_threads_tail = item;
+        item->prev = NULL;
+        item->next = NULL;
+    } else
+    {
+        custome_threads_tail->next = item;
+        item->prev = custome_threads_tail;
+        item->next = NULL;
+        custome_threads_tail = item;
+    }
+}
+
+static
+void remove_from_custome_threads(struct MonoThreadWrapperInfo* item) {
+    if (item->prev != NULL)
+    {
+        item->prev->next = item->next;
+    } else 
+    {
+        custome_threads_head = item->next;
+    }
+
+    if (item->next != NULL) 
+    {
+        item->next->prev = item->prev;
+    } else 
+    {
+        custome_threads_tail = item->prev;
+    }
+
+    item->prev = NULL;
+    item->next = NULL;
+}
+/// Modified by zx end
 void
 mono_threads_notify_initiator_of_abort (MonoThreadInfo* info)
 {
@@ -950,6 +1002,13 @@ mono_thread_info_cleanup ()
 {
 	mono_native_tls_free (thread_info_key);
 	mono_native_tls_free (thread_exited_key);
+    /// Modified by zx start
+    mono_native_tls_free (small_id_key);
+    mono_thread_smr_cleanup();
+    init_callbacks = NULL;
+    mono_threads_inited = FALSE;
+    thread_list.head = NULL;
+    /// Modified by zx end
 }
 
 void
@@ -993,7 +1052,12 @@ mono_thread_info_init (size_t info_size)
 
 	mono_lls_init (&thread_list, NULL);
 	mono_thread_smr_init ();
-	mono_threads_suspend_init ();
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_threads_suspend_init ();
+    }
+    /// Modified by zx end
 	mono_threads_coop_init ();
 	mono_threads_platform_init ();
 

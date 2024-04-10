@@ -454,6 +454,10 @@ struct _MonoDomain {
 
 	// Holds domain code memory
 	MonoMemoryManager *memory_manager;
+    
+    /// Modified by zx start
+    void *wrapped_pointer;
+    /// Modified by zx end
 };
 
 typedef struct  {

@@ -245,13 +245,22 @@ mono_attach_cleanup (void)
 {
 	if (listen_fd)
 		close (listen_fd);
+    /// Modified by zx start
+    listen_fd = 0;
+    /// Modified by zx end
 	if (ipc_filename)
 		unlink (ipc_filename);
+    /// Modified by zx start
+    ipc_filename = NULL;
+    /// Modified by zx end
 
 	stop_receiver_thread = TRUE;
 	if (conn_fd)
 		/* This will cause receiver_thread () to break out of the read () call */
 		close (conn_fd);
+    /// Modified by zx start
+    conn_fd = 0;
+    /// Modified by zx end
 
 	/* Wait for the receiver thread to exit */
 	if (receiver_thread_handle)

@@ -2925,11 +2925,15 @@ mono_jit_cleanup (MonoDomain *domain)
 
 	// after mini_cleanup everything is cleaned up so MONO_EXIT_GC_UNSAFE
 	// can't work and doesn't make sense.
-
-	mono_thread_manage_internal ();
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_thread_manage_internal ();
+    /// Modified by zx end
 
 	mini_cleanup (domain);
-
+    /// Modified by zx start
+    mono_ee_interp_cleanup();
+    /// Modified by zx end
 }
 
 void
@@ -3020,8 +3024,9 @@ mono_jit_set_aot_mode (MonoAotMode mode)
 {
 	/* we don't want to set mono_aot_mode twice */
 	static gboolean inited;
-
-	g_assert (!inited);
+    /// Modified by zx start
+	//g_assert (!inited);
+    /// Modified by zx end
 	mono_aot_mode = mode;
 	inited = TRUE;
 	

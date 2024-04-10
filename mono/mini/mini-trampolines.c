@@ -1317,6 +1317,17 @@ mono_trampolines_cleanup (void)
 	g_hash_table_destroy (rgctx_lazy_fetch_trampoline_hash);
 	g_hash_table_destroy (rgctx_lazy_fetch_trampoline_hash_addr);
 	mono_os_mutex_destroy (&trampolines_mutex);
+    /// Modified by zx start
+    rgctx_lazy_fetch_trampoline_hash = NULL;
+    rgctx_lazy_fetch_trampoline_hash_addr = NULL;
+    
+    trampoline_calls = 0;
+    jit_trampolines = 0;
+    unbox_trampolines = 0;
+    static_rgctx_trampolines = 0;
+    rgctx_unmanaged_lookups = 0;
+    rgctx_num_lazy_fetch_trampolines = 0;
+    /// Modified by zx end
 }
 
 guint8 *

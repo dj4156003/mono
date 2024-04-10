@@ -67,6 +67,9 @@ static void mono_metadata_field_info_full (MonoImage *meta, guint32 index, guint
 
 static MonoType* mono_signature_get_params_internal (MonoMethodSignature *sig, gpointer *iter);
 
+/// Modified by zx start
+static gboolean mono_metadata_inited = FALSE;
+/// Modified by zx end
 /*
  * This enumeration is used to describe the data types in the metadata
  * tables
@@ -2024,12 +2027,11 @@ mono_metadata_init (void)
 	Until runtime initialization is properly factored to work with what it needs we need workarounds like this.
 	FIXME: https://bugzilla.xamarin.com/show_bug.cgi?id=58793
 	*/
-	static gboolean inited;
-
-	if (inited)
+    /// Modified by zx start
+	if (mono_metadata_inited)
 		return;
-	inited = TRUE;
-
+    mono_metadata_inited = TRUE;
+    /// Modified by zx end
 	type_cache = g_hash_table_new (mono_type_hash, mono_type_equal);
 
 	for (i = 0; i < NBUILTIN_TYPES (); ++i)
@@ -2063,6 +2065,10 @@ mono_metadata_cleanup (void)
 	g_ptr_array_free (image_sets, TRUE);
 	image_sets = NULL;
 	mono_os_mutex_destroy (&image_sets_mutex);
+    /// Modified by zx start
+    mscorlib_image_set = NULL;
+    mono_metadata_inited = FALSE;
+    /// Modified by zx end
 }
 
 /**
@@ -3835,7 +3841,9 @@ mono_metadata_get_canonical_generic_inst (MonoGenericInst *candidate)
 	MonoGenericInst *ginst = (MonoGenericInst *)g_hash_table_lookup (set->ginst_cache, candidate);
 	if (!ginst) {
 		int size = MONO_SIZEOF_GENERIC_INST + type_argc * sizeof (MonoType *);
-		ginst = (MonoGenericInst *)mono_image_set_alloc0 (set, size);
+        /// Modified by zx start
+        ginst = (MonoGenericInst *)mono_image_set_alloc0 (set, size);
+        /// Modified by zx end
 #ifndef MONO_SMALL_CONFIG
 		ginst->id = mono_atomic_inc_i32 (&next_generic_inst_id);
 #endif
@@ -8467,3 +8475,25 @@ mono_metadata_get_class_guid (MonoClass* klass, guint8* guid, MonoError *error)
 		g_warning ("Generated GUIDs only implemented for interfaces!");
 #endif
 }
+
+/// Modified by zx start
+static mono_bool g_mono_is_in_reboot = FALSE;
+
+void
+mono_start_reboot(void)
+{
+    g_mono_is_in_reboot = TRUE;
+}
+
+void
+mono_end_reboot(void)
+{
+    g_mono_is_in_reboot = FALSE;
+}
+
+mono_bool
+mono_is_reboot(void)
+{
+    return g_mono_is_in_reboot;
+}
+/// Modified by zx end

@@ -1990,6 +1990,9 @@ GC_INNER ptr_t GC_allocobj(size_t sz, int kind);
                                 /* Make the indicated                   */
                                 /* free list nonempty, and return its   */
                                 /* head.  Sz is in granules.            */
+/// Modified by zx start
+GC_INNER void GC_alloc_cleanup(void);
+/// Modified by zx end
 
 #ifdef GC_ADD_CALLER
   /* GC_DBG_EXTRAS is used by GC debug API functions (unlike GC_EXTRAS  */
@@ -2036,7 +2039,9 @@ GC_INNER hdr * GC_find_header(ptr_t h);
 
 GC_INNER void GC_add_to_heap(struct hblk *p, size_t bytes);
                         /* Add a HBLKSIZE aligned chunk to the heap.    */
-
+/// Modified by zx start
+GC_INNER int GC_is_first_init(void);
+/// Modified by zx end
 #ifdef USE_PROC_FOR_LIBRARIES
   GC_INNER void GC_add_to_our_memory(ptr_t p, size_t bytes);
                         /* Add a chunk to GC_our_memory.        */
@@ -2390,6 +2395,9 @@ GC_INNER void GC_setpagesize(void);
 GC_INNER void GC_initialize_offsets(void);      /* defined in obj_map.c */
 
 GC_INNER void GC_bl_init(void);
+/// Modified by zx start
+GC_INNER void GC_bl_cleanup(void);
+/// Modified by zx end
 GC_INNER void GC_bl_init_no_interiors(void);    /* defined in blacklst.c */
 
 GC_INNER void GC_start_debugging_inner(void);   /* defined in dbg_mlc.c. */
@@ -2561,13 +2569,20 @@ GC_INNER void *GC_store_debug_info_inner(void *p, word sz, const char *str,
   GC_INNER void GC_release_mark_lock(void);
   GC_INNER void GC_notify_all_builder(void);
   GC_INNER void GC_wait_for_reclaim(void);
+  /// Modified by zx start
+  GC_INNER void GC_notify_all_destroyed(void);
+  /// Modified by zx end
 
   GC_EXTERN signed_word GC_fl_builder_count; /* Protected by mark lock. */
-
+  /// Modified by zx start
+  GC_EXTERN signed_word GC_thread_destoryed_count; /* destroyed thread count. */
+  /// Modified by zx end
   GC_INNER void GC_notify_all_marker(void);
   GC_INNER void GC_wait_marker(void);
   GC_EXTERN word GC_mark_no;            /* Protected by mark lock.      */
-
+  /// Modified by zx start
+  GC_EXTERN GC_bool GC_help_wanted;
+  /// Modified by zx end
   GC_INNER void GC_help_marker(word my_mark_no);
               /* Try to help out parallel marker for mark cycle         */
               /* my_mark_no.  Returns if the mark cycle finishes or     */
@@ -2577,6 +2592,11 @@ GC_INNER void *GC_store_debug_info_inner(void *p, word sz, const char *str,
   GC_INNER void GC_start_mark_threads_inner(void);
 #endif /* PARALLEL_MARK */
 
+/// Modified by zx start
+GC_INNER void GC_clear_threads(void);
+
+GC_INNER void GC_clear_inner_types(void);
+/// Modified by zx end
 #if defined(GC_PTHREADS) && !defined(GC_WIN32_THREADS) && !defined(NACL) \
     && !defined(GC_DARWIN_THREADS) && !defined(SIG_SUSPEND)
   /* We define the thread suspension signal here, so that we can refer  */

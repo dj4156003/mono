@@ -1590,6 +1590,19 @@ mono_thread_attach (MonoDomain *domain)
 	return mono_thread_attach_external_native_thread (domain, FALSE);
 }
 
+/// Modified by zx start
+void
+mono_thread_reattach (MonoDomain *domain, MonoThread *oldthread)
+{
+    MonoThread *newThread = mono_thread_internal_attach (domain);
+    
+    oldthread->obj.vtable = newThread->obj.vtable;
+    oldthread->obj.synchronisation = newThread->obj.synchronisation;
+    oldthread->internal_thread = newThread->internal_thread;
+    oldthread->pending_exception = newThread->pending_exception;
+    oldthread->start_obj = newThread->start_obj;
+}
+/// Modified by zx end
 /**
  * mono_thread_attach_external_native_thread:
  *
@@ -3465,7 +3478,10 @@ free_context (void *user_data)
 	mono_threads_unlock ();
 
 	mono_gchandle_free_internal (data->gc_handle);
-	mono_free_static_data (data->static_data);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_free_static_data (data->static_data);
+    /// Modified by zx end
 	g_free (data);
 }
 
@@ -3532,13 +3548,16 @@ ves_icall_System_Runtime_Remoting_Contexts_Context_ReleaseContext (MonoAppContex
 void mono_thread_init (MonoThreadStartCB start_cb,
 		       MonoThreadAttachCB attach_cb)
 {
-	mono_coop_mutex_init_recursive (&threads_mutex);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_init_recursive (&threads_mutex);
 #if SIZEOF_VOID_P == 4
-	mono_os_mutex_init (&mono_interlocked_mutex);
+        mono_os_mutex_init (&mono_interlocked_mutex);
 #endif
-	mono_coop_mutex_init_recursive(&joinable_threads_mutex);
-
+        mono_coop_mutex_init_recursive(&joinable_threads_mutex);
+    }
+    /// Modified by zx end
 	mono_os_event_init (&background_change_event, FALSE);
 	
 	mono_coop_cond_init (&pending_native_thread_join_calls_event);
@@ -3549,7 +3568,11 @@ void mono_thread_init (MonoThreadStartCB start_cb,
 
 	mono_thread_start_cb = start_cb;
 	mono_thread_attach_cb = attach_cb;
-
+    /// Modified by zx start
+    shutting_down = FALSE;
+    unity_shutting_down = FALSE;
+    managed_thread_id_counter = 0;
+    /// Modified by zx end
 }
 
 static gpointer
@@ -3644,6 +3667,23 @@ mono_thread_callbacks_init (void)
 	mono_thread_info_callbacks_init (&cb);
 }
 
+/// Modified by zx start
+#if MONO_SMALL_CONFIG
+#define NUM_STATIC_DATA_IDX 4
+static const int static_data_size [NUM_STATIC_DATA_IDX] = {
+    64, 256, 1024, 4096
+};
+#else
+#define NUM_STATIC_DATA_IDX 8
+static const int static_data_size [NUM_STATIC_DATA_IDX] = {
+    1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216
+};
+#endif
+
+static MonoBitSet *thread_reference_bitmaps [NUM_STATIC_DATA_IDX];
+static MonoBitSet *context_reference_bitmaps [NUM_STATIC_DATA_IDX];
+
+/// Modified by zx end
 /**
  * mono_thread_cleanup:
  */
@@ -3669,22 +3709,77 @@ mono_thread_cleanup (void)
 	if (!mono_runtime_get_no_exec ())
 		mono_w32mutex_abandon (mono_thread_internal_current ());
 #endif
-
-#if 0
+    /// Modified by zx start
+#if 1
 	/* This stuff needs more testing, it seems one of these
 	 * critical sections can be locked when mono_thread_cleanup is
 	 * called.
 	 */
-	mono_coop_mutex_destroy (&threads_mutex);
-	mono_os_mutex_destroy (&mono_interlocked_mutex);
-	mono_os_mutex_destroy (&delayed_free_table_mutex);
-	mono_os_mutex_destroy (&small_id_mutex);
+    if (!mono_is_reboot())
+    {
+        mono_coop_mutex_destroy (&threads_mutex);
+#if SIZEOF_VOID_P == 4
+        mono_os_mutex_destroy (&mono_interlocked_mutex);
+#endif
+        mono_coop_mutex_destroy (&joinable_threads_mutex);
+    }
+
+	//mono_os_mutex_destroy (&delayed_free_table_mutex);
+	//mono_os_mutex_destroy (&small_id_mutex);
 	mono_coop_cond_destroy (&zero_pending_joinable_thread_event);
 	mono_coop_cond_destroy (&pending_native_thread_join_calls_event);
 	mono_os_event_destroy (&background_change_event);
 #endif
-}
+    
+    if (threads_array)
+    {
+        g_array_free(threads_array, FALSE);
+        threads_array = NULL;
+    }
+    
+    if (threads)
+    {
+        mono_g_hash_table_destroy(threads);
+        threads = NULL;
+    }
+    
+    if (contexts)
+    {
+        g_hash_table_destroy(contexts);
+        contexts = NULL;
+    }
+    context_queue = NULL;
+    if (threads_starting_up)
+    {
+        mono_g_hash_table_destroy(threads_starting_up);
+        threads_starting_up = NULL;
+    }
+    
+    joinable_threads_lock ();
+    if (joinable_threads)
+    {
+        g_hash_table_destroy(joinable_threads);
+        joinable_threads = NULL;
+    }
+    joinable_thread_count = 0;
+    joinable_threads_unlock ();
 
+    if (pending_native_thread_join_calls)
+    {
+        g_hash_table_destroy(pending_native_thread_join_calls);
+        pending_native_thread_join_calls = NULL;
+    }
+    
+    if (pending_joinable_threads)
+    {
+        g_hash_table_destroy(pending_joinable_threads);
+        pending_joinable_threads = NULL;
+    }
+    
+    thread_dump_dir = NULL;
+    mono_thread_interruption_request_flag = 0;
+}
+/// Modified by zx end
 void
 mono_threads_install_cleanup (MonoThreadCleanupFunc func)
 {
@@ -4905,21 +5000,22 @@ mono_thread_get_undeniable_exception (void)
 	return exc;
 }
 
-#if MONO_SMALL_CONFIG
-#define NUM_STATIC_DATA_IDX 4
-static const int static_data_size [NUM_STATIC_DATA_IDX] = {
-	64, 256, 1024, 4096
-};
-#else
-#define NUM_STATIC_DATA_IDX 8
-static const int static_data_size [NUM_STATIC_DATA_IDX] = {
-	1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216
-};
-#endif
-
-static MonoBitSet *thread_reference_bitmaps [NUM_STATIC_DATA_IDX];
-static MonoBitSet *context_reference_bitmaps [NUM_STATIC_DATA_IDX];
-
+/// Modified by zx start
+//#if MONO_SMALL_CONFIG
+//#define NUM_STATIC_DATA_IDX 4
+//static const int static_data_size [NUM_STATIC_DATA_IDX] = {
+//	64, 256, 1024, 4096
+//};
+//#else
+//#define NUM_STATIC_DATA_IDX 8
+//static const int static_data_size [NUM_STATIC_DATA_IDX] = {
+//	1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216
+//};
+//#endif
+//
+//static MonoBitSet *thread_reference_bitmaps [NUM_STATIC_DATA_IDX];
+//static MonoBitSet *context_reference_bitmaps [NUM_STATIC_DATA_IDX];
+/// Modified by zx end
 static void
 mark_slots (void *addr, MonoBitSet **bitmaps, MonoGCMarkFunc mark_func, void *gc_data)
 {

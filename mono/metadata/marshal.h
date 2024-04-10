@@ -367,6 +367,10 @@ typedef void (*RuntimeInvokeDynamicFunction) (void *args, MonoObject **exc, void
 
 void
 mono_install_marshal_callbacks (MonoMarshalCallbacks *cb);
+/// Modified by zx start
+void
+mono_uninstall_marshal_callbacks (void);
+/// Modified by zx end
 
 /* marshaling helper functions */
 

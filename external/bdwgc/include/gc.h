@@ -482,7 +482,9 @@ GC_API int GC_CALL GC_is_init_called(void);
 /* Win32 target.)  A duplicate invocation is a no-op.  GC_INIT should   */
 /* not be called after the shutdown.  See also GC_win32_free_heap().    */
 GC_API void GC_CALL GC_deinit(void);
-
+/// Modified by zx start
+GC_API void GC_CALL GC_reboot(void);
+/// Modified by zx end
 /* General purpose allocation routines, with roughly malloc calling     */
 /* conv.  The atomic versions promise that no relevant pointers are     */
 /* contained in the object.  The non-atomic versions guarantee that the */

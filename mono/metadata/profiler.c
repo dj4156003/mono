@@ -1064,6 +1064,9 @@ mono_profiler_cleanup (void)
 
 	if (mono_profiler_state.sampling_owner)
 		mono_os_sem_destroy (&mono_profiler_state.sampling_semaphore);
+    /// Modified by zx start
+    mono_profiler_state.profilers = NULL;
+    /// Modified by zx end
 }
 
 static void

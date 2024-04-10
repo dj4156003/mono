@@ -262,6 +262,11 @@ mono_interp_transform_method (InterpMethod *imethod, ThreadContext *context, Mon
 void
 mono_interp_transform_init (void);
 
+/// Modified by zx start
+void
+mono_interp_transform_cleanup (void);
+/// Modified by zx end
+
 InterpMethod *
 mono_interp_get_imethod (MonoDomain *domain, MonoMethod *method, MonoError *error);
 

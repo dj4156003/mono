@@ -382,12 +382,17 @@ GC_API void GC_start_incremental_collection()
     GC_collect_a_little();
   }
 }
-
+/// Modified by zx start
+static word last_min_bytes_allocd;
+static word last_gc_no;
+/// Modified by zx end
 /* Have we allocated enough to amortize a collection? */
 GC_INNER GC_bool GC_should_collect(void)
 {
-    static word last_min_bytes_allocd;
-    static word last_gc_no;
+/// Modified by zx start
+//    static word last_min_bytes_allocd;
+//    static word last_gc_no;
+/// Modified by zx end
     if (last_gc_no != GC_gc_no) {
       last_gc_no = GC_gc_no;
       last_min_bytes_allocd = min_bytes_allocd();
@@ -1591,3 +1596,31 @@ GC_INNER ptr_t GC_allocobj(size_t gran, int kind)
 
     return (ptr_t)(*flh);
 }
+
+/// Modified by zx start
+void GC_alloc_cleanup(void)
+{
+    GC_non_gc_bytes = 0;
+    GC_gc_no = 0;
+    GC_default_stop_func = GC_never_stop_func;
+    min_bytes_allocd_minimum = 1;
+    GC_non_gc_bytes_at_gc = 0;
+    GC_collect_at_heapsize = (word)(-1);
+    GC_should_start_incremental_collection = FALSE;
+    GC_disable_automatic_collection = FALSE;
+    last_min_bytes_allocd = 0;
+    last_gc_no = 0;
+    GC_check_heap = 0;
+    GC_print_all_smashed = 0;
+    GC_on_heap_resize = 0;
+    GC_heapsize_at_forced_unmap = 0;
+    GC_n_heap_sects = 0;
+    GC_least_plausible_heap_addr = (void *)ONES;
+    GC_greatest_plausible_heap_addr = 0;
+    GC_max_heapsize = 0;
+    GC_fo_entries = 0;
+    GC_fail_count = 0;
+    last_fo_entries = 0;
+    last_bytes_finalized = 0;
+}
+/// Modified by zx end

@@ -203,7 +203,10 @@ mono_object_get_domain      (MonoObject *obj);
 
 MONO_API MONO_RT_EXTERNAL_ONLY MonoClass*
 mono_object_get_class       (MonoObject *obj);
-
+/// Modified by zx start
+MONO_API MONO_RT_EXTERNAL_ONLY void
+mono_object_replace_vtable       (MonoObject *obj, MonoVTable* table);
+/// Modified by zx end
 MONO_API MONO_RT_EXTERNAL_ONLY void*
 mono_object_unbox	    (MonoObject *obj);
 

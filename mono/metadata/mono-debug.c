@@ -137,6 +137,9 @@ mono_debug_cleanup (void)
 	if (mono_debug_handles)
 		g_hash_table_destroy (mono_debug_handles);
 	mono_debug_handles = NULL;
+    /// Modified by zx start
+    mono_debug_initialized = FALSE;
+    /// Modified by zx end
 }
 
 /**

@@ -112,6 +112,18 @@ STATIC int GC_array_mark_proc_index = 0; /* procedures.                 */
   STATIC GC_bool GC_explicit_typing_initialized = FALSE;
 #endif
 
+/// Modified by zx start
+void GC_clear_inner_types(void)
+{
+    GC_explicit_kind = 0;
+    GC_array_kind = 0;
+    GC_typed_mark_proc_index = 0;
+    GC_array_mark_proc_index = 0;
+    GC_avail_descr = 0;
+    GC_explicit_typing_initialized = FALSE;
+}
+/// Modified by zx end
+
 STATIC void GC_push_typed_structures_proc(void)
 {
   GC_PUSH_ALL_SYM(GC_ext_descriptors);

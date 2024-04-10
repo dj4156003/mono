@@ -103,6 +103,14 @@ mono_stack_walk_async_safe   (MonoStackWalkAsyncSafe func, void *initial_sig_con
 MONO_API MonoMethodHeader*
 mono_method_get_header_checked (MonoMethod *method, MonoError *error);
 
+/// Modified by zx start
+MONO_API void
+mono_method_set_wrapped_pointer (MonoMethod* method, void* ptr);
+
+MONO_API void*      
+mono_method_get_wrapped_pointer (MonoMethod* method);
+/// Modified by zx end
+
 MONO_END_DECLS
 
 #endif

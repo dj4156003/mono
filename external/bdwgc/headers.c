@@ -31,11 +31,22 @@ STATIC bottom_index * GC_all_bottom_indices = 0;
 STATIC bottom_index * GC_all_bottom_indices_end = 0;
                         /* Pointer to the last (highest address)        */
                         /* bottom_index.  Assumes the lock is held.     */
+/// Modified by zx start
+static hdr * hdr_free_list = 0;
+/* Routines to dynamically allocate collector data structures that will */
+/* never be freed.                                                      */
+
+static ptr_t scratch_free_ptr = 0;
+/// Modified by zx end
 
 void GC_clear_bottom_indices()
 {
     GC_all_bottom_indices = 0;
     GC_all_bottom_indices_end = 0;
+    /// Modified by zx start
+    hdr_free_list = 0;
+    scratch_free_ptr = 0;
+    /// Modified by zx end
 }
 
 /* Non-macro version of header location routine */
@@ -113,10 +124,12 @@ GC_INNER hdr *
   }
 }
 
-/* Routines to dynamically allocate collector data structures that will */
-/* never be freed.                                                      */
-
-static ptr_t scratch_free_ptr = 0;
+/// Modified by zx start
+///* Routines to dynamically allocate collector data structures that will */
+///* never be freed.                                                      */
+//
+//static ptr_t scratch_free_ptr = 0;
+/// Modified by zx end
 
 /* GC_scratch_last_end_ptr is end point of last obtained scratch area.  */
 /* GC_scratch_end_ptr is end point of current scratch area.             */
@@ -167,8 +180,9 @@ GC_INNER ptr_t GC_scratch_alloc(size_t bytes)
         GC_scratch_last_end_ptr = GC_scratch_end_ptr;
     }
 }
-
-static hdr * hdr_free_list = 0;
+/// Modified by zx start
+//static hdr * hdr_free_list = 0;
+/// Modified by zx end
 
 /* Return an uninitialized header */
 static hdr * alloc_hdr(void)

@@ -3144,4 +3144,21 @@ exit:
 	HANDLE_FUNCTION_RETURN ();
 }
 
+/// Modified by zx start
+void*
+mono_domain_get_wrapped_pointer(MonoDomain *domain) {
+    if (domain == NULL)
+        return NULL;
+    
+    return domain->wrapped_pointer;
+}
+
+void
+mono_domain_set_wrapped_pointer(MonoDomain *domain, void* pointer) {
+    if (domain == NULL)
+        return;
+    
+    domain->wrapped_pointer = pointer;
+}
+/// Modified by zx end
 

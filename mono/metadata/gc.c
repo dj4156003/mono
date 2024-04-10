@@ -1077,6 +1077,14 @@ mono_gc_init (void)
 	if (!mono_runtime_get_no_exec ())
 		init_finalizer_thread ();
 #endif
+    /// Modified by zx start
+    finalizer_thread_pulsed = FALSE;
+    gc_disabled = FALSE;
+    finalizing_root_domain = FALSE;
+    finalizer_thread_exited = FALSE;
+    pending_done = FALSE;
+    finished = FALSE;
+    /// Modified by zx end
 }
 
 void
@@ -1153,7 +1161,10 @@ mono_gc_cleanup (void)
 		mono_reference_queue_cleanup ();
 	}
 	mono_coop_mutex_destroy (&finalizer_mutex);
-	mono_coop_mutex_destroy (&reference_queue_mutex);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_coop_mutex_destroy (&reference_queue_mutex);
+    /// Modified by zx end
 }
 
 gboolean
@@ -1268,6 +1279,9 @@ mono_reference_queue_cleanup (void)
 	for (; queue; queue = queue->next)
 		queue->should_be_deleted = TRUE;
 	reference_queue_proccess_all ();
+    /// Modified by zx start
+    ref_queues = NULL;
+    /// Modified by zx end
 }
 
 static void

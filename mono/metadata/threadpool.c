@@ -155,8 +155,10 @@ static void
 cleanup (void)
 {
 	mono_threadpool_worker_cleanup ();
-
-	mono_refcount_dec (&threadpool);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+        mono_refcount_dec (&threadpool);
+    /// Modified by zx end
 }
 
 gboolean

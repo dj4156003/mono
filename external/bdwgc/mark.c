@@ -111,6 +111,11 @@ GC_INNER size_t GC_mark_stack_size = 0;
         /* that may be nonempty.        */
         /* Updated only by initiating   */
         /* thread.                      */
+/// Modified by zx start
+GC_INNER word GC_mark_no = 0;
+
+static mse *main_local_mark_stack;
+/// Modified by zx end
 #endif
 
 GC_INNER mark_state_t GC_mark_state = MS_NONE;
@@ -125,12 +130,78 @@ STATIC GC_bool GC_objects_are_marked = FALSE;
 void GC_reset_mark_statics()
 {
      GC_n_mark_procs = GC_RESERVED_MARK_PROCS;
-     GC_n_kinds = GC_N_KINDS_INITIAL_VALUE;
+     /// Modified by zx start
+     //GC_n_kinds = GC_N_KINDS_INITIAL_VALUE;
+     /// Modified by zx end
      GC_mark_stack_size = 0;
      GC_mark_state = MS_NONE;
      GC_mark_stack_too_small = FALSE;
      scan_ptr = NULL;
      GC_objects_are_marked = FALSE;
+     /// Modified by zx start
+#ifdef PARALLEL_MARK
+     main_local_mark_stack = NULL;
+     GC_first_nonempty = 0;
+#endif
+     GC_obj_kinds[PTRFREE].ok_freelist = &GC_aobjfreelist[0];
+     GC_obj_kinds[PTRFREE].ok_reclaim_list = 0;
+     GC_obj_kinds[PTRFREE].ok_descriptor = GC_DS_LENGTH;
+     GC_obj_kinds[PTRFREE].ok_relocate_descr = FALSE;
+     GC_obj_kinds[PTRFREE].ok_init = FALSE;
+#  ifdef ENABLE_DISCLAIM
+     GC_obj_kinds[PTRFREE].ok_mark_unconditionally = FALSE;
+     GC_obj_kinds[PTRFREE].ok_disclaim_proc = 0;
+#endif
+     GC_obj_kinds[NORMAL].ok_freelist = &GC_objfreelist[0];
+     GC_obj_kinds[NORMAL].ok_reclaim_list = 0;
+     GC_obj_kinds[NORMAL].ok_descriptor = GC_DS_LENGTH;
+     GC_obj_kinds[NORMAL].ok_relocate_descr = TRUE;
+     GC_obj_kinds[NORMAL].ok_init = TRUE;
+#  ifdef ENABLE_DISCLAIM
+     GC_obj_kinds[NORMAL].ok_mark_unconditionally = FALSE;
+     GC_obj_kinds[NORMAL].ok_disclaim_proc = 0;
+#endif
+     GC_obj_kinds[UNCOLLECTABLE].ok_freelist = &GC_uobjfreelist[0];
+     GC_obj_kinds[UNCOLLECTABLE].ok_reclaim_list = 0;
+     GC_obj_kinds[UNCOLLECTABLE].ok_descriptor = GC_DS_LENGTH;
+     GC_obj_kinds[UNCOLLECTABLE].ok_relocate_descr = TRUE;
+     GC_obj_kinds[UNCOLLECTABLE].ok_init = TRUE;
+#  ifdef ENABLE_DISCLAIM
+     GC_obj_kinds[UNCOLLECTABLE].ok_mark_unconditionally = FALSE;
+     GC_obj_kinds[UNCOLLECTABLE].ok_disclaim_proc = 0;
+#endif
+# ifdef GC_ATOMIC_UNCOLLECTABLE
+     GC_obj_kinds[AUNCOLLECTABLE].ok_freelist = &GC_auobjfreelist[0];
+     GC_obj_kinds[AUNCOLLECTABLE].ok_reclaim_list = 0;
+     GC_obj_kinds[AUNCOLLECTABLE].ok_descriptor = GC_DS_LENGTH;
+     GC_obj_kinds[AUNCOLLECTABLE].ok_relocate_descr = FALSE;
+     GC_obj_kinds[AUNCOLLECTABLE].ok_init = FALSE;
+#  ifdef ENABLE_DISCLAIM
+     GC_obj_kinds[AUNCOLLECTABLE].ok_mark_unconditionally = FALSE;
+     GC_obj_kinds[AUNCOLLECTABLE].ok_disclaim_proc = 0;
+#endif
+#endif
+
+     unsigned kind, size;
+     for (kind = GC_N_KINDS_INITIAL_VALUE; kind < GC_n_kinds; kind++)
+     {
+        for (size = 1; size <= MAXOBJGRANULES; size++)
+        {
+            if (GC_obj_kinds[kind].ok_freelist)
+                GC_obj_kinds[kind].ok_freelist[size] = NULL;
+        }
+        GC_obj_kinds[kind].ok_disclaim_proc = 0;
+        GC_obj_kinds[kind].ok_init = 0;
+        GC_obj_kinds[kind].ok_mark_unconditionally = 0;
+        GC_obj_kinds[kind].ok_reclaim_list = NULL;
+        GC_obj_kinds[kind].ok_relocate_descr = FALSE;
+#ifdef ENABLE_DISCLAIM
+        GC_obj_kinds[kind].ok_mark_unconditionally = FALSE;
+        GC_obj_kinds[kind].ok_disclaim_proc = 0;
+#endif
+     }
+     GC_n_kinds = GC_N_KINDS_INITIAL_VALUE;
+     /// Modified by zx end
 }
 
 /* Is a collection in progress?  Note that this can return true in the  */
@@ -924,10 +995,11 @@ STATIC unsigned GC_active_count = 0;    /* Number of active helpers.    */
                                         /* within each mark cycle.  But */
                                         /* once it returns to 0, it     */
                                         /* stays zero for the cycle.    */
-
-GC_INNER word GC_mark_no = 0;
-
-static mse *main_local_mark_stack;
+/// Modified by zx start
+//GC_INNER word GC_mark_no = 0;
+//
+//static mse *main_local_mark_stack;
+/// Modified by zx end
 
 #ifdef LINT2
 # define LOCAL_MARK_STACK_SIZE (HBLKSIZE / 8)
@@ -1258,6 +1330,10 @@ GC_INNER void GC_help_marker(word my_mark_no)
            || (!GC_help_wanted && GC_mark_no == my_mark_no)) {
       GC_wait_marker();
     }
+    /// Modified by zx start
+    if (GC_thread_destoryed_count > 0)
+        return;
+    /// Modified by zx end
     my_id = GC_helper_count;
     if (GC_mark_no != my_mark_no || my_id > (unsigned)GC_markers_m1) {
       /* Second test is useful only if original threads can also        */

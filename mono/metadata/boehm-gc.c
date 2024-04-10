@@ -189,14 +189,19 @@ mono_gc_base_init (void)
 #ifndef HOST_WIN32
 	mono_w32handle_init ();
 #endif
-
-	roots = g_hash_table_new (NULL, NULL);
-	default_push_other_roots = GC_get_push_other_roots ();
-	GC_set_push_other_roots (mono_push_other_roots);
+    /// Modified by zx start
+    roots = g_hash_table_new (NULL, NULL);
+    if (!mono_is_reboot())
+    {
+        default_push_other_roots = GC_get_push_other_roots ();
+        GC_set_push_other_roots (mono_push_other_roots);
+        GC_set_no_dls (TRUE);
+    }
+    /// Modified by zx end
 	// GC_set_mark_stack_empty (mono_push_ephemerons);
-
-	GC_set_no_dls (TRUE);
-
+    /// Modified by zx start
+	//GC_set_no_dls (TRUE);
+    /// Modified by zx end
 	debug_opts = mono_gc_debug_get();
 	if (debug_opts)
 	{
@@ -314,7 +319,24 @@ mono_gc_dirty_range(void **ptr, size_t size)
 void
 mono_gc_base_cleanup (void)
 {
+    /// Modified by zx start
+    GC_gcollect();
 	GC_set_finalizer_notifier (NULL);
+    if (mono_is_reboot())
+        GC_reboot();
+    gc_initialized = 0;
+    GC_roots_proc_index = 0;
+    ephemeron_list = NULL;
+    
+    for (int i = MONO_GC_HANDLE_TYPE_MIN; i < MONO_GC_HANDLE_TYPE_MAX; ++ i)
+    {
+        gc_handles[i].bitmap = 0;
+        gc_handles[i].entries = 0;
+        gc_handles[i].size = 0;
+        gc_handles[i].slot_hint = 0;
+        gc_handles[i].domain_ids = 0;
+    }
+    /// Modified by zx end
 }
 
 void

@@ -256,9 +256,13 @@ mono_image_rva_map (MonoImage *image, guint32 addr)
 void
 mono_images_init (void)
 {
-	mono_os_mutex_init (&images_storage_mutex);
-	mono_os_mutex_init_recursive (&images_mutex);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_init (&images_storage_mutex);
+        mono_os_mutex_init_recursive (&images_mutex);
+    }
+    /// Modified by zx end
 	images_storage_hash = g_hash_table_new (g_str_hash, g_str_equal);
 
 	mono_loaded_images_init (mono_get_global_loaded_images (), NULL);
@@ -278,15 +282,30 @@ mono_images_init (void)
 void
 mono_images_cleanup (void)
 {
-	mono_os_mutex_destroy (&images_mutex);
-
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_destroy (&images_mutex);
+    }
+    /// Modified by zx end
 	mono_loaded_images_cleanup (mono_get_global_loaded_images (), TRUE);
 
 	g_hash_table_destroy (images_storage_hash);
+    /// Modified by zx start
+    images_storage_hash = NULL;
 
-	mono_os_mutex_destroy (&images_storage_mutex);
-
-	mutex_inited = FALSE;
+    if (!mono_is_reboot())
+    {
+        mono_os_mutex_destroy (&images_storage_mutex);
+        mutex_inited = FALSE;
+    }
+    
+    if (image_loaders)
+    {
+        g_slist_free(image_loaders);
+        image_loaders = NULL;
+    }
+    /// Modified by zx end
 }
 
 /**
@@ -1795,6 +1814,9 @@ do_mono_image_open (MonoAssemblyLoadContext *alc, const char *fname, MonoImageOp
 	image->metadata_only = metadata_only;
 	image->load_from_context = load_from_context;
 	image->ref_count = 1;
+    /// Modified by zx start
+    image->wrapped_pointer = NULL;
+    /// Modified by zx end
 	/* if MONO_SECURITY_MODE_CORE_CLR is set then determine if this image is platform code */
 	image->core_clr_platform_code = mono_security_core_clr_determine_platform_image (image);
 	g_free((void*)fname_remap);
@@ -3471,3 +3493,22 @@ mono_image_append_class_to_reflection_info_set (MonoClass *klass)
 	mono_image_unlock (image);
 }
 
+/// Modified by zx start
+void
+mono_image_set_wrapped_pointer (MonoImage* image, void* ptr)
+{
+    if (!image)
+        return;
+    
+    image->wrapped_pointer = ptr;
+}
+
+void*
+mono_image_get_wrapped_pointer (MonoImage* image)
+{
+    if (!image)
+        return NULL;
+    
+    return image->wrapped_pointer;
+}
+/// Modified by zx end

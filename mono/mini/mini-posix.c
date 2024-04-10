@@ -1141,16 +1141,26 @@ static gchar *lldb_path;
 void
 mono_init_native_crash_info (void)
 {
-	gdb_path = g_find_program_in_path ("gdb");
-	lldb_path = g_find_program_in_path ("lldb");
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        gdb_path = g_find_program_in_path ("gdb");
+        lldb_path = g_find_program_in_path ("lldb");
+    }
+    /// Modified by zx end
 	mono_threads_summarize_init ();
 }
 
 void
 mono_cleanup_native_crash_info (void)
 {
-	g_free (gdb_path);
-	g_free (lldb_path);
+    /// Modified by zx start
+    if (!mono_is_reboot())
+    {
+        g_free (gdb_path);
+        g_free (lldb_path);
+    }
+    /// Modified by zx end
 }
 
 static gboolean

@@ -308,6 +308,14 @@ mono_class_is_nullable (MonoClass *klass);
 MONO_API MONO_RT_EXTERNAL_ONLY MonoClass*
 mono_class_get_nullable_param (MonoClass *klass);
 
+/// Modified by zx start
+MONO_API MonoMethod*
+mono_class_get_method_from_name_sig_checked(MonoClass* klass, const char* name, int param_count, const char* sigDesc);
+
+MONO_API void       mono_class_set_wrapped_pointer (MonoClass* kclass, void* ptr);
+MONO_API void*      mono_class_get_wrapped_pointer (MonoClass* kclass);
+/// Modified by zx end
+
 MONO_END_DECLS
 
 #endif /* _MONO_CLI_CLASS_H_ */

@@ -236,6 +236,10 @@ struct _MonoAssembly {
 	guint32 fulltrust:2;	/* Has FullTrust permission */
 	guint32 unmanaged:2;	/* Has SecurityPermissionFlag.UnmanagedCode permission */
 	guint32 skipverification:2;	/* Has SecurityPermissionFlag.SkipVerification permission */
+    
+    /// Modified by zx start
+    void *wrapped_pointer;
+    /// Modified by zx end
 };
 
 typedef struct {
@@ -601,6 +605,10 @@ struct _MonoImage {
 	 * It's meant to be used only to mutate and query structures part of this image.
 	 */
 	mono_mutex_t    lock;
+    
+    /// Modified by zx start
+    void *wrapped_pointer;
+    /// Modified by zx end
 };
 
 /*

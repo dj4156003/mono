@@ -96,7 +96,9 @@ ptr_t GC_stackbottom = 0;
 int GC_dont_gc = FALSE;
 
 int GC_dont_precollect = FALSE;
-
+/// Modified by zx start
+unsigned GC_init_times = 0;
+/// Modified by zx end
 GC_bool GC_quiet = 0; /* used also in pcr_interface.c */
 
 #if !defined(NO_CLOCK) || !defined(SMALL_CONFIG)
@@ -887,6 +889,9 @@ GC_API void GC_CALL GC_init(void)
 #   endif
 
     if (EXPECT(GC_is_initialized, TRUE)) return;
+    /// Modified by zx start
+    ++ GC_init_times;
+    /// Modified by zx end
 #   ifdef REDIRECT_MALLOC
       {
         static GC_bool init_started = FALSE;
@@ -1439,6 +1444,45 @@ GC_API void GC_CALL GC_enable_incremental(void)
         GC_reset_default_push_other_roots();
     }
   }
+
+/// Modified by zx start
+int GC_is_first_init(void)
+{
+    return GC_init_times == 1 ? 1 : 0;
+}
+
+extern GC_bool GC_gcj_vector_initialized;
+extern GC_bool GC_gcj_malloc_initialized;
+GC_API void GC_CALL GC_reboot(void)
+{
+    if (GC_is_initialized) {
+    /* Prevent duplicate resource close.  */
+        GC_is_initialized = FALSE;
+#       if defined(THREADS) && (defined(MSWIN32) || defined(MSWINCE))
+        DeleteCriticalSection(&GC_write_cs);
+        DeleteCriticalSection(&GC_allocate_ml);
+#       endif
+        GC_clear_exclusion_table();
+        memset(&GC_arrays, 0, sizeof(GC_arrays));
+        GC_clear_freelist();
+        GC_clear_bottom_indices();
+        GC_clear_finalizable_object_table();
+        GC_reset_mark_statics();
+        GC_clear_threads();
+        GC_gcj_vector_initialized = FALSE;
+        GC_gcj_malloc_initialized = FALSE;
+        unsigned i = 0;
+        for (i = 0; i < TOP_SZ; ++ i)
+        {
+          GC_top_index[i] = GC_all_nils;
+        }
+        GC_clear_inner_types();
+        GC_alloc_cleanup();
+        GC_bl_cleanup();
+        GC_stackbottom = 0;
+    }
+}
+/// Modified by zx end
 
 #if defined(MSWIN32) || defined(MSWINCE)
 

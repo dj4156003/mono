@@ -130,6 +130,9 @@ struct _MonoClass {
 	MonoPropertyBag infrequent_data;
 
 	void *unity_user_data;
+    /// Modified by zx start
+    void *wrapped_pointer;
+    /// Modified by zx end
 };
 
 struct _MonoClassDef {

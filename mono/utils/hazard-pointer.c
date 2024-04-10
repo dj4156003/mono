@@ -422,4 +422,10 @@ mono_thread_smr_cleanup (void)
 	mono_lock_free_array_queue_cleanup (&delayed_free_queue);
 
 	/*FIXME, can't we release the small id table here?*/
+    /// Modified by zx start
+    small_id_next = 0;
+    highest_small_id = -1;
+    small_id_table = NULL;
+    hazardous_pointer_count = 0;
+    /// Modified by zx end
 }

@@ -240,6 +240,14 @@ typedef mono_bool (*MonoCoreClrPlatformCB) (const char *image_name);
 MONO_API void
 mono_security_set_core_clr_platform_callback (MonoCoreClrPlatformCB callback);
 
+/// Modified by zx start
+MONO_API void*
+mono_domain_get_wrapped_pointer           (MonoDomain *domain);
+
+MONO_API void
+mono_domain_set_wrapped_pointer           (MonoDomain *domain, void* pointer);
+/// Modified by zx end
+
 MONO_END_DECLS
 
 #endif /* _MONO_METADATA_APPDOMAIN_H_ */

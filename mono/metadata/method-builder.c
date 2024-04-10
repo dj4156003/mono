@@ -145,7 +145,9 @@ create_method_noilgen (MonoMethodBuilder *mb, MonoMethodSignature *signature, in
 void
 mono_install_method_builder_callbacks (MonoMethodBuilderCallbacks *cb)
 {
-	g_assert (!cb_inited);
+    /// Modified by zx start
+	//g_assert (!cb_inited);
+    /// Modified by zx end
 	g_assert (cb->version == MONO_METHOD_BUILDER_CALLBACKS_VERSION);
 	memcpy (&mb_cb, cb, sizeof (MonoMethodBuilderCallbacks));
 	cb_inited = TRUE;

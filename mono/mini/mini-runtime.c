@@ -613,6 +613,9 @@ mono_tramp_info_cleanup (void)
 		mono_tramp_info_free (info);
 	}
 	g_slist_free (tramp_infos);
+    /// Modified by zx start
+    tramp_infos = NULL;
+    /// Modified by zx end
 }
 
 /* Register trampolines created before the root domain was created in the jit info tables */
@@ -1002,6 +1005,9 @@ free_jit_tls_data (MonoJitTlsData *jit_tls)
 
 	g_free (jit_tls->first_lmf);
 	g_free (jit_tls);
+    /// Modified by zx start
+    jit_tls =  NULL;
+    /// Modified by zx end
 }
 
 static void
@@ -1072,9 +1078,10 @@ mini_thread_cleanup (MonoNativeThreadId tid)
 		}
 		mono_hazard_pointer_clear (mono_hazard_pointer_get (), 1);
 	}
-
-	if (jit_tls)
-		free_jit_tls_data (jit_tls);
+    /// Modified by zx start
+//	if (jit_tls)
+//		free_jit_tls_data (jit_tls);
+    /// Modified by zx end
 }
 
 MonoJumpInfo *
@@ -1867,6 +1874,28 @@ mini_init_gsctx (MonoDomain *domain, MonoMemPool *mp, MonoGenericContext *contex
 	}
 }
 
+/// Modified by zx start
+static gboolean lookups_inited = FALSE;
+static int lookups = 0;
+static int failed_lookups = 0;
+
+void 
+mini_lookup_method_init (void)
+{
+    mono_counters_register ("Shared generic lookups", MONO_COUNTER_INT|MONO_COUNTER_GENERICS, &lookups);
+    mono_counters_register ("Failed shared generic lookups", MONO_COUNTER_INT|MONO_COUNTER_GENERICS, &failed_lookups);
+    lookups_inited = TRUE;
+}
+
+void
+mini_lookup_method_cleanup (void)
+{
+    lookups = 0;
+    failed_lookups = 0;
+    lookups_inited = FALSE;
+}
+/// Modified by zx end
+
 /*
  * LOCKING: Acquires the jit code hash lock.
  */
@@ -1874,10 +1903,11 @@ MonoJitInfo*
 mini_lookup_method (MonoDomain *domain, MonoMethod *method, MonoMethod *shared)
 {
 	MonoJitInfo *ji;
-	static gboolean inited = FALSE;
-	static int lookups = 0;
-	static int failed_lookups = 0;
-
+    /// Modified by zx start
+//	static gboolean inited = FALSE;
+//	static int lookups = 0;
+//	static int failed_lookups = 0;
+    /// Modified by zx end
 	mono_domain_jit_code_hash_lock (domain);
 	ji = (MonoJitInfo *)mono_internal_hash_table_lookup (&domain->jit_code_hash, method);
 	if (!ji && shared) {
@@ -1885,11 +1915,11 @@ mini_lookup_method (MonoDomain *domain, MonoMethod *method, MonoMethod *shared)
 		ji = (MonoJitInfo *)mono_internal_hash_table_lookup (&domain->jit_code_hash, shared);
 		if (ji && !ji->has_generic_jit_info)
 			ji = NULL;
-		if (!inited) {
-			mono_counters_register ("Shared generic lookups", MONO_COUNTER_INT|MONO_COUNTER_GENERICS, &lookups);
-			mono_counters_register ("Failed shared generic lookups", MONO_COUNTER_INT|MONO_COUNTER_GENERICS, &failed_lookups);
-			inited = TRUE;
+        /// Modified by zx start
+		if (!lookups_inited) {
+            mini_lookup_method_init();
 		}
+        /// Modified by zx end
 
 		++lookups;
 		if (!ji)
@@ -3244,7 +3274,11 @@ mono_llvmonly_runtime_invoke (MonoMethod *method, RuntimeInvokeInfo *info, void 
 		return NULL;
 	}
 }
-
+/// Modified by zx start
+static gboolean iscalled = FALSE;
+static gboolean iscalled2 = FALSE;
+static RuntimeInvokeDynamicFunction dyn_runtime_invoke = NULL;
+/// Modified by zx end
 /**
  * mono_jit_runtime_invoke:
  * \param method: the method to invoke
@@ -3384,7 +3418,9 @@ mono_jit_runtime_invoke (MonoMethod *method, void *obj, void **params, MonoObjec
 		*exc = NULL;
 
 #ifdef MONO_ARCH_DYN_CALL_SUPPORTED
-	static RuntimeInvokeDynamicFunction dyn_runtime_invoke = NULL;
+    /// Modified by zx start
+	//static RuntimeInvokeDynamicFunction dyn_runtime_invoke = NULL;
+    /// Modified by zx end
 	if (info->dyn_call_info) {
 		if (!dyn_runtime_invoke) {
 			mono_domain_lock (domain);
@@ -4275,6 +4311,9 @@ mini_free_jit_domain_info (MonoDomain *domain)
 
 	g_free (domain->runtime_info);
 	domain->runtime_info = NULL;
+    /// Modified by zx start
+    dyn_runtime_invoke = NULL;
+    /// Modified by zx end
 }
 
 #ifdef ENABLE_LLVM
@@ -5043,6 +5082,10 @@ jit_stats_cleanup (void)
 	mono_jit_stats.max_ratio_method = NULL;
 	g_free (mono_jit_stats.biggest_method);
 	mono_jit_stats.biggest_method = NULL;
+    /// Modified by zx start
+    // g_ptr_array_free(compilation_data.in_flight_methods);
+    compilation_data.in_flight_methods = NULL;
+    /// Modified by zx end
 }
 
 static void
@@ -5108,6 +5151,9 @@ mini_cleanup (MonoDomain *domain)
 			g_free (g_ptr_array_index (profile_options, i));
 		g_ptr_array_free (profile_options, TRUE);
 	}
+    /// Modified by zx start
+    mono_reflection_cleanup();
+    /// Modified by zx end
 
 	mono_icall_cleanup ();
 
@@ -5131,7 +5177,10 @@ mini_cleanup (MonoDomain *domain)
 
 	mono_code_manager_destroy (global_codeman);
 	g_free (vtable_trampolines);
-
+    /// Modified by zx start
+    vtable_trampolines = NULL;
+    global_codeman = NULL;
+    /// Modified by zx end
 	mini_jit_cleanup ();
 
 	mini_get_interp_callbacks ()->cleanup ();
@@ -5160,6 +5209,11 @@ mini_cleanup (MonoDomain *domain)
 #ifndef HOST_WIN32
 	mono_w32handle_cleanup ();
 #endif
+    /// Modified by zx start
+    mini_lookup_method_cleanup();
+    
+    free_runtime_aot();
+    /// Modified by zx end
 }
 #endif
 

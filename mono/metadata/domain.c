@@ -473,7 +473,9 @@ mono_domain_create (void)
 		create_domain_hook (domain);
 
 	MONO_PROFILER_RAISE (domain_loaded, (domain));
-	
+    /// Modified by zx start
+    domain->wrapped_pointer = NULL;
+    /// Modified by zx end
 	return domain;
 }
 
@@ -493,7 +495,9 @@ mono_domain_create (void)
 static MonoDomain *
 mono_init_internal (const char *filename, const char *exe_filename, const char *runtime_version)
 {
-	static MonoDomain *domain = NULL;
+    /// Modified by zx start
+	MonoDomain *domain = NULL;
+    /// Modified by zx end
 	MonoAssembly *ass = NULL;
 	MonoImageOpenStatus status = MONO_IMAGE_OK;
 	GSList *runtimes = NULL;
@@ -873,6 +877,9 @@ mono_cleanup (void)
 
 	mono_config_cleanup ();
 	mono_loader_cleanup ();
+    /// Modified by zx start
+    mono_free_managed_pointer();
+    /// Modified by zx end
 	mono_classes_cleanup ();
 	mono_assemblies_cleanup ();
 	mono_debug_cleanup ();
@@ -883,6 +890,10 @@ mono_cleanup (void)
 
 	mono_w32process_cleanup ();
 	mono_w32file_cleanup ();
+    /// Modified by zx start
+    domain_gc_desc = MONO_GC_DESCRIPTOR_NULL;;
+    domain_shadow_serial = 0L;
+    /// Modified by zx end
 }
 
 void
@@ -1267,9 +1278,18 @@ mono_domain_free (MonoDomain *domain, gboolean force)
 
 	mono_appdomains_lock ();
 	appdomains_list [domain->domain_id] = NULL;
+    /// Modified by zx start
+    appdomains_list = NULL;
+    /// Modified by zx end
 	mono_appdomains_unlock ();
-
-	mono_gc_free_fixed (domain);
+    /// Modified by zx start
+    appdomain_list_size = 0;
+    if (!mono_is_reboot())
+    {
+        //No need to notify GC to release the domain pointer during restart
+        mono_gc_free_fixed (domain);
+    }
+    /// Modified by zx end
 
 #ifndef DISABLE_PERFCOUNTERS
 	mono_atomic_dec_i32 (&mono_perfcounters->loader_appdomains);

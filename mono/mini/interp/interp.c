@@ -7533,3 +7533,17 @@ mono_ee_interp_init (const char *opts)
 
 	register_interp_stats ();
 }
+/// Modified by zx start
+void
+mono_ee_interp_cleanup(void)
+{
+    g_assert (mono_ee_api_version () == MONO_EE_API_VERSION);
+    g_assert (interp_init_done);
+    interp_init_done = FALSE;
+
+    mono_native_tls_free(thread_context_id);
+    mono_interp_opt = INTERP_OPT_DEFAULT;
+    mono_interp_callbacks_pointer = NULL;
+    mono_interp_transform_cleanup();
+}
+/// Modified by zx end
