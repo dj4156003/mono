@@ -928,6 +928,16 @@ mono_gc_free_fixed (void* addr)
 	GC_FREE (addr);
 }
 
+void* mono_gc_alloc_fixed_external (size_t size)
+{
+	return GC_MALLOC_UNCOLLECTABLE (size);
+}
+
+void mono_gc_free_fixed_external(void* address)
+{
+	GC_FREE (address);
+}
+
 #ifdef HEAP_VALIDATION_FREQUENCY
 static int counter = 0;
 static int validate_frequency = 0;

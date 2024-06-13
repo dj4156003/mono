@@ -75,7 +75,7 @@ struct _LivenessState {
 	void *callback_userdata;
 
 	register_object_callback filter_callback;
-	WorldStateChanged onWorldStart;
+	ReallocateArray reallocateArray;
 	guint traverse_depth; // track recursion. Prevent stack overflow by limiting recursion
 };
 
@@ -130,7 +130,7 @@ static size_t g_pointer_align = ALIGN_OF(gpointer);
 static custom_growable_block_array * block_array_create(LivenessState *state)
 {
 	custom_growable_block_array *array = g_new0(custom_growable_block_array, 1);
-	array->current_block = block_memory_callbacks.aligned_malloc_func(k_block_size, g_pointer_align);
+	array->current_block = state->reallocateArray(NULL, k_block_size, state->callback_userdata);
 	array->current_block->prev_block = NULL;
 	array->current_block->next_block = NULL;
 	array->current_block->next_item = array->current_block->p_data;
@@ -154,7 +154,7 @@ static void block_array_push_back(custom_growable_block_array *block_array, gpoi
 		custom_array_block* new_block = block_array->current_block->next_block;
 		if (block_array->current_block->next_block == NULL)
 		{
-			new_block = block_memory_callbacks.aligned_malloc_func(k_block_size, g_pointer_align);
+			new_block = state->reallocateArray(NULL, k_block_size, state->callback_userdata);
 			new_block->next_block = NULL;
 			new_block->prev_block = block_array->current_block;
 			new_block->next_item = new_block->p_data;
@@ -211,7 +211,7 @@ static void block_array_destroy(custom_growable_block_array *block_array, Livene
 	while (block != NULL) {
 		void *data_block = block;
 		block = block->next_block;
-		block_memory_callbacks.aligned_free_func(data_block);
+		state->reallocateArray(data_block, 0, state->callback_userdata);
 	}
 	g_free(block_array->iterator);
 	g_free(block_array);
@@ -870,7 +870,7 @@ void mono_unity_liveness_calculation_from_root(MonoObject *root, LivenessState *
 	mono_filter_objects(liveness_state);
 }
 
-LivenessState * mono_unity_liveness_allocate_struct(MonoClass *filter, guint max_count, register_object_callback callback, void *callback_userdata, WorldStateChanged onWorldStart)
+LivenessState * mono_unity_liveness_allocate_struct(MonoClass *filter, guint max_count, register_object_callback callback, void *callback_userdata, ReallocateArray reallocateArray)
 {
 	LivenessState *state = NULL;
 
@@ -887,7 +887,7 @@ LivenessState * mono_unity_liveness_allocate_struct(MonoClass *filter, guint max
 
 	state->callback_userdata = callback_userdata;
 	state->filter_callback = callback;
-	state->onWorldStart = onWorldStart;
+	state->reallocateArray = reallocateArray;
 
 	state->all_objects = block_array_create(state);
 	state->process_array = block_array_create(state);
@@ -912,23 +912,6 @@ void mono_unity_liveness_free_struct(LivenessState *state)
 	block_array_destroy(state->all_objects, state);
 	block_array_destroy(state->process_array, state);
 	g_free(state);
-}
-
-LivenessState * mono_unity_liveness_calculation_begin(MonoClass *filter, guint max_count, register_object_callback callback, void *callback_userdata, WorldStateChanged onWorldStarted, WorldStateChanged onWorldStopped)
-{
-	LivenessState* ls = mono_unity_liveness_allocate_struct(filter, max_count, callback, callback_userdata, onWorldStarted);
-	onWorldStopped();
-	mono_gc_stop_world();
-	return ls;
-}
-
-void mono_unity_liveness_calculation_end(LivenessState *state)
-{
-	WorldStateChanged onWorldStart = state->onWorldStart;
-	mono_unity_liveness_finalize(state);
-	mono_gc_restart_world();
-	onWorldStart();
-	mono_unity_liveness_free_struct(state);
 }
 
 void mono_unity_liveness_set_memory_callback(unity_aligned_malloc_func aligned_alloc_callback, unity_aligned_free_func aligned_free_callback)

@@ -232,6 +232,16 @@ mono_gc_free_fixed (void* addr)
 	g_free (addr);
 }
 
+void* mono_gc_alloc_fixed_external (size_t size)
+{
+	return mono_gc_alloc_fixed (size, 0, MONO_ROOT_SOURCE_EXTERNAL, NULL, NULL);
+}
+
+void mono_gc_free_fixed_external(void* address)
+{
+	mono_gc_free_fixed (address);
+}
+
 MonoObject*
 mono_gc_alloc_obj (MonoVTable *vtable, size_t size)
 {
