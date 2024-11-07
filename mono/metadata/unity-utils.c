@@ -1993,6 +1993,16 @@ mono_unity_gc_heap_foreach(GFunc callback, gpointer user_data)
 #endif
 }
 
+MONO_API void mono_unity_gc_alloc_fixed(size_t size)
+{
+	mono_gc_alloc_fixed_external(size);
+}
+
+MONO_API void mono_unity_gc_free_fixed(void* address)
+{
+	mono_gc_free_fixed_external(address);
+}
+
 //GC handles
 static void
 handle_gc_handle(gpointer handle_target, gpointer handle_report_callback)

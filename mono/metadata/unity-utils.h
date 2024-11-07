@@ -189,6 +189,8 @@ MONO_API void mono_unity_gc_disable(void);
 MONO_API int mono_unity_gc_is_disabled(void);
 MONO_API void mono_unity_gc_handles_foreach_get_target(MonoFunc callback, void* user_data);
 MONO_API void mono_unity_gc_heap_foreach(MonoFunc callback, void* user_data);
+MONO_API void mono_unity_gc_alloc_fixed(size_t size);
+MONO_API void mono_unity_gc_free_fixed(void* address);
 
 // logging
 typedef void (*UnityLogErrorCallback) (const char *message);
