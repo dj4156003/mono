@@ -2240,7 +2240,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		 */
 		return;
 
-	if (image_is_dynamic (assembly->image) || mono_asmctx_get_kind (&assembly->context) == MONO_ASMCTX_REFONLY || mono_domain_get () != mono_get_root_domain ())
+	if (image_is_dynamic (assembly->image) || mono_asmctx_get_kind (&assembly->context) == MONO_ASMCTX_REFONLY/* || mono_domain_get () != mono_get_root_domain ()*/)
 		return;
 
 	mono_aot_lock ();
@@ -2670,6 +2670,19 @@ mono_aot_register_module (gpointer *aot_info)
 		g_assert (!container_assm_name);
 		container_assm_name = aname;
 	}
+
+	if (aot_modules)
+		mono_aot_unlock ();
+}
+
+void
+mono_aot_unregister_module(char* aname)
+{
+	if (aot_modules)
+		mono_aot_lock ();
+
+	if (static_aot_modules)
+		g_hash_table_remove (static_aot_modules, aname);
 
 	if (aot_modules)
 		mono_aot_unlock ();
