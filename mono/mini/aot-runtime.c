@@ -178,7 +178,13 @@ typedef struct {
 	unsigned char *trampolines_end;
 } TrampolinePage;
 
+typedef struct {
+	MonoImage *last_aot_image;
+	MonoJitInfo *new_aot_image;
+} ReplaceImageInfo;
+
 static GHashTable *aot_modules;
+static GHashTable *aot_assemblies;
 #define mono_aot_lock() mono_os_mutex_lock (&aot_mutex)
 #define mono_aot_unlock() mono_os_mutex_unlock (&aot_mutex)
 static mono_mutex_t aot_mutex;
@@ -2212,6 +2218,128 @@ register_methods_in_jinfo (MonoAotModule *amodule)
 #endif
 
 static void
+replace_amodule_got (MonoAotModule *amodule)
+{
+	MonoJumpInfo *ji;
+	MonoMemPool *mp;
+	MonoJumpInfo *patches;
+	guint32 got_offsets [128];
+	ERROR_DECL (error);
+	int i, npatches;
+	gboolean preinit = TRUE;
+
+	/* These can't be initialized in load_aot_module () */
+	if (amodule->got_initialized != GOT_INITIALIZED)
+		return;
+
+	mono_loader_lock ();
+
+	mp = mono_mempool_new ();
+	npatches = amodule->info.nshared_got_entries;
+	for (i = 0; i < npatches; ++i)
+		got_offsets [i] = i;
+	if (amodule->got)
+		patches = decode_patches (amodule, mp, npatches, FALSE, got_offsets);
+	else
+		patches = decode_patches (amodule, mp, npatches, TRUE, got_offsets);
+	g_assert (patches);
+	for (i = 0; i < npatches; ++i) {
+		ji = &patches [i];
+
+		if (amodule->shared_got [i]) {
+		} else if (ji->type == MONO_PATCH_INFO_AOT_MODULE) {
+			amodule->shared_got [i] = amodule;
+		} else if (preinit) {
+			/*
+			 * This is called from init_amodule () during startup, so some things might not
+			 * be setup. Initialize just the slots needed to make method initialization work.
+			 */
+			if (ji->type == MONO_PATCH_INFO_JIT_ICALL_ID) {
+				if (ji->data.jit_icall_id == MONO_JIT_ICALL_mini_llvm_init_method)
+					amodule->shared_got [i] = (gpointer)mini_llvm_init_method;
+			}
+		} else if (ji->type == MONO_PATCH_INFO_GC_CARD_TABLE_ADDR && !mono_gc_is_moving ()) {
+			amodule->shared_got [i] = NULL;
+		} else if (ji->type == MONO_PATCH_INFO_GC_NURSERY_START && !mono_gc_is_moving ()) {
+			amodule->shared_got [i] = NULL;
+		} else if (ji->type == MONO_PATCH_INFO_GC_NURSERY_BITS && !mono_gc_is_moving ()) {
+			amodule->shared_got [i] = NULL;
+		} else if (ji->type == MONO_PATCH_INFO_IMAGE) {
+			amodule->shared_got [i] = amodule->assembly->image;
+		} else if (ji->type == MONO_PATCH_INFO_MSCORLIB_GOT_ADDR) {
+			if (mono_defaults.corlib) {
+				MonoAotModule *mscorlib_amodule = mono_defaults.corlib->aot_module;
+
+				if (mscorlib_amodule)
+					amodule->shared_got [i] = mscorlib_amodule->got;
+			} else {
+				amodule->shared_got [i] = amodule->got;
+			}
+		} else if (ji->type == MONO_PATCH_INFO_AOT_MODULE) {
+			amodule->shared_got [i] = amodule;
+		} else if (ji->type == MONO_PATCH_INFO_NONE) {
+		} else {
+			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_domain (), NULL, ji, FALSE, error);
+			mono_error_assert_ok (error);
+		}
+	}
+
+	if (amodule->got) {
+		for (i = 0; i < npatches; ++i)
+			amodule->got [i] = amodule->shared_got [i];
+	}
+	if (amodule->info.flags & MONO_AOT_FILE_FLAG_WITH_LLVM) {
+		void (*init_aotconst) (int, gpointer) = (void (*)(int, gpointer))amodule->info.llvm_init_aotconst;
+		for (i = 0; i < npatches; ++i) {
+			amodule->llvm_got [i] = amodule->shared_got [i];
+			init_aotconst (i, amodule->llvm_got [i]);
+		}
+	}
+
+	mono_mempool_destroy (mp);
+
+	mono_loader_unlock ();
+}
+
+static void replace_ji_info(MonoDomain *domain, MonoImage* image, MonoJitInfo* jinfo, void* user_data)
+{
+	ReplaceImageInfo *replace_image_info = (ReplaceImageInfo *)user_data;
+	if (image == replace_image_info->last_aot_image)
+	{
+		jinfo->d.image = replace_image_info->new_aot_image;
+	}
+}
+
+static void
+reuse_aot_module (MonoImage *last_aot_image, MonoAssembly *new_aot_assembly, MonoAotModule * already_reused_aot_module)
+{
+	gboolean do_load_image = TRUE;
+	int i;
+
+	replace_amodule_got (already_reused_aot_module);
+
+	MonoDomain *domain = mono_get_root_domain();
+
+	ReplaceImageInfo replace_image_info;
+	replace_image_info.last_aot_image = last_aot_image;
+	replace_image_info.new_aot_image = new_aot_assembly->image;
+
+	mono_domain_lock(domain);
+
+	mono_jit_info_aot_module_table_foreach_internal(domain, replace_ji_info, &replace_image_info);
+
+	mono_domain_unlock(domain);
+
+	if (do_load_image) {
+		for (i = 0; i < already_reused_aot_module->image_table_len; ++i) {
+			ERROR_DECL (error);
+			load_image (already_reused_aot_module, i, error);
+			mono_error_cleanup (error); /* FIXME don't swallow the error */
+		}
+	}
+}
+
+static void
 load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer user_data, MonoError *error)
 {
 	char *aot_name, *found_aot_name;
@@ -2226,6 +2354,9 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	gboolean do_load_image = TRUE;
 	int align_double, align_int64;
 	guint8 *aot_data = NULL;
+	MonoAssembly *last_aot_assembly = NULL;
+	MonoAotModule *already_reused_aot_module = NULL;
+	MonoImage *last_aot_image = NULL;
 
 	if (mono_compile_aot)
 		return;
@@ -2248,7 +2379,39 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	if (static_aot_modules)
 		info = (MonoAotFileInfo *)g_hash_table_lookup (static_aot_modules, assembly->aname.name);
 
+	if (info)
+	{
+		last_aot_assembly = (MonoAssembly *)g_hash_table_lookup (aot_assemblies, assembly->aname.name);
+		if (last_aot_assembly && last_aot_assembly != assembly)
+		{
+			g_hash_table_insert_replace(aot_assemblies, assembly->aname.name, assembly, TRUE);
+			already_reused_aot_module = g_hash_table_lookup(aot_modules, last_aot_assembly);
+			g_hash_table_insert(aot_modules, assembly, already_reused_aot_module);
+			g_hash_table_remove(aot_modules, last_aot_assembly);
+			if (already_reused_aot_module)
+			{
+				memcpy(&assembly->image->aotid, info->aotid, 16);
+				assembly->image->aot_module = already_reused_aot_module;
+				already_reused_aot_module->assembly = assembly;
+				for(i = 0; i < already_reused_aot_module->image_table_len; ++i)
+				{
+					if (!strcmp (assembly->image->guid, already_reused_aot_module->image_guids [i]))
+					{
+						last_aot_image = already_reused_aot_module->image_table [i];
+						break;
+					}
+				}
+			}
+		}
+	}
+
 	mono_aot_unlock ();
+
+	if (already_reused_aot_module)
+	{
+		reuse_aot_module(last_aot_image, assembly, already_reused_aot_module);
+		return;
+	}
 
 	sofile = NULL;
 
@@ -2565,6 +2728,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	}
 
 	g_hash_table_insert (aot_modules, assembly, amodule);
+	g_hash_table_insert (aot_assemblies, found_aot_name, assembly);
 	mono_aot_unlock ();
 
 	init_amodule_got (amodule, TRUE);
@@ -2694,6 +2858,7 @@ mono_aot_init (void)
 	mono_os_mutex_init_recursive (&aot_mutex);
 	mono_os_mutex_init_recursive (&aot_page_mutex);
 	aot_modules = g_hash_table_new (NULL, NULL);
+	aot_assemblies = g_hash_table_new (g_str_hash, g_str_equal);
 
 	mono_install_assembly_load_hook_v2 (load_aot_module, NULL, FALSE);
 	mono_counters_register ("Async JIT info size", MONO_COUNTER_INT|MONO_COUNTER_JIT, &async_jit_info_size);
@@ -2710,6 +2875,7 @@ void
 mono_aot_cleanup (void)
 {
 	g_hash_table_destroy (aot_modules);
+	g_hash_table_destroy (aot_assemblies);
 }
 
 /*
