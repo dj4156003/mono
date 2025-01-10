@@ -180,7 +180,7 @@ typedef struct {
 
 typedef struct {
 	MonoImage *last_aot_image;
-	MonoJitInfo *new_aot_image;
+	MonoImage *new_aot_image;
 } ReplaceImageInfo;
 
 static GHashTable *aot_modules;
@@ -2384,7 +2384,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		last_aot_assembly = (MonoAssembly *)g_hash_table_lookup (aot_assemblies, assembly->aname.name);
 		if (last_aot_assembly && last_aot_assembly != assembly)
 		{
-			g_hash_table_insert_replace(aot_assemblies, assembly->aname.name, assembly, TRUE);
+			g_hash_table_insert_replace(aot_assemblies, (char *)assembly->aname.name, assembly, TRUE);
 			already_reused_aot_module = g_hash_table_lookup(aot_modules, last_aot_assembly);
 			g_hash_table_insert(aot_modules, assembly, already_reused_aot_module);
 			g_hash_table_remove(aot_modules, last_aot_assembly);
@@ -2398,8 +2398,8 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 					if (!strcmp (assembly->image->guid, already_reused_aot_module->image_guids [i]))
 					{
 						last_aot_image = already_reused_aot_module->image_table [i];
-						break;
 					}
+					already_reused_aot_module->image_table [i] = NULL;
 				}
 			}
 		}
