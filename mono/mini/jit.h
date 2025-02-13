@@ -114,6 +114,9 @@ mono_aot_register_module (void **aot_info);
 MONO_API MONO_RT_EXTERNAL_ONLY
 MonoDomain* mono_jit_thread_attach (MonoDomain *domain);
 
+MONO_API MONO_RT_EXTERNAL_ONLY void
+mono_aot_reset (void);
+
 MONO_END_DECLS
 
 #endif

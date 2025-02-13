@@ -5991,6 +5991,7 @@ MonoObject *
 ves_icall_object_new_specific (MonoVTable *vtable)
 {
 	ERROR_DECL (error);
+	// printf("ves icall new vtable addr is %p\n", vtable);
 	MonoObject *o = mono_object_new_specific_checked (vtable, error);
 	mono_error_set_pending_exception (error);
 

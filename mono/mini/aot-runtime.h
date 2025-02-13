@@ -276,6 +276,22 @@ guint32  mono_aot_find_method_index         (MonoMethod *method);
 gboolean mono_aot_init_llvm_method          (gpointer aot_module, gpointer method_info, MonoClass *init_class, MonoError *error);
 GHashTable *mono_aot_get_weak_field_indexes (MonoImage *image);
 MonoAotMethodFlags mono_aot_get_method_flags (guint8 *code);
+void     mono_aot_reset(void);
+gpointer
+mono_aot_alloc0 (MonoAotModule *amodule, guint size);
+#define mono_aot_alloc0(amodule, size) (g_cast (mono_aot_alloc0 ((amodule), (size))))
+
+gpointer
+mono_aot_alloc (MonoAotModule *amodule, guint size);
+#define mono_aot_alloc(amodule, size) (g_cast (mono_aot_alloc ((amodule), (size))))
+
+gpointer
+mono_aot_alloc0_lock_free (MonoAotModule *amodule, guint size);
+#define mono_aot_alloc0_lock_free(amodule, size) (g_cast (mono_aot_alloc0_lock_free ((amodule), (size))))
+
+gpointer
+mono_aot_reload_alloc0_lock_free (guint size);
+#define mono_aot_reload_alloc0_lock_free(size) (g_cast (mono_aot_reload_alloc0_lock_free ((size))))
 
 #ifdef MONO_ARCH_CODE_EXEC_ONLY
 typedef guint32 (*MonoAotResolvePltInfoOffset)(gpointer amodule, guint32 plt_entry_index);

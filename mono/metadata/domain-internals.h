@@ -668,6 +668,8 @@ mono_domain_set_fast (MonoDomain *domain, gboolean force);
 MonoAssemblyLoadContext *
 mono_domain_default_alc (MonoDomain *domain);
 
+void
+mono_clear_root_domain_jit_info (MonoJitInfoFunc filterFunc);
 
 static inline
 MonoAssemblyLoadContext *

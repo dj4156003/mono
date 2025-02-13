@@ -170,6 +170,10 @@ struct MonoAotModule {
 
 	JitInfoMap *async_jit_info_table;
 	mono_mutex_t mutex;
+
+	MonoMemPool *aot_mem_pool;
+	LockFreeMempool *aot_lock_free_mp;
+	mono_mutex_t *aot_mem_mutex;
 };
 
 typedef struct {
@@ -184,10 +188,20 @@ typedef struct {
 } ReplaceImageInfo;
 
 static GHashTable *aot_modules;
-static GHashTable *aot_assemblies;
+static GHashTable *aot_reused_modules;
 #define mono_aot_lock() mono_os_mutex_lock (&aot_mutex)
 #define mono_aot_unlock() mono_os_mutex_unlock (&aot_mutex)
 static mono_mutex_t aot_mutex;
+
+static MonoMemPool *aot_corlib_mem_pool;
+static MonoMemPool *aot_reload_mem_pool;
+#define mono_aot_mem_lock(mem_mutex) mono_os_mutex_lock (mem_mutex)
+#define mono_aot_mem_unlock(mem_mutex) mono_os_mutex_unlock (mem_mutex)
+static mono_mutex_t aot_corlib_mem_mutex;
+static mono_mutex_t aot_reload_mem_mutex;
+static LockFreeMempool *aot_corlib_lock_free_mp;
+static LockFreeMempool *aot_reload_lock_free_mp;
+static GArray *aot_corlib_reload_got_offsets;
 
 /* 
  * Maps assembly names to the mono_aot_module_<NAME>_info symbols in the
@@ -251,6 +265,92 @@ static MonoAotModule *mscorlib_aot_module;
 static MonoLoadAotDataFunc aot_data_load_func;
 static MonoFreeAotDataFunc aot_data_free_func;
 static gpointer aot_data_func_user_data;
+
+static LockFreeMempool*
+lock_free_mempool_new (void)
+{
+	return g_new0 (LockFreeMempool, 1);
+}
+
+static void
+lock_free_mempool_free (LockFreeMempool *mp)
+{
+	LockFreeMempoolChunk *chunk, *next;
+
+	chunk = mp->chunks;
+	while (chunk) {
+		next = (LockFreeMempoolChunk *)chunk->prev;
+		mono_vfree (chunk, mono_pagesize (), MONO_MEM_ACCOUNT_DOMAIN);
+		chunk = next;
+	}
+	g_free (mp);
+}
+
+/*
+ * This is async safe
+ */
+static LockFreeMempoolChunk*
+lock_free_mempool_chunk_new (LockFreeMempool *mp, int len)
+{
+	LockFreeMempoolChunk *chunk, *prev;
+	int size;
+
+	size = mono_pagesize ();
+	while (size - sizeof (LockFreeMempoolChunk) < len)
+		size += mono_pagesize ();
+	chunk = (LockFreeMempoolChunk *)mono_valloc (0, size, MONO_MMAP_READ|MONO_MMAP_WRITE, MONO_MEM_ACCOUNT_DOMAIN);
+	g_assert (chunk);
+	chunk->mem = (guint8 *)ALIGN_PTR_TO ((char*)chunk + sizeof (LockFreeMempoolChunk), 16);
+	chunk->size = ((char*)chunk + size) - (char*)chunk->mem;
+	chunk->pos = 0;
+
+	/* Add to list of chunks lock-free */
+	while (TRUE) {
+		prev = mp->chunks;
+		if (mono_atomic_cas_ptr ((volatile gpointer*)&mp->chunks, chunk, prev) == prev)
+			break;
+	}
+	chunk->prev = prev;
+
+	return chunk;
+}
+
+/*
+ * This is async safe
+ */
+static gpointer
+lock_free_mempool_alloc0 (LockFreeMempool *mp, guint size)
+{
+	LockFreeMempoolChunk *chunk;
+	gpointer res;
+	int oldpos;
+
+	// FIXME: Free the allocator
+
+	size = ALIGN_TO (size, 8);
+	chunk = mp->current;
+	if (!chunk) {
+		chunk = lock_free_mempool_chunk_new (mp, size);
+		mono_memory_barrier ();
+		/* Publish */
+		mp->current = chunk;
+	}
+
+	/* The code below is lock-free, 'chunk' is shared state */
+	oldpos = mono_atomic_fetch_add_i32 (&chunk->pos, size);
+	if (oldpos + size > chunk->size) {
+		chunk = lock_free_mempool_chunk_new (mp, size);
+		g_assert (chunk->pos + size <= chunk->size);
+		res = chunk->mem;
+		chunk->pos += size;
+		mono_memory_barrier ();
+		mp->current = chunk;
+	} else {
+		res = (char*)chunk->mem + oldpos;
+	}
+
+	return res;
+}
 
 static void
 init_plt (MonoAotModule *info);
@@ -2228,11 +2328,9 @@ replace_amodule_got (MonoAotModule *amodule)
 	int i, npatches;
 	gboolean preinit = TRUE;
 
-	/* These can't be initialized in load_aot_module () */
-	if (amodule->got_initialized != GOT_INITIALIZED)
-		return;
-
 	mono_loader_lock ();
+
+	amodule->got_initialized = 0;
 
 	mp = mono_mempool_new ();
 	npatches = amodule->info.nshared_got_entries;
@@ -2258,29 +2356,8 @@ replace_amodule_got (MonoAotModule *amodule)
 				if (ji->data.jit_icall_id == MONO_JIT_ICALL_mini_llvm_init_method)
 					amodule->shared_got [i] = (gpointer)mini_llvm_init_method;
 			}
-		} else if (ji->type == MONO_PATCH_INFO_GC_CARD_TABLE_ADDR && !mono_gc_is_moving ()) {
-			amodule->shared_got [i] = NULL;
-		} else if (ji->type == MONO_PATCH_INFO_GC_NURSERY_START && !mono_gc_is_moving ()) {
-			amodule->shared_got [i] = NULL;
-		} else if (ji->type == MONO_PATCH_INFO_GC_NURSERY_BITS && !mono_gc_is_moving ()) {
-			amodule->shared_got [i] = NULL;
-		} else if (ji->type == MONO_PATCH_INFO_IMAGE) {
-			amodule->shared_got [i] = amodule->assembly->image;
-		} else if (ji->type == MONO_PATCH_INFO_MSCORLIB_GOT_ADDR) {
-			if (mono_defaults.corlib) {
-				MonoAotModule *mscorlib_amodule = mono_defaults.corlib->aot_module;
-
-				if (mscorlib_amodule)
-					amodule->shared_got [i] = mscorlib_amodule->got;
-			} else {
-				amodule->shared_got [i] = amodule->got;
-			}
-		} else if (ji->type == MONO_PATCH_INFO_AOT_MODULE) {
-			amodule->shared_got [i] = amodule;
-		} else if (ji->type == MONO_PATCH_INFO_NONE) {
 		} else {
-			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_domain (), NULL, ji, FALSE, error);
-			mono_error_assert_ok (error);
+			amodule->shared_got [i] = NULL;
 		}
 	}
 
@@ -2311,32 +2388,113 @@ static void replace_ji_info(MonoDomain *domain, MonoImage* image, MonoJitInfo* j
 }
 
 static void
+free_hash_table (gpointer key, gpointer val, gpointer user_data)
+{
+	g_hash_table_destroy ((GHashTable*)val);
+}
+
+static void
 reuse_aot_module (MonoImage *last_aot_image, MonoAssembly *new_aot_assembly, MonoAotModule * already_reused_aot_module)
 {
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "Begin reuse AOT: module %s", already_reused_aot_module->aot_name);
 	gboolean do_load_image = TRUE;
 	int i;
 
-	replace_amodule_got (already_reused_aot_module);
+	if (already_reused_aot_module->name_cache)
+	{
+		g_hash_table_foreach (already_reused_aot_module->name_cache, free_hash_table, NULL);
+		g_hash_table_destroy (already_reused_aot_module->name_cache);
+		already_reused_aot_module->name_cache = NULL;
+	}
 
-	MonoDomain *domain = mono_get_root_domain();
+	if (already_reused_aot_module->method_ref_to_method)
+	{
+		g_hash_table_destroy (already_reused_aot_module->method_ref_to_method);
+		already_reused_aot_module->method_ref_to_method = NULL;
+	}
 
-	ReplaceImageInfo replace_image_info;
-	replace_image_info.last_aot_image = last_aot_image;
-	replace_image_info.new_aot_image = new_aot_assembly->image;
+	if (already_reused_aot_module->method_to_code)
+	{
+		g_hash_table_destroy (already_reused_aot_module->method_to_code);
+		already_reused_aot_module->method_to_code = g_hash_table_new (mono_aligned_addr_hash, NULL);
+	}
 
-	mono_domain_lock(domain);
+	if (already_reused_aot_module->extra_methods)
+	{
+		g_hash_table_destroy (already_reused_aot_module->extra_methods);
+		already_reused_aot_module->extra_methods = g_hash_table_new (NULL, NULL);
+	}
 
-	mono_jit_info_aot_module_table_foreach_internal(domain, replace_ji_info, &replace_image_info);
+	if (already_reused_aot_module->methods_loaded)
+	{
+		memset(already_reused_aot_module->methods_loaded, 0, (already_reused_aot_module->info.nmethods / 32 + 1) * sizeof(guint32));
+	}
 
-	mono_domain_unlock(domain);
+	/* Compute method addresses */
+	already_reused_aot_module->methods = (void **)g_malloc0 (already_reused_aot_module->info.nmethods * sizeof (gpointer));
+	for (i = 0; i < already_reused_aot_module->info.nmethods; ++i) {
+		void *addr = NULL;
 
-	if (do_load_image) {
-		for (i = 0; i < already_reused_aot_module->image_table_len; ++i) {
-			ERROR_DECL (error);
-			load_image (already_reused_aot_module, i, error);
-			mono_error_cleanup (error); /* FIXME don't swallow the error */
+		if (already_reused_aot_module->info.llvm_get_method) {
+			gpointer (*get_method) (int) = (gpointer (*)(int))already_reused_aot_module->info.llvm_get_method;
+
+			addr = get_method (i);
+		}
+
+		if (already_reused_aot_module->info.flags & MONO_AOT_FILE_FLAG_CODE_EXEC_ONLY) {
+			addr = ((gpointer*)already_reused_aot_module->info.method_addresses) [i];
+		} else {
+			/* method_addresses () contains a table of branches, since the ios linker can update those correctly */
+			if (!addr && already_reused_aot_module->info.method_addresses) {
+				addr = get_call_table_entry (already_reused_aot_module->info.method_addresses, i, already_reused_aot_module->info.call_table_entry_size);
+				g_assert (addr);
+				if (addr == already_reused_aot_module->info.method_addresses)
+					addr = NULL;
+				else
+					addr = method_address_resolve ((guint8 *) addr);
+			}
+		}
+		if (addr == NULL)
+			already_reused_aot_module->methods [i] = GINT_TO_POINTER (-1);
+		else
+			already_reused_aot_module->methods [i] = addr;
+	}
+
+	already_reused_aot_module->plt_inited = FALSE;
+	already_reused_aot_module->got_initialized = 0;
+	memset (already_reused_aot_module->shared_got, 0, already_reused_aot_module->info.nshared_got_entries * sizeof(gpointer));
+	memset (already_reused_aot_module->info.jit_got, 0, already_reused_aot_module->info.got_size);
+	
+	init_amodule_got (already_reused_aot_module, TRUE);
+
+	if (new_aot_assembly)
+	{	
+		MonoDomain *domain = mono_get_root_domain();
+
+		ReplaceImageInfo replace_image_info;
+		replace_image_info.last_aot_image = last_aot_image;
+		replace_image_info.new_aot_image = new_aot_assembly->image;
+
+		mono_domain_lock(domain);
+
+		mono_jit_info_aot_module_table_foreach_internal(domain, replace_ji_info, &replace_image_info);
+
+		mono_domain_unlock(domain);
+
+		if (already_reused_aot_module->info.flags & MONO_AOT_FILE_FLAG_WITH_LLVM)
+			/* Directly called methods might make calls through the PLT */
+			init_plt (already_reused_aot_module);
+
+		if (do_load_image) {
+			for (i = 0; i < already_reused_aot_module->image_table_len; ++i) {
+				ERROR_DECL (error);
+				load_image (already_reused_aot_module, i, error);
+				mono_error_cleanup (error); /* FIXME don't swallow the error */
+			}
 		}
 	}
+
+	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "End reuse AOT: module %s", already_reused_aot_module->aot_name);
 }
 
 static void
@@ -2354,7 +2512,6 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	gboolean do_load_image = TRUE;
 	int align_double, align_int64;
 	guint8 *aot_data = NULL;
-	MonoAssembly *last_aot_assembly = NULL;
 	MonoAotModule *already_reused_aot_module = NULL;
 	MonoImage *last_aot_image = NULL;
 
@@ -2381,26 +2538,29 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (info)
 	{
-		last_aot_assembly = (MonoAssembly *)g_hash_table_lookup (aot_assemblies, assembly->aname.name);
-		if (last_aot_assembly && last_aot_assembly != assembly)
+		already_reused_aot_module = (MonoAotModule *)g_hash_table_lookup (aot_reused_modules, assembly->aname.name);
+		if (already_reused_aot_module)
 		{
-			g_hash_table_insert_replace(aot_assemblies, (char *)assembly->aname.name, assembly, TRUE);
-			already_reused_aot_module = g_hash_table_lookup(aot_modules, last_aot_assembly);
-			g_hash_table_insert(aot_modules, assembly, already_reused_aot_module);
-			g_hash_table_remove(aot_modules, last_aot_assembly);
-			if (already_reused_aot_module)
+			if (g_hash_table_lookup(aot_modules, assembly) == already_reused_aot_module)
 			{
-				memcpy(&assembly->image->aotid, info->aotid, 16);
-				assembly->image->aot_module = already_reused_aot_module;
-				already_reused_aot_module->assembly = assembly;
-				for(i = 0; i < already_reused_aot_module->image_table_len; ++i)
+				mono_aot_unlock ();
+				return;
+			}
+			g_hash_table_insert(aot_modules, assembly, already_reused_aot_module);
+			memcpy(&assembly->image->aotid, info->aotid, 16);
+			assembly->image->aot_module = already_reused_aot_module;
+			already_reused_aot_module->assembly = assembly;
+			already_reused_aot_module->async_jit_info_table = NULL;
+			already_reused_aot_module->aot_mem_pool = aot_reload_mem_pool;
+			already_reused_aot_module->aot_lock_free_mp = aot_reload_lock_free_mp;
+			already_reused_aot_module->aot_mem_mutex = &aot_reload_mem_mutex;
+			for(i = 0; i < already_reused_aot_module->image_table_len; ++i)
+			{
+				if (!strcmp (assembly->image->guid, already_reused_aot_module->image_guids [i]))
 				{
-					if (!strcmp (assembly->image->guid, already_reused_aot_module->image_guids [i]))
-					{
-						last_aot_image = already_reused_aot_module->image_table [i];
-					}
-					already_reused_aot_module->image_table [i] = NULL;
+					last_aot_image = already_reused_aot_module->image_table [i];
 				}
+				already_reused_aot_module->image_table [i] = NULL;
 			}
 		}
 	}
@@ -2660,7 +2820,18 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	amodule->trampolines [MONO_AOT_TRAMP_UNBOX_ARBITRARY] = (guint8 *)info->unbox_arbitrary_trampolines;
 
 	if (mono_is_corlib_image (assembly->image) || !strcmp (assembly->aname.name, "mscorlib") || !strcmp (assembly->aname.name, "System.Private.CoreLib"))
+	{
 		mscorlib_aot_module = amodule;
+		amodule->aot_mem_pool = aot_corlib_mem_pool;
+		amodule->aot_lock_free_mp = aot_corlib_lock_free_mp;
+		amodule->aot_mem_mutex = &aot_corlib_mem_mutex;
+	}
+	else
+	{
+		amodule->aot_mem_pool = aot_reload_mem_pool;
+		amodule->aot_lock_free_mp = aot_reload_lock_free_mp;
+		amodule->aot_mem_mutex = &aot_reload_mem_mutex;
+	}
 
 	/* Compute method addresses */
 	amodule->methods = (void **)g_malloc0 (amodule->info.nmethods * sizeof (gpointer));
@@ -2728,7 +2899,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	}
 
 	g_hash_table_insert (aot_modules, assembly, amodule);
-	g_hash_table_insert (aot_assemblies, found_aot_name, assembly);
+	// g_hash_table_insert (aot_assemblies, found_aot_name, assembly);
 	mono_aot_unlock ();
 
 	init_amodule_got (amodule, TRUE);
@@ -2840,8 +3011,11 @@ mono_aot_register_module (gpointer *aot_info)
 }
 
 void
-mono_aot_unregister_module(char* aname)
+mono_aot_unregister_module(gpointer *aot_info)
 {
+	MonoAotFileInfo *info = (MonoAotFileInfo *)aot_info;
+	char *aname = (char *)info->assembly_name;
+
 	if (aot_modules)
 		mono_aot_lock ();
 
@@ -2858,7 +3032,15 @@ mono_aot_init (void)
 	mono_os_mutex_init_recursive (&aot_mutex);
 	mono_os_mutex_init_recursive (&aot_page_mutex);
 	aot_modules = g_hash_table_new (NULL, NULL);
-	aot_assemblies = g_hash_table_new (g_str_hash, g_str_equal);
+	aot_reused_modules = g_hash_table_new (g_str_hash, g_str_equal);
+
+	mono_os_mutex_init_recursive (&aot_corlib_mem_mutex);
+	mono_os_mutex_init_recursive (&aot_reload_mem_mutex);
+	aot_corlib_mem_pool = mono_mempool_new();
+	aot_reload_mem_pool = mono_mempool_new();
+	aot_corlib_lock_free_mp = lock_free_mempool_new();
+	aot_reload_lock_free_mp = lock_free_mempool_new();
+	aot_corlib_reload_got_offsets = g_array_new(FALSE, TRUE, sizeof(guint32));
 
 	mono_install_assembly_load_hook_v2 (load_aot_module, NULL, FALSE);
 	mono_counters_register ("Async JIT info size", MONO_COUNTER_INT|MONO_COUNTER_JIT, &async_jit_info_size);
@@ -2875,7 +3057,157 @@ void
 mono_aot_cleanup (void)
 {
 	g_hash_table_destroy (aot_modules);
-	g_hash_table_destroy (aot_assemblies);
+	g_hash_table_destroy (aot_reused_modules);
+	// g_hash_table_destroy (aot_assemblies);
+}
+
+static gboolean
+amodule_contains_code_addr (MonoAotModule *amodule, guint8 *code);
+
+static void search_reserved_ji_info(MonoDomain *domain, MonoMethod* method, MonoJitInfo* jinfo, void* user_data)
+{
+	GPtrArray *reserved_ji_infos = (GPtrArray *)user_data;
+	if (jinfo->is_trampoline || (!jinfo->async && jinfo->code_start && amodule_contains_code_addr(mscorlib_aot_module, jinfo->code_start)))
+	{
+		g_ptr_array_add(reserved_ji_infos, jinfo);
+	}
+}
+
+static void
+add_module_cb (gpointer key, gpointer value, gpointer user_data);
+
+static GArray *
+collect_corlib_async_jit_info_maps()
+{
+	JitInfoMap *table = mscorlib_aot_module->async_jit_info_table;
+	int len;
+	GArray *reserved_jit_info_maps = NULL;
+
+	if (table) {
+		len = table [0].method_index;
+		if (len > 1)
+		{
+			reserved_jit_info_maps = g_array_new(FALSE, TRUE, sizeof(JitInfoMap));
+			for (int i = 1; i < len; ++i) {
+				MonoJitInfo *jinfo = table [i].jinfo;
+				if (jinfo->is_trampoline || jinfo->d.aot_info == mscorlib_aot_module || (jinfo->code_start && amodule_contains_code_addr(mscorlib_aot_module, jinfo->code_start)))
+				{
+					g_array_append_val(reserved_jit_info_maps, table [i]);
+				}
+			}
+		}
+	}
+	return reserved_jit_info_maps;
+}
+
+static void
+reuse_mscorlib_aot_module(GArray *reserved_async_jit_info_maps)
+{
+	
+	mscorlib_aot_module->async_jit_info_table = NULL;
+
+	if (reserved_async_jit_info_maps && reserved_async_jit_info_maps->len > 0)
+	{
+		mscorlib_aot_module->async_jit_info_table = mono_aot_reload_alloc0_lock_free((reserved_async_jit_info_maps->len + 1) * sizeof(JitInfoMap));
+		mscorlib_aot_module->async_jit_info_table[0].method_index = reserved_async_jit_info_maps->len + 1;
+		for (int i = 0; i < reserved_async_jit_info_maps->len; ++i)
+		{
+			mscorlib_aot_module->async_jit_info_table[i + 1] = g_array_index(reserved_async_jit_info_maps, JitInfoMap, i);
+		}
+	}
+
+	if (mscorlib_aot_module->method_to_code)
+	{
+		g_hash_table_destroy (mscorlib_aot_module->method_to_code);
+		mscorlib_aot_module->method_to_code = g_hash_table_new (mono_aligned_addr_hash, NULL);
+	}
+	for (int i = 0; i < aot_corlib_reload_got_offsets->len; ++i)
+	{
+		mscorlib_aot_module->got [g_array_index(aot_corlib_reload_got_offsets, guint32, i)] = NULL;
+	}
+	g_array_set_size(aot_corlib_reload_got_offsets, 0);
+
+	if (mscorlib_aot_module->methods_loaded)
+	{
+		memset(mscorlib_aot_module->methods_loaded, 0, (mscorlib_aot_module->info.nmethods / 32 + 1) * sizeof(guint32));
+	}
+
+	if (mscorlib_aot_module->method_ref_to_method)
+	{
+		g_hash_table_destroy (mscorlib_aot_module->method_ref_to_method);
+		mscorlib_aot_module->method_ref_to_method = NULL;
+	}
+
+	if (mscorlib_aot_module->extra_methods)
+	{
+		g_hash_table_destroy (mscorlib_aot_module->extra_methods);
+		mscorlib_aot_module->extra_methods = g_hash_table_new (NULL, NULL);
+	}
+
+	mscorlib_aot_module->plt_inited = FALSE;
+}
+
+void
+mono_aot_reset (void)
+{
+	GArray * reserved_corlib_async_jit_info_maps = collect_corlib_async_jit_info_maps();
+	mono_clear_root_domain_jit_info(search_reserved_ji_info);
+
+	mono_mempool_destroy(aot_reload_mem_pool);
+	aot_reload_mem_pool = mono_mempool_new();
+	lock_free_mempool_free(aot_reload_lock_free_mp);
+	aot_reload_lock_free_mp = lock_free_mempool_new();
+	
+	g_hash_table_destroy (ji_to_amodule);
+	ji_to_amodule = NULL;
+
+	reuse_mscorlib_aot_module(reserved_corlib_async_jit_info_maps);
+
+	GPtrArray *all_aot_modules = g_ptr_array_new ();
+	g_hash_table_foreach (aot_modules, add_module_cb, all_aot_modules);
+	for (int i = 0; i < all_aot_modules->len; ++i)
+	{
+		MonoAotModule *module = (MonoAotModule *)g_ptr_array_index (all_aot_modules, i);
+		if (module != mscorlib_aot_module)
+		{
+			g_hash_table_remove (aot_modules, module->assembly);
+			g_hash_table_insert (aot_reused_modules, module->aot_name, module);
+		}
+	}
+}
+
+gpointer
+(mono_aot_alloc0) (MonoAotModule *amodule, guint size)
+{
+	gpointer res;
+	mono_mutex_t *p_mutex = amodule->aot_mem_mutex;
+	mono_aot_mem_lock(p_mutex);
+	res = mono_mempool_alloc0(amodule->aot_mem_pool, size);
+	mono_aot_mem_unlock(p_mutex);
+	return res;
+}
+
+gpointer
+(mono_aot_alloc) (MonoAotModule *amodule, guint size)
+{
+	gpointer res;
+	mono_mutex_t *p_mutex = amodule->aot_mem_mutex;
+	mono_aot_mem_lock(p_mutex);
+	res = mono_mempool_alloc(amodule->aot_mem_pool, size);
+	mono_aot_mem_unlock(p_mutex);
+	return res;
+}
+
+gpointer
+(mono_aot_alloc0_lock_free) (MonoAotModule *amodule, guint size)
+{
+	return lock_free_mempool_alloc0(amodule->aot_lock_free_mp, size);
+}
+
+gpointer
+(mono_aot_reload_alloc0_lock_free) (guint size)
+{
+	return lock_free_mempool_alloc0(aot_reload_lock_free_mp, size);
 }
 
 /*
@@ -3356,9 +3688,9 @@ decode_llvm_mono_eh_frame (MonoAotModule *amodule, MonoDomain *domain, MonoJitIn
 
 	if (async) {
 		/* These are leaked, but the leak is bounded */
-		ei = mono_domain_alloc0_lock_free (domain, info.ex_info_len * sizeof (MonoJitExceptionInfo));
-		type_info = mono_domain_alloc0_lock_free (domain, info.ex_info_len * sizeof (gpointer));
-		unw_info = mono_domain_alloc0_lock_free (domain, info.unw_info_len);
+		ei = mono_aot_alloc0_lock_free (amodule, info.ex_info_len * sizeof (MonoJitExceptionInfo));
+		type_info = mono_aot_alloc0_lock_free (amodule, info.ex_info_len * sizeof (gpointer));
+		unw_info = mono_aot_alloc0_lock_free (amodule, info.unw_info_len);
 	} else {
 		ei = (MonoJitExceptionInfo *)g_malloc0 (info.ex_info_len * sizeof (MonoJitExceptionInfo));
 		type_info = (gpointer *)g_malloc0 (info.ex_info_len * sizeof (gpointer));
@@ -3447,18 +3779,18 @@ decode_llvm_mono_eh_frame (MonoAotModule *amodule, MonoDomain *domain, MonoJitIn
 }
 
 static gpointer
-alloc0_jit_info_data (MonoDomain *domain, int size, gboolean async_context)
+alloc0_jit_info_data (MonoAotModule *amodule, int size, gboolean async_context)
 
-#define alloc0_jit_info_data(domain, size, async_context) (g_cast (alloc0_jit_info_data ((domain), (size), (async_context))))
+#define alloc0_jit_info_data(amodule, size, async_context) (g_cast (alloc0_jit_info_data ((amodule), (size), (async_context))))
 
 {
 	gpointer res;
 
 	if (async_context) {
-		res = mono_domain_alloc0_lock_free (domain, size);
+		res = mono_aot_alloc0_lock_free (amodule, size);
 		mono_atomic_fetch_add_i32 (&async_jit_info_size, size);
 	} else {
-		res = mono_domain_alloc0 (domain, size);
+		res = mono_aot_alloc0 (amodule, size);
 	}
 	return res;
 }
@@ -3542,8 +3874,8 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 				clauses = g_newa (MonoJitExceptionInfo, num_clauses);
 				nesting = g_newa (GSList*, num_clauses);
 			} else {
-				clauses = alloc0_jit_info_data (domain, sizeof (MonoJitExceptionInfo) * num_clauses, TRUE);
-				nesting = alloc0_jit_info_data (domain, sizeof (GSList*) * num_clauses, TRUE);
+				clauses = alloc0_jit_info_data (amodule, sizeof (MonoJitExceptionInfo) * num_clauses, TRUE);
+				nesting = alloc0_jit_info_data (amodule, sizeof (GSList*) * num_clauses, TRUE);
 			}
 			memset (clauses, 0, sizeof (MonoJitExceptionInfo) * num_clauses);
 			memset (nesting, 0, sizeof (GSList*) * num_clauses);
@@ -3594,7 +3926,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 		/* Get the length first */
 		decode_llvm_mono_eh_frame (amodule, domain, NULL, code, code_len, clauses, num_clauses, nesting, &this_reg, &this_offset, &num_llvm_clauses);
 		len = mono_jit_info_size (flags, num_llvm_clauses, num_holes);
-		jinfo = (MonoJitInfo *)alloc0_jit_info_data (domain, len, async);
+		jinfo = (MonoJitInfo *)alloc0_jit_info_data (amodule, len, async);
 		mono_jit_info_init (jinfo, method, code, code_len, flags, num_llvm_clauses, num_holes);
 
 		decode_llvm_mono_eh_frame (amodule, domain, jinfo, code, code_len, clauses, num_clauses, nesting, &this_reg, &this_offset, NULL);
@@ -3608,7 +3940,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 		jinfo->from_llvm = 1;
 	} else {
 		len = mono_jit_info_size (flags, num_clauses, num_holes);
-		jinfo = (MonoJitInfo *)alloc0_jit_info_data (domain, len, async);
+		jinfo = (MonoJitInfo *)alloc0_jit_info_data (amodule, len, async);
 		/* The jit info table needs to sort addresses so it contains non-authenticated pointers on arm64e */
 		mono_jit_info_init (jinfo, method, code, code_len, flags, num_clauses, num_holes);
 
@@ -3705,7 +4037,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 
 		gi->nlocs = decode_value (p, &p);
 		if (gi->nlocs) {
-			gi->locations = (MonoDwarfLocListEntry *)alloc0_jit_info_data (domain, gi->nlocs * sizeof (MonoDwarfLocListEntry), async);
+			gi->locations = (MonoDwarfLocListEntry *)alloc0_jit_info_data (amodule, gi->nlocs * sizeof (MonoDwarfLocListEntry), async);
 			for (i = 0; i < gi->nlocs; ++i) {
 				MonoDwarfLocListEntry *entry = &gi->locations [i];
 
@@ -3738,7 +4070,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 			mono_error_cleanup (error); /* FIXME don't swallow the error */
 		}
 
-		gi->generic_sharing_context = alloc0_jit_info_data (domain, sizeof (MonoGenericSharingContext), async);
+		gi->generic_sharing_context = alloc0_jit_info_data (amodule, sizeof (MonoGenericSharingContext), async);
 		if (decode_value (p, &p)) {
 			/* gsharedvt */
 			MonoGenericSharingContext *gsctx = gi->generic_sharing_context;
@@ -4118,7 +4450,7 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 				len = old_table[0].method_index;
 			else
 				len = 1;
-			new_table = (JitInfoMap *)alloc0_jit_info_data (domain, (len + 1) * sizeof (JitInfoMap), async);
+			new_table = (JitInfoMap *)mono_aot_reload_alloc0_lock_free ((len + 1) * sizeof (JitInfoMap));
 			if (old_table)
 				memcpy (new_table, old_table, len * sizeof (JitInfoMap));
 			new_table [0].method_index = len + 1;
@@ -4239,7 +4571,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 	case MONO_PATCH_INFO_SWITCH:
 		ji->data.table = (MonoJumpInfoBBTable *)mono_mempool_alloc0 (mp, sizeof (MonoJumpInfoBBTable));
 		ji->data.table->table_size = decode_value (p, &p);
-		table = (void **)mono_domain_alloc (mono_domain_get (), sizeof (gpointer) * ji->data.table->table_size);
+		table = (void **)mono_aot_alloc (aot_module, sizeof (gpointer) * ji->data.table->table_size);
 		ji->data.table->table = (MonoBasicBlock**)table;
 		for (i = 0; i < ji->data.table->table_size; i++)
 			table [i] = (gpointer)(gssize)decode_value (p, &p);
@@ -4248,7 +4580,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 	case MONO_PATCH_INFO_R4_GOT: {
 		guint32 val;
 		
-		ji->data.target = mono_domain_alloc0 (mono_domain_get (), sizeof (float));
+		ji->data.target = mono_aot_alloc0 (aot_module, sizeof (float));
 		val = decode_value (p, &p);
 		*(float*)ji->data.target = *(float*)&val;
 		break;
@@ -4259,7 +4591,7 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 		guint64 v;
 
 		// FIXME: Align to 16 bytes ?
-		ji->data.target = mono_domain_alloc0 (mono_domain_get (), sizeof (double));
+		ji->data.target = mono_aot_alloc0 (aot_module, sizeof (double));
 
 		val [0] = decode_value (p, &p);
 		val [1] = decode_value (p, &p);
@@ -5070,6 +5402,10 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 					addr = mono_create_ftnptr (domain, addr);
 				mono_memory_barrier ();
 				got [got_slots [pindex]] = addr;
+				if (amodule == mscorlib_aot_module)
+				{
+					g_array_append_val (aot_corlib_reload_got_offsets, got_slots [pindex]);
+				}
 				if (ji->type == MONO_PATCH_INFO_METHOD_JUMP)
 					register_jump_target_got_slot (domain, ji->data.method, &(got [got_slots [pindex]]));
 
@@ -6750,6 +7086,11 @@ mono_aot_init (void)
 
 void
 mono_aot_cleanup (void)
+{
+}
+
+void
+mono_aot_reset (void)
 {
 }
 

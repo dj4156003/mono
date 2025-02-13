@@ -1092,6 +1092,32 @@ mono_domain_assembly_open_internal (MonoDomain *domain, MonoAssemblyLoadContext 
 	return ass;
 }
 
+void
+mono_clear_root_domain_jit_info (MonoJitInfoFunc filterFunc)
+{
+	MonoDomain *domain = mono_get_root_domain();
+	mono_thread_hazardous_try_free_all ();
+	g_assert (domain->num_jit_info_table_duplicates == 0);
+	GPtrArray *reserved_ji_infos = g_ptr_array_new ();
+	mono_jit_info_table_foreach_internal(domain, filterFunc, (gpointer)reserved_ji_infos);
+	mono_jit_info_table_free (domain->jit_info_table);
+	domain->jit_info_table = mono_jit_info_table_new (domain);
+	for (int i = 0; i < reserved_ji_infos->len; ++i)
+	{
+		mono_jit_info_table_add(domain, (MonoJitInfo *)g_ptr_array_index(reserved_ji_infos, i));
+	}
+	g_assert (!domain->jit_info_free_queue);
+	// if (free_domain_hook)
+	// {
+	// 	free_domain_hook(domain);
+	// }
+
+	// if (create_domain_hook)
+	// {
+	// 	create_domain_hook(domain);
+	// }
+}
+
 /**
  * mono_domain_free:
  * \param domain the domain to release
