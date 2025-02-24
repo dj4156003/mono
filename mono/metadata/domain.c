@@ -83,6 +83,8 @@ static MonoCoopMutex appdomains_mutex;
 
 static MonoDomain *mono_root_domain = NULL;
 
+static MonoDomain *mono_root_exec_domain = NULL;
+
 /* some statistics */
 static int max_domain_code_size = 0;
 static int max_domain_code_alloc = 0;
@@ -911,6 +913,18 @@ MonoDomain*
 mono_get_root_domain (void)
 {
 	return mono_root_domain;
+}
+
+MonoDomain*
+mono_get_root_exec_domain (void)
+{
+	return mono_root_exec_domain ? mono_root_exec_domain : mono_root_domain;
+}
+
+void
+mono_set_root_exec_domain (MonoDomain *domain)
+{
+	mono_root_exec_domain = domain;
 }
 
 /**

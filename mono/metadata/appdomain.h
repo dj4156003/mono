@@ -43,6 +43,12 @@ mono_init_version          (const char *domain_name, const char *version);
 MONO_API MonoDomain*
 mono_get_root_domain       (void);
 
+MonoDomain*
+mono_get_root_exec_domain (void);
+
+void
+mono_set_root_exec_domain (MonoDomain *domain);
+
 MONO_API MONO_RT_EXTERNAL_ONLY void
 mono_runtime_init          (MonoDomain *domain, MonoThreadStartCB start_cb,
 			    MonoThreadAttachCB attach_cb);

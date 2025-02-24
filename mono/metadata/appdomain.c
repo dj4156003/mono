@@ -3094,7 +3094,14 @@ mono_domain_try_unload (MonoDomain *domain, MonoObject **exc, MonoUnityException
 			goto exit;
 		}
 	}
-	mono_domain_set_fast (caller_domain, FALSE);
+	if (mono_domain_set_fast (caller_domain, FALSE))
+	{
+		mono_set_root_exec_domain (caller_domain);
+	}
+	else
+	{
+		mono_set_root_exec_domain (NULL);
+	}
 
 	thread_data = g_new0 (unload_data, 1);
 	thread_data->domain = domain;

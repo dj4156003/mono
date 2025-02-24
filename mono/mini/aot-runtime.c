@@ -2194,7 +2194,7 @@ init_amodule_got (MonoAotModule *amodule, gboolean preinit)
 			amodule->shared_got [i] = amodule;
 		} else if (ji->type == MONO_PATCH_INFO_NONE) {
 		} else {
-			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_domain (), NULL, ji, FALSE, error);
+			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_exec_domain (), NULL, ji, FALSE, error);
 			mono_error_assert_ok (error);
 		}
 	}
@@ -4285,10 +4285,10 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 
 	nmethods = amodule->info.nmethods;
 
-	if (domain != mono_get_root_domain ())
+	if (domain != mono_get_root_exec_domain ())
 		/* FIXME: */
 		// return NULL;
-		domain = mono_get_root_domain();
+		domain = mono_get_root_exec_domain();
 
 	orig_addr = addr;
 	addr = MINI_FTNPTR_TO_ADDR (addr);
@@ -4879,10 +4879,10 @@ load_method (MonoDomain *domain, MonoAotModule *amodule, MonoImage *image, MonoM
 
 	init_amodule_got (amodule, FALSE);
 
-	if (domain != mono_get_root_domain ())
+	if (domain != mono_get_root_exec_domain ())
 		/* Non shared AOT code can't be used in other appdomains */
 		// return NULL;
-		domain = mono_get_root_domain();
+		domain = mono_get_root_exec_domain();
 
 	if (amodule->out_of_date)
 		return NULL;
@@ -5485,10 +5485,10 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method, MonoError *error)
 
 	error_init (error);
 
-	if (domain != mono_get_root_domain ())
+	if (domain != mono_get_root_exec_domain ())
 		/* Non shared AOT code can't be used in other appdomains */
 		// return NULL;
-		domain = mono_get_root_domain();
+		domain = mono_get_root_exec_domain();
 
 	if (enable_aot_cache && !amodule && domain->entry_assembly && mono_is_corlib_image (m_class_get_image (klass))) {
 		/* This cannot be AOTed during startup, so do it now */
@@ -5819,7 +5819,7 @@ mono_aot_patch_plt_entry (gpointer aot_module, guint8 *code, guint8 *plt_entry, 
 	 * is AppDomain:InvokeInDomain, so this is the same check as in 
 	 * mono_method_same_domain () but without loading the metadata for the method.
 	 */
-	/*if (mono_domain_get () == mono_get_root_domain ())*/ {
+	if (mono_domain_get () == mono_get_root_exec_domain ()) {
 		if (!amodule) {
 			amodule = find_aot_module (code);
 		}

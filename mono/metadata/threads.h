@@ -103,6 +103,8 @@ int32_t mono_unity_current_thread_get_stack_depth(void);
 MONO_API MONO_RT_EXTERNAL_ONLY
 int32_t mono_unity_thread_get_stack_depth(MonoThread* thread);
 
+MONO_API void mono_thread_check_native_attach (mono_bool value);
+
 MONO_END_DECLS
 
 #endif /* _MONO_METADATA_THREADS_H_ */

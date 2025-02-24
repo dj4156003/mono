@@ -273,6 +273,8 @@ gboolean unity_shutting_down = FALSE;
 
 static gint32 managed_thread_id_counter = 0;
 
+static mono_bool check_native_attach = 0;
+
 static void
 mono_threads_lock (void)
 {
@@ -6425,8 +6427,8 @@ mono_threads_attach_coop_internal (MonoDomain *domain, gpointer *cookie, MonoSta
 
 	if (!domain) {
 		/* Happens when called from AOTed code which is only used in the root domain. */
-		domain = mono_get_root_domain ();
-		g_assert (domain);
+		domain = mono_get_root_exec_domain ();
+		g_assert (domain && (!check_native_attach || domain != mono_get_root_domain()));
 	}
 
 	/* On coop, when we detached, we moved the thread from  RUNNING->BLOCKING.
@@ -6524,6 +6526,12 @@ mono_threads_detach_coop (gpointer orig, gpointer *dummy)
 	MONO_STACKDATA (stackdata);
 	stackdata.stackpointer = dummy;
 	mono_threads_detach_coop_internal ((MonoDomain*)orig, *dummy, &stackdata);
+}
+
+void 
+mono_thread_check_native_attach (mono_bool value)
+{
+	check_native_attach = value;
 }
 
 #if 0
