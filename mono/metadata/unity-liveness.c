@@ -105,7 +105,7 @@ struct _LivenessState {
 
 	static void custom_aligned_free(gpointer memory)
     {
-        return _aligned_free(memory);
+        _aligned_free(memory);
     }
 #else
 	static gpointer custom_aligned_alloc(size_t size, size_t alignment)

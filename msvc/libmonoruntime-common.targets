@@ -134,6 +134,8 @@
     <ClCompile Include="$(MonoSourceLocation)\mono\metadata\runtime.c" />
     <ClCompile Include="$(MonoSourceLocation)\mono\metadata\mono-security.c" />
     <ClInclude Include="$(MonoSourceLocation)\mono\metadata\security.h" />
+    <ClCompile Include="$(MonoSourceLocation)\mono\metadata\mono-runtime-stats.c" />
+    <ClInclude Include="$(MonoSourceLocation)\mono\metadata\mono-runtime-stats.h" />
     <ClCompile Include="$(MonoSourceLocation)\mono\metadata\security-core-clr.c" />
     <ClInclude Include="$(MonoSourceLocation)\mono\metadata\security-core-clr.h" />
     <ClCompile Include="$(MonoSourceLocation)\mono\metadata\security-manager.c" />
@@ -264,5 +266,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MonoSourceLocation)\mono\metadata\Makefile.am" />
+  </ItemGroup>
+
+  <ItemGroup Label="unity_relative_files">
+    <ClCompile Include="$(MonoSourceLocation)\mono\metadata\unity-icall.c" />
+    <ClCompile Include="$(MonoSourceLocation)\mono\metadata\unity-liveness.c" />
+    <ClInclude Include="$(MonoSourceLocation)\mono\metadata\unity-liveness.h" />
+    <ClCompile Include="$(MonoSourceLocation)\mono\metadata\unity-memory-info.c" />
+    <ClInclude Include="$(MonoSourceLocation)\mono\metadata\unity-memory-info.h" />
+    <ClCompile Include="$(MonoSourceLocation)\mono\metadata\unity-utils.c" />
+    <ClInclude Include="$(MonoSourceLocation)\mono\metadata\unity-utils.h" />
   </ItemGroup>
 </Project>
