@@ -966,11 +966,13 @@ mono_class_get_context (MonoClass *klass)
  * modified by the caller, and it should be freed using mono_metadata_free_type ().
  */
 MonoType*
-mono_class_inflate_generic_type_with_mempool (MonoImage *image, MonoType *type, MonoGenericContext *context, MonoError *error)
+mono_class_inflate_generic_type_with_mempool (MonoImage *image, MonoType *type, MonoGenericContext *context, MonoError *error, gboolean *heap_alloc)
 {
 	MonoType *inflated = NULL;
 	error_init (error);
 
+	if (heap_alloc)
+		*heap_alloc = FALSE;
 	if (context)
 		inflated = inflate_generic_type (image, type, context, error);
 	return_val_if_nok (error, NULL);
@@ -981,9 +983,14 @@ mono_class_inflate_generic_type_with_mempool (MonoImage *image, MonoType *type, 
 		if (shared && !type->has_cmods) {
 			return shared;
 		} else {
+			if (heap_alloc)
+				*heap_alloc = TRUE;
 			return mono_metadata_type_dup (image, type);
 		}
 	}
+
+	if (heap_alloc)
+		*heap_alloc = TRUE;
 
 	UnlockedIncrement (&mono_stats.inflated_type_count);
 	UnlockedIncrement64 (&mono_runtime_stats.inflated_type_count);
@@ -1007,7 +1014,7 @@ mono_class_inflate_generic_type (MonoType *type, MonoGenericContext *context)
 {
 	ERROR_DECL (error);
 	MonoType *result;
-	result = mono_class_inflate_generic_type_checked (type, context, error);
+	result = mono_class_inflate_generic_type_checked (type, context, error, NULL);
 	mono_error_cleanup (error);
 	return result;
 }
@@ -1025,9 +1032,9 @@ mono_class_inflate_generic_type (MonoType *type, MonoGenericContext *context)
  * on the heap and is owned by the caller.
  */
 MonoType*
-mono_class_inflate_generic_type_checked (MonoType *type, MonoGenericContext *context, MonoError *error)
+mono_class_inflate_generic_type_checked (MonoType *type, MonoGenericContext *context, MonoError *error, gboolean *heap_alloc)
 {
-	return mono_class_inflate_generic_type_with_mempool (NULL, type, context, error);
+	return mono_class_inflate_generic_type_with_mempool (NULL, type, context, error, heap_alloc);
 }
 
 /*
@@ -1066,7 +1073,7 @@ mono_class_inflate_generic_class_checked (MonoClass *gklass, MonoGenericContext 
 	MonoClass *res;
 	MonoType *inflated;
 
-	inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gklass), context, error);
+	inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gklass), context, error, NULL);
 	return_val_if_nok (error, NULL);
 
 	res = mono_class_from_mono_type_internal (inflated);
@@ -1575,7 +1582,7 @@ mono_class_find_enum_basetype (MonoClass *klass, MonoError *error)
 
 		if (mono_class_is_ginst (klass)) {
 			//FIXME do we leak here?
-			ftype = mono_class_inflate_generic_type_checked (ftype, mono_class_get_context (klass), error);
+			ftype = mono_class_inflate_generic_type_checked (ftype, mono_class_get_context (klass), error, NULL);
 			if (!is_ok (error))
 				goto fail;
 			ftype->attrs = cols [MONO_FIELD_FLAGS];

@@ -2351,6 +2351,7 @@ void      mono_call_inst_add_outarg_vt          (MonoCompile *cfg, MonoCallInst 
 void      mono_arch_init                        (void);
 void      mono_arch_finish_init                 (void);
 void      mono_arch_cleanup                     (void);
+void      mono_arch_reset                     	(void);
 void      mono_arch_cpu_init                    (void);
 guint32   mono_arch_cpu_optimizations           (guint32 *exclude_mask);
 const char *mono_arch_regname                   (int reg);
@@ -2794,6 +2795,7 @@ G_EXTERN_C void mono_interp_to_native_trampoline (gpointer addr, gpointer cconte
 MonoMethod* mini_get_interp_in_wrapper (MonoMethodSignature *sig);
 MonoMethod* mini_get_interp_lmf_wrapper (const char *name, gpointer target);
 char* mono_get_method_from_ip (void *ip);
+void mini_generic_sharing_clear_template(GHashTable *template_hash, MonoImage* check_image);
 
 /* SIMD support */
 

@@ -269,6 +269,15 @@ mono_arch_cleanup (void)
 {
 }
 
+/*
+ * Reset architecture specific code.
+ */
+void
+mono_arch_reset (void)
+{
+	mono_arm_gsharedvt_reset ();
+}
+
 guint32
 mono_arch_cpu_optimizations (guint32 *exclude_mask)
 {

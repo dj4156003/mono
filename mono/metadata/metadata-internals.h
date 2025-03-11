@@ -894,6 +894,9 @@ void
 mono_remove_image_unload_hook (MonoImageUnloadFunc func, gpointer user_data);
 
 void
+mono_set_image_rgctx_template_hash_free_func (GHFunc func);
+
+void
 mono_install_image_loader (const MonoImageLoader *loader);
 
 void
@@ -1233,6 +1236,9 @@ mono_image_set_description (MonoImageSet *);
 
 MonoImageSet *
 mono_find_image_set_owner (void *ptr);
+
+void
+mono_set_image_set_gshared_type_free_func (GHFunc func);
 
 void
 mono_loader_register_module (const char *name, MonoDl *module);

@@ -254,6 +254,7 @@ struct CallInfo {
 	ArgInfo ret;
 	ArgInfo sig_cookie;
 	ArgInfo args [1];
+	struct CallInfo * volatile next;
 };
 
 typedef struct {
@@ -290,6 +291,8 @@ void mono_arm_patch (guint8 *code, guint8 *target, int relocation);
 void mono_arm_throw_exception (gpointer arg, host_mgreg_t pc, host_mgreg_t *int_regs, gdouble *fp_regs, gboolean corlib, gboolean rethrow, gboolean preserve_ips);
 
 void mono_arm_gsharedvt_init (void);
+
+void mono_arm_gsharedvt_reset (void);
 
 GSList* mono_arm_get_exception_trampolines (gboolean aot);
 

@@ -906,6 +906,14 @@ mono_arch_cleanup (void)
 }
 
 /*
+ * Reset architecture specific code.
+ */
+void
+mono_arch_reset (void)
+{
+}
+
+/*
  * This function returns the optimizations supported on this cpu.
  */
 guint32

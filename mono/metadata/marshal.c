@@ -2181,7 +2181,7 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 
 			g_assert (method->signature->hasthis);
 			target_type = mono_class_inflate_generic_type_checked (method->signature->params [0],
-				mono_method_get_context (method), error);
+				mono_method_get_context (method), error, NULL);
 			mono_error_assert_ok (error); /* FIXME don't swallow the error */
 			target_class = mono_class_from_mono_type_internal (target_type);
 		} else {

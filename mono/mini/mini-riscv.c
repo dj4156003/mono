@@ -49,6 +49,14 @@ mono_arch_cleanup (void)
 {
 }
 
+/*
+ * Reset architecture specific code.
+ */
+void
+mono_arch_reset (void)
+{
+}
+
 void
 mono_arch_set_target (char *mtriple)
 {

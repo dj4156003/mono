@@ -6348,7 +6348,7 @@ generate_code (TransformData *td, MonoMethod *method, MonoMethodHeader *header, 
 					handle = m_class_get_byval_arg ((MonoClass *) handle);
 
 				if (generic_context) {
-					handle = mono_class_inflate_generic_type_checked ((MonoType*)handle, generic_context, error);
+					handle = mono_class_inflate_generic_type_checked ((MonoType*)handle, generic_context, error, NULL);
 					goto_if_nok (error, exit);
 				}
 			} else {

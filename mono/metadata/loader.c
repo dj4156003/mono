@@ -630,12 +630,12 @@ inflate_generic_signature_checked (MonoImage *image, MonoMethodSignature *sig, M
 	res = (MonoMethodSignature *)g_malloc0 (MONO_SIZEOF_METHOD_SIGNATURE + ((gint32)sig->param_count) * sizeof (MonoType*));
 	res->param_count = sig->param_count;
 	res->sentinelpos = -1;
-	res->ret = mono_class_inflate_generic_type_checked (sig->ret, context, error);
+	res->ret = mono_class_inflate_generic_type_checked (sig->ret, context, error, NULL);
 	if (!is_ok (error))
 		goto fail;
 	is_open = mono_class_is_open_constructed_type (res->ret);
 	for (i = 0; i < sig->param_count; ++i) {
-		res->params [i] = mono_class_inflate_generic_type_checked (sig->params [i], context, error);
+		res->params [i] = mono_class_inflate_generic_type_checked (sig->params [i], context, error, NULL);
 		if (!is_ok (error))
 			goto fail;
 
@@ -704,7 +704,7 @@ inflate_generic_header (MonoMethodHeader *header, MonoGenericContext *context, M
 	error_init (error);
 
 	for (int i = 0; i < header->num_locals; ++i) {
-		res->locals [i] = mono_class_inflate_generic_type_checked (header->locals [i], context, error);
+		res->locals [i] = mono_class_inflate_generic_type_checked (header->locals [i], context, error, NULL);
 		goto_if_nok (error, fail);
 	}
 	if (res->num_clauses) {

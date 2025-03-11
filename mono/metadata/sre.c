@@ -3397,7 +3397,7 @@ fix_partial_generic_class (MonoClass *klass, MonoError *error)
 		return TRUE;
 
 	if (klass->parent != gklass->parent) {
-		MonoType *parent_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (m_class_get_parent (gklass)), &mono_class_get_generic_class (klass)->context, error);
+		MonoType *parent_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (m_class_get_parent (gklass)), &mono_class_get_generic_class (klass)->context, error, NULL);
 		if (is_ok (error)) {
 			MonoClass *parent = mono_class_from_mono_type_internal (parent_type);
 			mono_metadata_free_type (parent_type);
@@ -3436,7 +3436,7 @@ fix_partial_generic_class (MonoClass *klass, MonoError *error)
 
 		MonoClass **gklass_interfaces = m_class_get_interfaces (gklass);
 		for (i = 0; i < gklass->interface_count; ++i) {
-			MonoType *iface_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gklass_interfaces [i]), mono_class_get_context (klass), error);
+			MonoType *iface_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gklass_interfaces [i]), mono_class_get_context (klass), error, NULL);
 			return_val_if_nok (error, FALSE);
 
 			klass->interfaces [i] = mono_class_from_mono_type_internal (iface_type);
@@ -3457,7 +3457,7 @@ fix_partial_generic_class (MonoClass *klass, MonoError *error)
 		for (i = 0; i < gfcount; i++) {
 			klass->fields [i] = gklass->fields [i];
 			klass->fields [i].parent = klass;
-			klass->fields [i].type = mono_class_inflate_generic_type_checked (gklass->fields [i].type, mono_class_get_context (klass), error);
+			klass->fields [i].type = mono_class_inflate_generic_type_checked (gklass->fields [i].type, mono_class_get_context (klass), error, NULL);
 			return_val_if_nok (error, FALSE);
 		}
 	}
@@ -4374,7 +4374,7 @@ mono_reflection_resolve_object (MonoImage *image, MonoObject *obj, MonoClass **h
 		}
 
 		if (context) {
-			MonoType *inflated = mono_class_inflate_generic_type_checked (type, context, error);
+			MonoType *inflated = mono_class_inflate_generic_type_checked (type, context, error, NULL);
 			goto_if_nok (error, return_null);
 
 			result = mono_class_from_mono_type_internal (inflated);
@@ -4400,7 +4400,7 @@ mono_reflection_resolve_object (MonoImage *image, MonoObject *obj, MonoClass **h
 		goto_if_nok (error, return_null);
 
 		if (context) {
-			MonoType *inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (field->parent), context, error);
+			MonoType *inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (field->parent), context, error, NULL);
 			goto_if_nok (error, return_null);
 
 			MonoClass *klass;

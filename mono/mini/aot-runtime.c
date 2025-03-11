@@ -52,6 +52,7 @@
 #include <mono/metadata/exception-internals.h>
 #include <mono/metadata/marshal.h>
 #include <mono/metadata/gc-internals.h>
+#include <mono/metadata/loaded-images-internals.h>
 #include <mono/metadata/threads-types.h>
 #include <mono/metadata/mono-endian.h>
 #include <mono/utils/mono-logger-internals.h>
@@ -201,7 +202,7 @@ static mono_mutex_t aot_corlib_mem_mutex;
 static mono_mutex_t aot_reload_mem_mutex;
 static LockFreeMempool *aot_corlib_lock_free_mp;
 static LockFreeMempool *aot_reload_lock_free_mp;
-static GArray *aot_corlib_reload_got_offsets;
+static volatile guint8 *aot_corlib_reload_got_offsets;
 
 /* 
  * Maps assembly names to the mono_aot_module_<NAME>_info symbols in the
@@ -649,7 +650,7 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf, MonoError
 		ctx.class_inst = decode_generic_inst (module, p2, &p2, error);
 		if (!ctx.class_inst)
 			return NULL;
-		type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gclass), &ctx, error);
+		type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gclass), &ctx, error, NULL);
 		if (!type)
 			return NULL;
 		klass = mono_class_from_mono_type_internal (type);
@@ -879,6 +880,7 @@ decode_type (MonoAotModule *module, guint8 *buf, guint8 **endbuf, MonoError *err
 		MonoGenericContext ctx;
 		MonoType *type;
 		MonoClass *klass;
+		gboolean type_heap_alloc = FALSE;
 
 		gclass = decode_klass_ref (module, p, &p, error);
 		if (!gclass)
@@ -889,11 +891,13 @@ decode_type (MonoAotModule *module, guint8 *buf, guint8 **endbuf, MonoError *err
 		ctx.class_inst = decode_generic_inst (module, p, &p, error);
 		if (!ctx.class_inst)
 			goto fail;
-		type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gclass), &ctx, error);
+		type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (gclass), &ctx, error, &type_heap_alloc);
 		if (!type)
 			goto fail;
 		klass = mono_class_from_mono_type_internal (type);
 		t->data.generic_class = mono_class_get_generic_class (klass);
+		if (type_heap_alloc)
+			mono_metadata_free_type (type);
 		break;
 	}
 	case MONO_TYPE_ARRAY: {
@@ -2430,6 +2434,11 @@ reuse_aot_module (MonoImage *last_aot_image, MonoAssembly *new_aot_assembly, Mon
 		memset(already_reused_aot_module->methods_loaded, 0, (already_reused_aot_module->info.nmethods / 32 + 1) * sizeof(guint32));
 	}
 
+	if (already_reused_aot_module->methods)
+	{
+		g_free (already_reused_aot_module->methods);
+		already_reused_aot_module->methods = NULL;
+	}
 	/* Compute method addresses */
 	already_reused_aot_module->methods = (void **)g_malloc0 (already_reused_aot_module->info.nmethods * sizeof (gpointer));
 	for (i = 0; i < already_reused_aot_module->info.nmethods; ++i) {
@@ -2469,17 +2478,14 @@ reuse_aot_module (MonoImage *last_aot_image, MonoAssembly *new_aot_assembly, Mon
 
 	if (new_aot_assembly)
 	{	
-		MonoDomain *domain = mono_get_root_domain();
-
-		ReplaceImageInfo replace_image_info;
-		replace_image_info.last_aot_image = last_aot_image;
-		replace_image_info.new_aot_image = new_aot_assembly->image;
-
-		mono_domain_lock(domain);
-
-		mono_jit_info_aot_module_table_foreach_internal(domain, replace_ji_info, &replace_image_info);
-
-		mono_domain_unlock(domain);
+#ifdef HOST_WASM
+		register_methods_in_jinfo (already_reused_aot_module);
+#else
+	if (already_reused_aot_module->jit_code_start)
+		mono_jit_info_add_aot_module (new_aot_assembly->image, already_reused_aot_module->jit_code_start, already_reused_aot_module->jit_code_end);
+	if (already_reused_aot_module->llvm_code_start)
+		mono_jit_info_add_aot_module (new_aot_assembly->image, already_reused_aot_module->llvm_code_start, already_reused_aot_module->llvm_code_end);
+#endif
 
 		if (already_reused_aot_module->info.flags & MONO_AOT_FILE_FLAG_WITH_LLVM)
 			/* Directly called methods might make calls through the PLT */
@@ -2825,6 +2831,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		amodule->aot_mem_pool = aot_corlib_mem_pool;
 		amodule->aot_lock_free_mp = aot_corlib_lock_free_mp;
 		amodule->aot_mem_mutex = &aot_corlib_mem_mutex;
+		aot_corlib_reload_got_offsets = (volatile guint8 *)g_malloc0 (sizeof (guint8) * (amodule->info.got_size / sizeof (gpointer)));
 	}
 	else
 	{
@@ -3040,7 +3047,7 @@ mono_aot_init (void)
 	aot_reload_mem_pool = mono_mempool_new();
 	aot_corlib_lock_free_mp = lock_free_mempool_new();
 	aot_reload_lock_free_mp = lock_free_mempool_new();
-	aot_corlib_reload_got_offsets = g_array_new(FALSE, TRUE, sizeof(guint32));
+	// aot_corlib_reload_got_offsets = g_array_new(FALSE, TRUE, sizeof(guint32));
 
 	mono_install_assembly_load_hook_v2 (load_aot_module, NULL, FALSE);
 	mono_counters_register ("Async JIT info size", MONO_COUNTER_INT|MONO_COUNTER_JIT, &async_jit_info_size);
@@ -3064,13 +3071,30 @@ mono_aot_cleanup (void)
 static gboolean
 amodule_contains_code_addr (MonoAotModule *amodule, guint8 *code);
 
-static void search_reserved_ji_info(MonoDomain *domain, MonoMethod* method, MonoJitInfo* jinfo, void* user_data)
+static void mark_ji_info_state(MonoDomain *domain, MonoMethod* method, MonoJitInfo* jinfo, void* user_data)
 {
-	GPtrArray *reserved_ji_infos = (GPtrArray *)user_data;
-	if (jinfo->is_trampoline || (!jinfo->async && jinfo->code_start && amodule_contains_code_addr(mscorlib_aot_module, jinfo->code_start)))
+	guint64 state = 0;
+	guint64 final_state = (guint64)jinfo;
+	GArray *ji_infos_states = (GArray *)user_data;
+	if (mono_domain_owns_vtable_slot(mono_get_root_domain(), (gpointer)jinfo))
 	{
-		g_ptr_array_add(reserved_ji_infos, jinfo);
+		goto exit;
+	}	
+	if (jinfo->from_aot)
+	{
+		if (!mono_mempool_contains_addr(aot_corlib_mem_pool, jinfo))
+		{
+			state |= 0x1;
+		}
+		goto exit;
 	}
+	if (!(jinfo->is_trampoline || (!jinfo->async && ((jinfo->code_start && amodule_contains_code_addr(mscorlib_aot_module, jinfo->code_start)) || (mono_find_image_owner(method) == mono_get_corlib())))))
+	{
+		state |= 0x2;
+	}
+exit:
+	final_state |= state;
+	g_array_append_val (ji_infos_states, final_state);
 }
 
 static void
@@ -3121,11 +3145,15 @@ reuse_mscorlib_aot_module(GArray *reserved_async_jit_info_maps)
 		g_hash_table_destroy (mscorlib_aot_module->method_to_code);
 		mscorlib_aot_module->method_to_code = g_hash_table_new (mono_aligned_addr_hash, NULL);
 	}
-	for (int i = 0; i < aot_corlib_reload_got_offsets->len; ++i)
+	guint32 got_len = mscorlib_aot_module->info.got_size / sizeof(gpointer);
+	for (int i = 0; i < got_len; ++i)
 	{
-		mscorlib_aot_module->got [g_array_index(aot_corlib_reload_got_offsets, guint32, i)] = NULL;
+		if (aot_corlib_reload_got_offsets[i])
+		{
+			mscorlib_aot_module->got [i] = NULL;
+			aot_corlib_reload_got_offsets[i] = 0;
+		}
 	}
-	g_array_set_size(aot_corlib_reload_got_offsets, 0);
 
 	if (mscorlib_aot_module->methods_loaded)
 	{
@@ -3151,7 +3179,7 @@ void
 mono_aot_reset (void)
 {
 	GArray * reserved_corlib_async_jit_info_maps = collect_corlib_async_jit_info_maps();
-	mono_clear_root_domain_jit_info(search_reserved_ji_info);
+	mono_clear_root_domain_jit_info(mark_ji_info_state);
 
 	mono_mempool_destroy(aot_reload_mem_pool);
 	aot_reload_mem_pool = mono_mempool_new();
@@ -3162,6 +3190,25 @@ mono_aot_reset (void)
 	ji_to_amodule = NULL;
 
 	reuse_mscorlib_aot_module(reserved_corlib_async_jit_info_maps);
+
+	MonoImage* corlib_image = mscorlib_aot_module->image_table[0];
+
+	if (corlib_image->rgctx_template_hash)
+	{
+		// GHashTable *corlib_exist_classes = g_hash_table_new(mono_aligned_addr_hash, NULL);
+
+		// mono_unity_report_assembly_classes(mscorlib_aot_module->assembly, add_corlib_exist_classes, corlib_exist_classes);
+		
+		mini_generic_sharing_clear_template(corlib_image->rgctx_template_hash, corlib_image);
+
+		// g_hash_table_destroy(corlib_exist_classes);
+	}
+	
+	if (corlib_image->proxy_isinst_cache)
+	{
+		g_hash_table_destroy (corlib_image->proxy_isinst_cache);
+		corlib_image->proxy_isinst_cache = NULL;
+	}
 
 	GPtrArray *all_aot_modules = g_ptr_array_new ();
 	g_hash_table_foreach (aot_modules, add_module_cb, all_aot_modules);
@@ -3174,6 +3221,9 @@ mono_aot_reset (void)
 			g_hash_table_insert (aot_reused_modules, module->aot_name, module);
 		}
 	}
+	g_ptr_array_free (all_aot_modules, TRUE);
+
+	mono_arch_reset ();
 }
 
 gpointer
@@ -5404,7 +5454,7 @@ init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMe
 				got [got_slots [pindex]] = addr;
 				if (amodule == mscorlib_aot_module)
 				{
-					g_array_append_val (aot_corlib_reload_got_offsets, got_slots [pindex]);
+					aot_corlib_reload_got_offsets[got_slots [pindex]] = 1;
 				}
 				if (ji->type == MONO_PATCH_INFO_METHOD_JUMP)
 					register_jump_target_got_slot (domain, ji->data.method, &(got [got_slots [pindex]]));

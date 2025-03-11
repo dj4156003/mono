@@ -16,6 +16,8 @@
 #include <mono/metadata/method-builder.h>
 #include <mono/metadata/method-builder-ilgen.h>
 #include <mono/metadata/method-builder-ilgen-internals.h>
+#include <mono/metadata/loaded-images-internals.h>
+#include <mono/metadata/metadata-internals.h>
 #include <mono/metadata/reflection-internals.h>
 #include <mono/metadata/abi-details.h>
 #include <mono/utils/mono-counters.h>
@@ -37,6 +39,14 @@
 #define DEBUG(...)
 #endif
 
+#define OTI_DATA_MALLOC_MAGIC_NUMBER 0x19700101
+
+#define DEFINE_MAGIC_MALLOC_VAR(var_name, type) type* var_name = (type *)g_malloc0 (sizeof (type) + sizeof (guint32));\
+		*((guint32*)(var_name + 1)) = OTI_DATA_MALLOC_MAGIC_NUMBER;
+
+#define FREE_IF_MAGIC_MALLOC_VAR(var_name) if (var_name && (((guint32*)(var_name + 1)) [0] == OTI_DATA_MALLOC_MAGIC_NUMBER)) {\
+		*((guint32*)(var_name + 1)) = 0;\
+		g_free (var_name);}
 static void
 mono_class_unregister_image_generic_subclasses (MonoImage *image, gpointer user_data);
 
@@ -555,7 +565,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 	case MONO_RGCTX_INFO_NULLABLE_CLASS_BOX:
 	case MONO_RGCTX_INFO_NULLABLE_CLASS_UNBOX: {
 		gpointer result = mono_class_inflate_generic_type_with_mempool (temporary ? NULL : m_class_get_image (klass),
-			(MonoType *)data, context, error);
+			(MonoType *)data, context, error, NULL);
 		mono_error_assert_msg_ok (error, "Could not inflate generic type"); /* FIXME proper error handling */
 		return result;
 	}
@@ -570,7 +580,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE: {
 		MonoMethod *method = (MonoMethod *)data;
 		MonoMethod *inflated_method;
-		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (method->klass), context, error);
+		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (method->klass), context, error, NULL);
 		mono_error_assert_ok (error); /* FIXME don't swallow the error */
 
 		MonoClass *inflated_class = mono_class_from_mono_type_internal (inflated_type);
@@ -623,7 +633,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 		MonoJumpInfoGSharedVtCall *info = (MonoJumpInfoGSharedVtCall *)data;
 		MonoMethod *method = info->method;
 		MonoMethod *inflated_method;
-		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (method->klass), context, error);
+		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (method->klass), context, error, NULL);
 		mono_error_assert_ok (error); /* FIXME don't swallow the error */
 		WrapperInfo *winfo = NULL;
 
@@ -673,7 +683,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 	case MONO_RGCTX_INFO_FIELD_OFFSET: {
 		ERROR_DECL (error);
 		MonoClassField *field = (MonoClassField *)data;
-		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (field->parent), context, error);
+		MonoType *inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (field->parent), context, error, NULL);
 		mono_error_assert_ok (error); /* FIXME don't swallow the error */
 
 		MonoClass *inflated_class = mono_class_from_mono_type_internal (inflated_type);
@@ -707,7 +717,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 
 		// FIXME: Temporary
 		res = (MonoJumpInfoVirtMethod *)mono_domain_alloc0 (domain, sizeof (MonoJumpInfoVirtMethod));
-		t = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (info->klass), context, error);
+		t = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (info->klass), context, error, NULL);
 		mono_error_assert_ok (error); /* FIXME don't swallow the error */
 
 		res->klass = mono_class_from_mono_type_internal (t);
@@ -723,7 +733,7 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti, MonoGenericContext *co
 		MonoDelegateClassMethodPair *dele_info = (MonoDelegateClassMethodPair*)data;
 		MonoDomain *domain = mono_domain_get ();
 
-		MonoType *t = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (dele_info->klass), context, error);
+		MonoType *t = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (dele_info->klass), context, error, NULL);
 		mono_error_assert_msg_ok (error, "Could not inflate generic type"); /* FIXME proper error handling */
 
 		MonoClass *klass = mono_class_from_mono_type_internal (t);
@@ -3804,6 +3814,12 @@ mini_type_stack_size_full (MonoType *t, guint32 *align, gboolean pinvoke)
 	return size;
 }
 
+static void
+generic_sharing_free_single_template (gpointer key, gpointer value, gpointer userdata);
+
+static void 
+free_gshared_type_item(gpointer key, gpointer value, gpointer user_data);
+
 /*
  * mono_generic_sharing_init:
  *
@@ -3827,6 +3843,8 @@ mono_generic_sharing_init (void)
 	mono_counters_register ("GSHAREDVT num trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &gsharedvt_num_trampolines);
 
 	mono_install_image_unload_hook (mono_class_unregister_image_generic_subclasses, NULL);
+	mono_set_image_rgctx_template_hash_free_func (generic_sharing_free_single_template);
+	mono_set_image_set_gshared_type_free_func (free_gshared_type_item);
 
 	mono_os_mutex_init_recursive (&gshared_mutex);
 }
@@ -4022,6 +4040,7 @@ mini_get_shared_gparam (MonoType *t, MonoType *constraint)
 	copy = (MonoGSharedGenericParam *)mono_image_set_alloc0 (set, sizeof (MonoGSharedGenericParam));
 	memcpy (&copy->param, par, sizeof (MonoGenericParamFull));
 	copy->param.info.pklass = NULL;
+	//TODO Free the constraint
 	// FIXME:
 	constraint = mono_metadata_type_dup (NULL, constraint);
 	name = get_shared_gparam_name (constraint->type, ((MonoGenericParamFull*)copy)->info.name);
@@ -4236,6 +4255,7 @@ mini_get_shared_method_full (MonoMethod *method, GetSharedMethodFlags flags, Mon
 int
 mini_get_rgctx_entry_slot (MonoJumpInfoRgctxEntry *entry)
 {
+	//TODO free entry_data
 	gpointer entry_data = NULL;
 	gboolean did_register = FALSE;
 	guint32 result = -1;
@@ -4255,19 +4275,20 @@ mini_get_rgctx_entry_slot (MonoJumpInfoRgctxEntry *entry)
 		entry_data = entry->data->data.sig;
 		break;
 	case MONO_PATCH_INFO_GSHAREDVT_CALL: {
-		MonoJumpInfoGSharedVtCall *call_info = (MonoJumpInfoGSharedVtCall *)g_malloc0 (sizeof (MonoJumpInfoGSharedVtCall)); //mono_domain_alloc0 (domain, sizeof (MonoJumpInfoGSharedVtCall));
-
+		DEFINE_MAGIC_MALLOC_VAR(call_info, MonoJumpInfoGSharedVtCall)
+		// MonoJumpInfoGSharedVtCall* call_info = (MonoJumpInfoGSharedVtCall *)(g_malloc0 (sizeof (MonoJumpInfoGSharedVtCall));
 		memcpy (call_info, entry->data->data.gsharedvt, sizeof (MonoJumpInfoGSharedVtCall));
 		entry_data = call_info;
 		break;
 	}
 	case MONO_PATCH_INFO_GSHAREDVT_METHOD: {
-		MonoGSharedVtMethodInfo *info;
+		// MonoGSharedVtMethodInfo *info;
 		MonoGSharedVtMethodInfo *oinfo = entry->data->data.gsharedvt_method;
 		int i;
 
 		/* Make a copy into the domain mempool */
-		info = (MonoGSharedVtMethodInfo *)g_malloc0 (sizeof (MonoGSharedVtMethodInfo)); //mono_domain_alloc0 (domain, sizeof (MonoGSharedVtMethodInfo));
+		DEFINE_MAGIC_MALLOC_VAR(info, MonoGSharedVtMethodInfo)
+		// info = (MonoGSharedVtMethodInfo *)g_malloc0 (sizeof (MonoGSharedVtMethodInfo)); //mono_domain_alloc0 (domain, sizeof (MonoGSharedVtMethodInfo));
 		info->method = oinfo->method;
 		info->num_entries = oinfo->num_entries;
 		info->entries = (MonoRuntimeGenericContextInfoTemplate *)g_malloc0 (sizeof (MonoRuntimeGenericContextInfoTemplate) * info->num_entries);
@@ -4281,19 +4302,21 @@ mini_get_rgctx_entry_slot (MonoJumpInfoRgctxEntry *entry)
 		break;
 	}
 	case MONO_PATCH_INFO_VIRT_METHOD: {
-		MonoJumpInfoVirtMethod *info;
+		// MonoJumpInfoVirtMethod *info;
 		MonoJumpInfoVirtMethod *oinfo = entry->data->data.virt_method;
 
-		info = (MonoJumpInfoVirtMethod *)g_malloc0 (sizeof (MonoJumpInfoVirtMethod));
+		DEFINE_MAGIC_MALLOC_VAR(info, MonoJumpInfoVirtMethod)
+		// info = (MonoJumpInfoVirtMethod *)g_malloc0 (sizeof (MonoJumpInfoVirtMethod));
 		memcpy (info, oinfo, sizeof (MonoJumpInfoVirtMethod));
 		entry_data = info;
 		break;
 	}
 	case MONO_PATCH_INFO_DELEGATE_TRAMPOLINE: {
-		MonoDelegateClassMethodPair *info;
+		// MonoDelegateClassMethodPair *info;
 		MonoDelegateClassMethodPair *oinfo = entry->data->data.del_tramp;
 
-		info = (MonoDelegateClassMethodPair *)g_malloc0 (sizeof (MonoDelegateClassMethodPair));
+		DEFINE_MAGIC_MALLOC_VAR(info, MonoDelegateClassMethodPair)
+		// info = (MonoDelegateClassMethodPair *)g_malloc0 (sizeof (MonoDelegateClassMethodPair));
 		memcpy (info, oinfo, sizeof (MonoDelegateClassMethodPair));
 		entry_data = info;
 		break;
@@ -4336,6 +4359,278 @@ mono_set_generic_sharing_vt_supported (gboolean supported)
 	/* ensure we do not disable gsharedvt once it's been enabled */
 	if (!gsharedvt_supported  && supported)
 		gsharedvt_supported = TRUE;
+}
+
+static gboolean
+free_oti_data_and_check_need_clear (MonoImage *check_image, MonoRuntimeGenericContextInfoTemplate *oti)
+{
+	gpointer data = oti->data;
+
+	if (!data)
+	{
+		return FALSE;
+	}
+
+	MonoRgctxInfoType info_type = oti->info_type;
+
+	if (data == MONO_RGCTX_SLOT_USED_MARKER)
+		return FALSE;
+
+	switch (info_type)
+	{
+	case MONO_RGCTX_INFO_STATIC_DATA:
+	case MONO_RGCTX_INFO_KLASS:
+	case MONO_RGCTX_INFO_ELEMENT_KLASS:
+	case MONO_RGCTX_INFO_VTABLE:
+	case MONO_RGCTX_INFO_TYPE:
+	case MONO_RGCTX_INFO_REFLECTION_TYPE:
+	case MONO_RGCTX_INFO_CAST_CACHE:
+	case MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE:
+	case MONO_RGCTX_INFO_VALUE_SIZE:
+	case MONO_RGCTX_INFO_CLASS_SIZEOF:
+	case MONO_RGCTX_INFO_CLASS_BOX_TYPE:
+	case MONO_RGCTX_INFO_CLASS_IS_REF_OR_CONTAINS_REFS:
+	case MONO_RGCTX_INFO_MEMCPY:
+	case MONO_RGCTX_INFO_BZERO:
+	case MONO_RGCTX_INFO_LOCAL_OFFSET:
+	case MONO_RGCTX_INFO_NULLABLE_CLASS_BOX:
+	case MONO_RGCTX_INFO_NULLABLE_CLASS_UNBOX: {
+		return TRUE;
+	}
+
+	case MONO_RGCTX_INFO_METHOD:
+	case MONO_RGCTX_INFO_METHOD_FTNDESC:
+	case MONO_RGCTX_INFO_GENERIC_METHOD_CODE:
+	case MONO_RGCTX_INFO_GSHAREDVT_OUT_WRAPPER:
+	case MONO_RGCTX_INFO_METHOD_RGCTX:
+	case MONO_RGCTX_INFO_METHOD_CONTEXT:
+	case MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK:
+	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE: {
+		if (!check_image)
+		{
+			return FALSE;
+		}
+		return mono_find_image_owner (data) != check_image;
+	}
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_INFO: {
+		FREE_IF_MAGIC_MALLOC_VAR(data)
+		return TRUE;
+	}
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT: {
+		// MonoJumpInfoGSharedVtCall *info = (MonoJumpInfoGSharedVtCall *)data;
+		// MonoMethod *method = info->method;
+		// return mono_find_image_owner (method) != check_image;
+		FREE_IF_MAGIC_MALLOC_VAR(data)
+		return TRUE;
+	}
+
+	case MONO_RGCTX_INFO_CLASS_FIELD:
+	case MONO_RGCTX_INFO_FIELD_OFFSET: {
+		if (!check_image)
+		{
+			return FALSE;
+		}
+		MonoClassField *field = (MonoClassField *)data;
+		return mono_find_image_owner (field->parent) != check_image;
+	}
+	case MONO_RGCTX_INFO_SIG_GSHAREDVT_IN_TRAMPOLINE_CALLI:
+	case MONO_RGCTX_INFO_SIG_GSHAREDVT_OUT_TRAMPOLINE_CALLI: {
+		return TRUE;
+	}
+	case MONO_RGCTX_INFO_VIRT_METHOD_CODE:
+	case MONO_RGCTX_INFO_VIRT_METHOD_BOX_TYPE: {
+		FREE_IF_MAGIC_MALLOC_VAR(data)
+		return TRUE;
+	}
+	case MONO_RGCTX_INFO_DELEGATE_TRAMP_INFO: {
+		FREE_IF_MAGIC_MALLOC_VAR(data)
+		return TRUE;
+	}
+	default:
+		
+	}
+	return TRUE;
+}
+
+static void
+clear_subclass_template(MonoImage* check_image, MonoClass *klass, int type_argc, int slot)
+{
+	MonoClass *subclass;
+	if (generic_subclass_hash)
+		subclass = (MonoClass *)g_hash_table_lookup (generic_subclass_hash, klass);
+	else
+		subclass = NULL;
+
+	if (subclass && subclass->image != check_image)
+	{
+		g_hash_table_remove(generic_subclass_hash, klass);
+		return;
+	}
+
+	while (subclass) {
+		MonoRuntimeGenericContextInfoTemplate subclass_oti;
+		MonoRuntimeGenericContextTemplate *subclass_template = class_lookup_rgctx_template (subclass);
+
+		g_assert (subclass_template);
+
+		int i;
+		MonoRuntimeGenericContextInfoTemplate *list = get_info_templates (subclass_template, type_argc);
+		MonoRuntimeGenericContextInfoTemplate **oti = &list;
+
+		g_assert (slot >= 0);
+
+		i = 0;
+		while (i <= slot) {
+			if (i > 0)
+				oti = &(*oti)->next;
+			if (!*oti)
+				break;
+			++i;
+		}
+
+		if (*oti) {
+			(*oti)->data = NULL;
+		}
+
+		clear_subclass_template (check_image, subclass, type_argc, slot);
+
+		subclass = subclass_template->next_subclass;
+		if (subclass && subclass->image != check_image)
+		{
+			subclass_template->next_subclass = NULL;
+			subclass = NULL;
+		}
+	}
+}
+
+static void
+clear_parent_and_subclass_template(MonoImage *check_image, MonoClass *klass, GArray *clear_index_slots)
+{
+	MonoClass *parent = m_class_get_parent (klass);
+	while (parent != NULL) {
+		MonoRuntimeGenericContextTemplate *parent_template;
+		MonoRuntimeGenericContextInfoTemplate *oti;
+
+		if (mono_class_is_ginst (parent))
+			parent = mono_class_get_generic_class (parent)->container_class;
+
+		parent_template = mono_class_get_runtime_generic_context_template (parent);
+
+		for (int i = 0; i < clear_index_slots->len; i += 2) {
+			int type_argc = g_array_index(clear_index_slots, int, i);
+			int slot = g_array_index(clear_index_slots, int, i + 1);
+			oti = rgctx_template_get_other_slot (parent_template, type_argc, slot);
+			oti->data = NULL;
+		}
+
+		parent = m_class_get_parent (parent);
+	}
+
+	for (int i = 0; i < clear_index_slots->len; i += 2) {
+		int type_argc = g_array_index(clear_index_slots, int, i);
+		int slot = g_array_index(clear_index_slots, int, i + 1);
+		clear_subclass_template(check_image, klass, type_argc, slot);
+	}
+}
+
+static void 
+free_gshared_type_item(gpointer key, gpointer value, gpointer user_data)
+{
+	MonoGSharedGenericParam *copy = (MonoGSharedGenericParam *)key;
+	if (copy->param.gshared_constraint)
+	{
+		g_free(copy->param.gshared_constraint);
+	}
+	g_free (value);
+}
+
+static void
+generic_sharing_free_single_template (gpointer key, gpointer value, gpointer userdata)
+{
+	MonoClass *klass = (MonoClass *)key;
+	MonoRuntimeGenericContextTemplate *template = (MonoRuntimeGenericContextTemplate *)value;
+	MonoRuntimeGenericContextInfoTemplate *oti = NULL;
+	MonoRuntimeGenericContextInfoTemplate *oti_list = template->infos;
+	int slot = 0;
+	int type_argc = 0;
+	for (oti = oti_list; oti; oti = oti->next) {
+		free_oti_data_and_check_need_clear(NULL, oti);
+	}
+
+	GSList *method_templates = template->method_templates;
+	if (method_templates)
+	{
+		guint mt_len = g_slist_length(method_templates);
+		for (type_argc = 0; type_argc < mt_len; ++type_argc)
+		{
+			oti_list = (MonoRuntimeGenericContextInfoTemplate *)g_slist_nth_data(method_templates, type_argc);
+			slot = 0;
+			for (oti = oti_list; oti; oti = oti->next) {
+				free_oti_data_and_check_need_clear(NULL, oti);
+			}
+		}
+	}
+}
+
+void
+mini_generic_sharing_clear_template(GHashTable *template_hash, MonoImage *check_image)
+{
+	
+	GList* templates = g_hash_table_get_values(template_hash);
+	GList* template_klasses = g_hash_table_get_keys(template_hash);
+	GArray *clear_index_slots = g_array_new(TRUE, TRUE, sizeof(int));
+	GList* original_templates = templates;
+	GList* original_template_klasses = template_klasses;
+	while (templates)
+	{
+		MonoClass *klass = (MonoClass *)template_klasses->data;
+		MonoRuntimeGenericContextTemplate *template = (MonoRuntimeGenericContextTemplate *)templates->data;
+		if (template)
+		{
+			g_array_set_size(clear_index_slots, 0);
+			MonoRuntimeGenericContextInfoTemplate *oti = NULL;
+			MonoRuntimeGenericContextInfoTemplate *oti_list = template->infos;
+			int slot = 0;
+			int type_argc = 0;
+			for (oti = oti_list; oti; oti = oti->next) {
+				if (free_oti_data_and_check_need_clear(check_image, oti))
+				{
+					oti->data = NULL;
+					g_array_append_val(clear_index_slots, type_argc);
+					g_array_append_val(clear_index_slots, slot);
+				}
+				++slot;
+			}
+
+			GSList *method_templates = template->method_templates;
+			if (method_templates)
+			{
+				guint mt_len = g_slist_length(method_templates);
+				for (type_argc = 0; type_argc < mt_len; ++type_argc)
+				{
+					oti_list = (MonoRuntimeGenericContextInfoTemplate *)g_slist_nth_data(method_templates, type_argc);
+					slot = 0;
+					for (oti = oti_list; oti; oti = oti->next) {
+						if (free_oti_data_and_check_need_clear(check_image, oti))
+						{
+							oti->data = NULL;
+							g_array_append_val(clear_index_slots, type_argc);
+							g_array_append_val(clear_index_slots, slot);
+						}
+						++slot;
+					}
+				}
+			}
+
+			clear_parent_and_subclass_template(check_image, klass, clear_index_slots);
+		}
+		templates = templates->next;
+		template_klasses = template_klasses->next;
+	}
+	g_array_free(clear_index_slots, TRUE);
+	g_list_free(original_template_klasses);
+	g_list_free(original_templates);
 }
 
 #ifdef MONO_ARCH_GSHAREDVT_SUPPORTED

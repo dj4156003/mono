@@ -18,9 +18,16 @@
  */
 #ifdef MONO_ARCH_GSHAREDVT_SUPPORTED
 
+#define CALL_INFO_POOL_SIZE	1024
+
+static CallInfo **call_info_pool = NULL;
+
+static struct CallInfo * volatile call_info_head = NULL;
+
 void
 mono_arm_gsharedvt_init (void)
 {
+	
 }
 
 gboolean
@@ -123,6 +130,25 @@ get_arg_slots (ArgInfo *ainfo, int **out_slots)
 
 	*out_slots = src;
 	return nsrc;
+}
+
+static void lock_free_call_info_insert (CallInfo *caller_info, CallInfo *callee_info)
+{
+    CallInfo *old_head;
+
+    do {
+        // 获取当前头节点并设置内存屏障
+        old_head = call_info_head;
+        mono_memory_read_barrier (); // 相当于 C11 的 memory_order_acquire
+        
+        // 设置新节点的 next 指针
+        callee_info->next = old_head;
+        
+        // 写屏障确保新节点的 next 指针对其他线程可见
+        mono_memory_write_barrier (); // 相当于 C11 的 memory_order_release
+        
+    // 使用 Mono 的 CAS 原语尝试更新头指针
+    } while (mono_atomic_cas_ptr ((gpointer volatile*)&call_info_head, caller_info, old_head) != old_head);
 }
 
 /*
@@ -406,13 +432,34 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethodSignature *normal_si
 
 	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
 
+	caller_cinfo->next = callee_cinfo;
+	lock_free_call_info_insert (caller_cinfo, callee_cinfo);
+
 	return info;
+}
+
+void
+mono_arm_gsharedvt_reset (void)
+{
+	CallInfo *p = call_info_head;
+	while (p)
+	{
+		CallInfo *next = p->next;
+		g_free (p);
+		p = next;
+	}
+	call_info_head = NULL;	
 }
 
 #else
 
 void
 mono_arm_gsharedvt_init (void)
+{
+}
+
+void
+mono_arm_gsharedvt_reset (void)
 {
 }
 

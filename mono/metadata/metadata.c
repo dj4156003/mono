@@ -1908,6 +1908,14 @@ static mono_mutex_t image_sets_mutex;
 
 static guint mono_generic_class_hash (gconstpointer data);
 
+static GHFunc image_set_gshared_type_free_func;
+
+void
+mono_set_image_set_gshared_type_free_func (GHFunc func)
+{
+	image_set_gshared_type_free_func = func;
+}
+
 /*
  * MonoTypes with modifies are never cached, so we never check or use that field.
  */
@@ -3160,7 +3168,10 @@ delete_image_set (MonoImageSet *set)
 
 	for (i = 0; i < set->gshared_types_len; ++i) {
 		if (set->gshared_types [i])
+		{
+			g_hash_table_foreach (set->gshared_types [i], (GHFunc)image_set_gshared_type_free_func, NULL);
 			g_hash_table_destroy (set->gshared_types [i]);
+		}
 	}
 	g_free (set->gshared_types);
 
@@ -3974,7 +3985,7 @@ mono_metadata_inflate_generic_inst (MonoGenericInst *ginst, MonoGenericContext *
 	type_argv = g_new0 (MonoType*, ginst->type_argc);
 
 	for (i = 0; i < ginst->type_argc; i++) {
-		type_argv [i] = mono_class_inflate_generic_type_checked (ginst->type_argv [i], context, error);
+		type_argv [i] = mono_class_inflate_generic_type_checked (ginst->type_argv [i], context, error, NULL);
 		if (!is_ok (error))
 			goto cleanup;
 		++count;

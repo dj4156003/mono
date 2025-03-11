@@ -218,6 +218,14 @@ mono_arch_cleanup (void)
 {
 }
 
+/*
+ * Reset architecture specific code.
+ */
+void
+mono_arch_reset (void)
+{
+}
+
 gboolean
 mono_arch_have_fast_tls (void)
 {

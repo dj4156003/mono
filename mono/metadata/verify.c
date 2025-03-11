@@ -128,7 +128,7 @@ is_valid_generic_instantiation (MonoGenericContainer *gc, MonoGenericContext *co
 			MonoClass *ctr = *constraints;
 			MonoType *inflated;
 
-			inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (ctr), context, error);
+			inflated = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (ctr), context, error, NULL);
 			if (!is_ok (error)) {
 				mono_error_cleanup (error);
 				return FALSE;
@@ -615,7 +615,7 @@ verifier_inflate_type (VerifyContext *ctx, MonoType *type, MonoGenericContext *c
 	ERROR_DECL (error);
 	MonoType *result;
 
-	result = mono_class_inflate_generic_type_checked (type, context, error);
+	result = mono_class_inflate_generic_type_checked (type, context, error, NULL);
 	if (!is_ok (error)) {
 		mono_error_cleanup (error);
 		return NULL;
@@ -2069,7 +2069,7 @@ static void
 init_stack_with_value_at_exception_boundary (VerifyContext *ctx, ILCodeDesc *code, MonoClass *klass)
 {
 	ERROR_DECL (error);
-	MonoType *type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (klass), ctx->generic_context, error);
+	MonoType *type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (klass), ctx->generic_context, error, NULL);
 
 	if (!is_ok (error)) {
 		char *name = mono_type_get_full_name (klass);
@@ -4996,7 +4996,7 @@ mono_method_verify (MonoMethod *method, int level)
 
 	for (i = 0; i < ctx.num_locals; ++i) {
 		MonoType *uninflated = ctx.locals [i];
-		ctx.locals [i] = mono_class_inflate_generic_type_checked (ctx.locals [i], ctx.generic_context, error);
+		ctx.locals [i] = mono_class_inflate_generic_type_checked (ctx.locals [i], ctx.generic_context, error, NULL);
 		if (!is_ok (error)) {
 			char *name = mono_type_full_name (ctx.locals [i] ? ctx.locals [i] : uninflated);
 			ADD_VERIFY_ERROR (&ctx, g_strdup_printf ("Invalid local %d of type %s", i, name));
@@ -5010,7 +5010,7 @@ mono_method_verify (MonoMethod *method, int level)
 	}
 	for (i = 0; i < ctx.max_args; ++i) {
 		MonoType *uninflated = ctx.params [i];
-		ctx.params [i] = mono_class_inflate_generic_type_checked (ctx.params [i], ctx.generic_context, error);
+		ctx.params [i] = mono_class_inflate_generic_type_checked (ctx.params [i], ctx.generic_context, error, NULL);
 		if (!is_ok (error)) {
 			char *name = mono_type_full_name (ctx.params [i] ? ctx.params [i] : uninflated);
 			ADD_VERIFY_ERROR (&ctx, g_strdup_printf ("Invalid parameter %d of type %s", i, name));

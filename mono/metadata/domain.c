@@ -1106,21 +1106,60 @@ mono_domain_assembly_open_internal (MonoDomain *domain, MonoAssemblyLoadContext 
 	return ass;
 }
 
+static void filter_none_mscorlib_jit_infos(MonoDomain *domain, MonoImage* image, MonoJitInfo* jinfo, void* user_data)
+{
+	GArray *ji_info_states = (GArray*)user_data;
+	guint64 final_state = (guint64)jinfo;
+	if (image != mono_get_corlib())
+	{
+		final_state |= 0x1;
+	}
+	g_array_append_val (ji_info_states, final_state);
+}
+
 void
 mono_clear_root_domain_jit_info (MonoJitInfoFunc filterFunc)
 {
 	MonoDomain *domain = mono_get_root_domain();
 	mono_thread_hazardous_try_free_all ();
 	g_assert (domain->num_jit_info_table_duplicates == 0);
-	GPtrArray *reserved_ji_infos = g_ptr_array_new ();
-	mono_jit_info_table_foreach_internal(domain, filterFunc, (gpointer)reserved_ji_infos);
+
+	GArray *ji_info_states = g_array_new (FALSE, FALSE, sizeof (guint64));
+	mono_jit_info_table_foreach_internal(domain, filterFunc, (gpointer)ji_info_states);
 	mono_jit_info_table_free (domain->jit_info_table);
 	domain->jit_info_table = mono_jit_info_table_new (domain);
-	for (int i = 0; i < reserved_ji_infos->len; ++i)
+	for (int i = 0; i < ji_info_states->len; ++i)
 	{
-		mono_jit_info_table_add(domain, (MonoJitInfo *)g_ptr_array_index(reserved_ji_infos, i));
+		guint64 final_state = g_array_index (ji_info_states, guint64, i);
+		MonoJitInfo *jit_info = (MonoJitInfo *)(final_state & (~0x3));
+		if ((final_state & 0x1) == 0)
+		{
+			mono_jit_info_table_add (domain, jit_info);
+		}
+		else if ((final_state & 0x2) != 0)
+		{
+			mono_thread_hazardous_try_free (jit_info, g_free);
+		}
 	}
+
+	g_array_set_size (ji_info_states, 0);
+	mono_jit_info_aot_module_table_foreach_internal (domain, filter_none_mscorlib_jit_infos, (gpointer)ji_info_states);
+	mono_jit_info_table_free (domain->aot_modules);
+	domain->aot_modules = mono_jit_info_table_new (domain);
+	for (int i = 0; i < ji_info_states->len; ++i)
+	{
+		guint64 final_state = g_array_index (ji_info_states, guint64, i);
+		MonoJitInfo *jit_info = (MonoJitInfo *)(final_state & (~0x1));
+		if ((final_state & 0x1) == 0)
+		{
+			mono_jit_info_add_aot_module (jit_info->d.image, jit_info->code_start, (gpointer)((guint8 *)jit_info->code_start + jit_info->code_size));
+		}
+		mono_thread_hazardous_try_free (jit_info, g_free);
+	}
+
+	mono_thread_hazardous_try_free_all();
 	g_assert (!domain->jit_info_free_queue);
+	g_array_free (ji_info_states, TRUE);
 	// if (free_domain_hook)
 	// {
 	// 	free_domain_hook(domain);

@@ -171,6 +171,14 @@ mono_image_invoke_unload_hook (MonoImage *image)
 	}
 }
 
+static GHFunc image_rgctx_template_hash_free_func;
+
+void
+mono_set_image_rgctx_template_hash_free_func (GHFunc func)
+{
+	image_rgctx_template_hash_free_func = func;
+}
+
 static GSList *image_loaders;
 
 void
@@ -2674,7 +2682,13 @@ mono_image_close_except_pools (MonoImage *image)
 	g_hash_table_destroy (image->method_signatures);
 
 	if (image->rgctx_template_hash)
+	{
+		if (image_rgctx_template_hash_free_func)
+		{
+			g_hash_table_foreach (image->rgctx_template_hash, (GHFunc)image_rgctx_template_hash_free_func, NULL);
+		}
 		g_hash_table_destroy (image->rgctx_template_hash);
+	}
 
 	if (image->property_hash)
 		mono_property_hash_destroy (image->property_hash);

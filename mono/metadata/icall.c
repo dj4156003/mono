@@ -2580,7 +2580,7 @@ fill_iface_array (gpointer key, gpointer value, gpointer user_data)
 	goto_if_nok (error, leave);
 
 	if (data->context && mono_class_is_ginst (ic) && mono_class_get_generic_class (ic)->context.class_inst->is_open) {
-		inflated = ret = mono_class_inflate_generic_type_checked (ret, data->context, error);
+		inflated = ret = mono_class_inflate_generic_type_checked (ret, data->context, error, NULL);
 		goto_if_nok (error, leave);
 	}
 

@@ -1628,7 +1628,7 @@ get_class_to_get_builder_field(DbgEngineStackFrame *frame)
 			return NULL;
 			
 		context = mono_get_generic_context_from_stack_frame (frame->ji, mono_get_generic_info_from_stack_frame (frame->ji, &the_frame->ctx));
-		inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (original_class), &context, error);
+		inflated_type = mono_class_inflate_generic_type_checked (m_class_get_byval_arg (original_class), &context, error, NULL);
 		mono_error_assert_ok (error); /* FIXME don't swallow the error */
 
 		ret = mono_class_from_mono_type_internal (inflated_type);

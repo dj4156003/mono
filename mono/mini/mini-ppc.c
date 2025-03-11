@@ -598,6 +598,14 @@ mono_arch_cleanup (void)
 	mono_os_mutex_destroy (&mini_arch_mutex);
 }
 
+/*
+ * Reset architecture specific code.
+ */
+void
+mono_arch_reset (void)
+{
+}
+
 gboolean
 mono_arch_have_fast_tls (void)
 {

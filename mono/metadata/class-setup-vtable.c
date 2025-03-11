@@ -1520,7 +1520,7 @@ signature_is_subsumed (MonoMethod *impl_method, MonoMethod *decl_method, MonoErr
 			return FALSE;
 
 		/* inflate decl's return type with the type parameters of impl */
-		alloc_decl_ret = mono_class_inflate_generic_type_checked (decl_ret_0, &impl_container->context, error);
+		alloc_decl_ret = mono_class_inflate_generic_type_checked (decl_ret_0, &impl_container->context, error, NULL);
 		return_val_if_nok (error, FALSE);
 		decl_ret = alloc_decl_ret;
 	}
