@@ -2481,11 +2481,41 @@ mono_dynamic_stream_reset (MonoDynamicStream* stream)
 	}
 }
 
+static gboolean clear_managed_wrapper = FALSE;
+
+void
+mono_image_set_clear_managed_wrapper (gboolean clear)
+{
+	clear_managed_wrapper = clear;
+}
+
 static void
 free_hash (GHashTable *hash)
 {
 	if (hash)
 		g_hash_table_destroy (hash);
+}
+
+static void
+free_managed_wrapper_cache (GHashTable *managed_wrapper_cache)
+{
+	if (clear_managed_wrapper && managed_wrapper_cache)
+	{
+		GList *m_list = g_hash_table_get_values (managed_wrapper_cache);
+		GList *p = m_list;
+		while (p)
+		{
+			MonoMethodWrapper *wrapper = (MonoMethodWrapper *)p->data;
+			for (int i = 0; i < wrapper->header->num_locals; ++i)
+			{
+				MonoType *type = wrapper->header->locals[i];
+				g_free (type);
+			}
+			p = p->next;
+		}
+		g_list_free (m_list);
+	}
+	free_hash (managed_wrapper_cache);
 }
 
 void
@@ -2500,7 +2530,7 @@ mono_wrapper_caches_free (MonoWrapperCaches *cache)
 	free_hash (cache->delegate_abstract_invoke_cache);
 
 	free_hash (cache->runtime_invoke_method_cache);
-	free_hash (cache->managed_wrapper_cache);
+	free_managed_wrapper_cache (cache->managed_wrapper_cache);
 
 	free_hash (cache->native_wrapper_cache);
 	free_hash (cache->native_wrapper_aot_cache);

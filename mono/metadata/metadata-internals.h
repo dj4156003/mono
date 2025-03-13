@@ -958,6 +958,9 @@ mono_image_set_unlock (MonoImageSet *set);
 char*
 mono_image_set_strdup (MonoImageSet *set, const char *s);
 
+void
+mono_image_set_clear_managed_wrapper (gboolean clear);
+
 MonoImageSet *
 mono_metadata_get_image_set_for_aggregate_modifiers (MonoAggregateModContainer *amods);
 void mono_metadata_image_set_foreach(MonoImageSetFunc func, gpointer user_data);

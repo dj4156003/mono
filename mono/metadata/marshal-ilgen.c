@@ -6840,4 +6840,5 @@ mono_marshal_ilgen_init (void)
 	mono_marshal_noilgen_init_blittable (&cb);
 #endif
 	mono_install_marshal_callbacks (&cb);
+	mono_image_set_clear_managed_wrapper (TRUE);
 }
