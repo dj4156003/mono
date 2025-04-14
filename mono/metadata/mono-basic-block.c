@@ -341,7 +341,6 @@ bb_formation_il_pass (const unsigned char *start, const unsigned char *end, Mono
 	guint cli_addr, offset;
 	MonoSimpleBasicBlock *branch, *next, *current;
 	const MonoOpcode *opcode;
-	guint v;
 
 	error_init (error);
 
@@ -409,11 +408,7 @@ bb_formation_il_pass (const unsigned char *start, const unsigned char *end, Mono
 				offset = cli_addr + 2 + (signed char)ip [1];
 				ip += 2;
 			} else {
-				v = read32(ip + 1);
-				// Modified by zx
-				if (method->klass->image->is_rgdll)
-					v = mono_image_decrypt_value(method->klass->image, v);
-				offset = cli_addr + 5 + (gint32)v;
+				offset = cli_addr + 5 + (gint32)read32(ip + 1);
 				ip += 5;
 			}
 			

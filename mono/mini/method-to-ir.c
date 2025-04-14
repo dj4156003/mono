@@ -4837,7 +4837,6 @@ get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset,
 	guint cli_addr;
 	MonoBasicBlock *bblock;
 	const MonoOpcode *opcode;
-	gint32 offset;
 
 	while (ip < end) {
 		cli_addr = ip - start;
@@ -4874,9 +4873,6 @@ get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset,
 				GET_BBLOCK (cfg, bblock, ip);
 			break;
 		case MonoInlineBrTarget:
-			offset = (gint32)read32(ip + 1);
-			if (cfg->orig_method->klass->image->is_rgdll)
-				offset = mono_image_decrypt_value(cfg->orig_method->klass->image, offset);
 			target = start + cli_addr + 5 + (gint32)read32 (ip + 1);
 			GET_BBLOCK (cfg, bblock, target);
 			ip += 5;
@@ -6055,7 +6051,6 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 
 	gint32 delta;
 	guchar *next_ip = ip + op_size;
-	guint32 v;
 
 	const MonoOpcodeInfo *info = &mono_opcode_info [il_op];
 
@@ -6071,10 +6066,7 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 	case MonoInlineSig:
 	case MonoShortInlineR:
 	case MonoInlineI:
-		v = read32 (next_ip - 4);
-		if (m->is_rgdll)
-			v = mono_image_decrypt_value(m, v);
-		parameter->i32 = (gint32)v;
+		parameter->i32 = (gint32)read32 (next_ip - 4);
 		// FIXME check token type?
 		break;
 	case MonoShortInlineI:
@@ -6094,10 +6086,7 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 		delta = (signed char)next_ip [-1];
 		goto branch_target;
 	case MonoInlineBrTarget:
-		v = read32 (next_ip - 4);;
-		if (m->is_rgdll)
-			v = mono_image_decrypt_value(m, v);
-		delta = (gint32)v;
+		delta = (gint32)read32 (next_ip - 4);
 branch_target:
 		parameter->branch_target = delta + next_ip;
 		break;

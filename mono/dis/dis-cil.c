@@ -118,9 +118,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
         switch (entry->argument){
             case MonoInlineBrTarget: {
                 guint32 target = read32 (ptr);
-                // Modified by zx
-                if (m->is_rgdll)
-                    target = mono_image_decrypt_value(m, target);
                 fprintf (output, "IL_%04x\n", ((int) (ptr - start)) + 4 + (gint32)target);
                 ptr += 4;
                 break;
@@ -128,10 +125,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineField: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 char *s;
                 
                 s = get_field (m, token, container);
@@ -159,10 +152,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineMethod: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 char *s;
                 
                 s = get_method (m, token, container);
@@ -196,10 +185,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineSig: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 fprintf (output, "signature-0x%08x", token);
                 ptr += 4;
                 break;
@@ -207,10 +192,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineString: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 const char *us_ptr = mono_metadata_user_string (m, token & 0xffffff);
                 // Modified by zx start
                 int len = mono_metadata_decode_length (m, us_ptr, (const char**)&us_ptr);
@@ -247,10 +228,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineTok: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 char *s;
                 
                 s = get_token (m, token, container);
@@ -263,10 +240,6 @@ disassemble_cil (MonoImage *m, MonoMethodHeader *mh, MonoGenericContainer *conta
                 
             case MonoInlineType: {
                 guint32 token = read32 (ptr);
-                // Modified by zx start
-                if (m->is_rgdll)
-                    token = mono_image_decrypt_value(m, token);
-                // Modified by zx end
                 char *s = get_token_type (m, token, container);
                 fprintf (output, "%s", s);
                 g_free (s);

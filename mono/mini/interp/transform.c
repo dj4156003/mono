@@ -3102,7 +3102,6 @@ get_basic_blocks (TransformData *td, MonoMethodHeader *header, gboolean make_lis
 	int i;
 	guint cli_addr;
 	const MonoOpcode *opcode;
-	guint32 v;
 
 	td->offset_to_bb = (InterpBasicBlock**)mono_mempool_alloc0 (td->mempool, sizeof (InterpBasicBlock*) * (end - start + 1));
 	get_bb (td, start, make_list);
@@ -3147,11 +3146,7 @@ get_basic_blocks (TransformData *td, MonoMethodHeader *header, gboolean make_lis
 			get_bb (td, ip, make_list);
 			break;
 		case MonoInlineBrTarget:
-			// Modified by zx
-			v = read32(ip + 1);
-			if (td->method->klass->image->is_rgdll)
-				v = mono_image_decrypt_value(td->method->klass->image, v);
-			target = start + cli_addr + 5 + (gint32)v;
+			target = start + cli_addr + 5 + (gint32)read32(ip + 1);
 			get_bb (td, target, make_list);
 			ip += 5;
 			get_bb (td, ip, make_list);

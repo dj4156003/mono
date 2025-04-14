@@ -4784,12 +4784,14 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 	format = flags & METHOD_HEADER_FORMAT_MASK;
 
 	switch (format) {
+	case METHOD_HEADER_TINY_FORMAT_DECRYPT:
 	case METHOD_HEADER_TINY_FORMAT:
 		ptr++;
 		summary->max_stack = 8;
 		summary->code = (unsigned char *) ptr;
 		summary->code_size = flags >> 2;
 		break;
+	case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 	case METHOD_HEADER_FAT_FORMAT:
 		fat_flags = read16 (ptr);
 		ptr += 2;
@@ -4808,6 +4810,94 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 	}
 	return TRUE;
 }
+
+// Modified by zx start
+static void
+mono_metadata_decrypt_code(MonoImage* m, MonoMethodHeader *mh)
+{
+	if (!m->is_rgdll)
+		return;
+
+	unsigned char* newCode = g_malloc(mh->code_size);
+	memcpy(newCode, mh->code, mh->code_size);
+	mh->code = newCode;
+	const unsigned char *start = mh->code;
+    int size = mh->code_size;
+    const unsigned char *end = start + size;
+    const unsigned char *ptr = start;
+    const MonoOpcode *entry;
+    int i;
+
+#define rg_write32(x, v) *((guint32 *) (x)) = (v);
+    
+    while (ptr < end){
+        i = *ptr;
+        if (*ptr == 0xfe){
+            ptr++;
+            i = *ptr + 256;
+        }
+        entry = &mono_opcodes [i];
+        ptr++;
+        switch (entry->argument){
+            case MonoInlineBrTarget: {
+                guint32 target = read32 (ptr);
+                target = mono_image_decrypt_value(m, target);
+				rg_write32(ptr, target);
+                ptr += 4;
+                break;
+            }
+			case MonoInlineSig:
+			case MonoInlineField:
+			case MonoInlineString:
+			case MonoInlineTok:
+			case MonoInlineType:
+            case MonoInlineMethod: {
+                guint32 token = read32 (ptr);
+                token = mono_image_decrypt_value(m, token);
+				rg_write32(ptr, token);
+                ptr += 4;
+                break;
+            }
+            case MonoInlineNone:
+                break;
+			case MonoInlineI8:
+            case MonoInlineR: {
+                ptr += 8;
+                break;
+            }
+            case MonoInlineSwitch: {
+                guint32 count = read32 (ptr);
+                guint32 n, offset;
+                ptr += 4;
+                for (n = 0; n < count; n++){
+					offset = read32 (ptr);
+					rg_write32(ptr, offset);
+                    ptr += 4;
+                }
+                break;
+            }
+            case MonoInlineVar: {
+                ptr += 2;
+                break;
+            }
+            case MonoShortInlineBrTarget:
+			case MonoShortInlineVar:
+            case MonoShortInlineI: {
+                ptr++;
+                break;
+            }
+			case MonoInlineI:
+            case MonoShortInlineR: {
+                ptr += 4;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+#undef rg_write32
+}
+// Modified by zx end
 
 /*
  * mono_metadata_parse_mh_full:
@@ -4845,6 +4935,7 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 	}
 
 	switch (format) {
+	case METHOD_HEADER_TINY_FORMAT_DECRYPT:
 	case METHOD_HEADER_TINY_FORMAT:
 		mh = (MonoMethodHeader *)g_malloc0 (MONO_SIZEOF_METHOD_HEADER);
 		ptr++;
@@ -4853,7 +4944,12 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		local_var_sig_tok = 0;
 		mh->code_size = flags >> 2;
 		mh->code = (unsigned char*)ptr;
+		// Modified by zx start
+		if (m->is_rgdll && METHOD_HEADER_TINY_FORMAT_DECRYPT == format)
+			mono_metadata_decrypt_code(m, mh);
+		// Modified by zx end
 		return mh;
+	case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 	case METHOD_HEADER_FAT_FORMAT:
 		fat_flags = read16 (ptr);
 		ptr += 2;
@@ -4864,7 +4960,7 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		local_var_sig_tok = read32 (ptr);
 		ptr += 4;
 		// Modified by zx start
-		if (m->is_rgdll) {
+		if (m->is_rgdll && METHOD_HEADER_FAT_FORMAT_DECRYPT == format) {
 			local_var_sig_tok = mono_image_decrypt_value(m, local_var_sig_tok);
 		}
 		// Modified by zx end
@@ -4934,12 +5030,15 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		mh->clauses = clausesp;
 		mh->num_clauses = num_clauses;
 	}
+	// Modified by zx start
+	if (m->is_rgdll && METHOD_HEADER_FAT_FORMAT_DECRYPT == format)
+		mono_metadata_decrypt_code(m, mh);
+	// Modified by zx end
 	return mh;
 fail:
 	g_free (clauses);
 	g_free (mh);
 	return NULL;
-
 }
 
 /**

@@ -1246,16 +1246,18 @@ method_body_object_construct (MonoDomain *domain, MonoClass *unused_class, MonoM
 		flags = *(const unsigned char *) ptr;
 		format = flags & METHOD_HEADER_FORMAT_MASK;
 		switch (format){
+		case METHOD_HEADER_TINY_FORMAT_DECRYPT:
 		case METHOD_HEADER_TINY_FORMAT:
 			local_var_sig_token = 0;
 			break;
 		case METHOD_HEADER_FAT_FORMAT:
+		case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 			ptr += 2;
 			ptr += 2;
 			ptr += 4;
 			local_var_sig_token = read32 (ptr);
 			// Modified by zx start
-			if (image->is_rgdll) {
+			if (image->is_rgdll && format == METHOD_HEADER_FAT_FORMAT_DECRYPT) {
 				local_var_sig_token = mono_image_decrypt_value(image, local_var_sig_token);
 			}
 			// Modified by zx end

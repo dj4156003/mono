@@ -636,7 +636,8 @@ dis_locals (MonoImage *m, MonoMethodHeader *mh, const char *ptr)
         guint16 fat_flags;
         guint32 local_var_sig_tok, init_locals;
 
-        g_assert (format == METHOD_HEADER_FAT_FORMAT);
+        // Modified by zx 
+        g_assert (format == METHOD_HEADER_FAT_FORMAT || format == METHOD_HEADER_FAT_FORMAT_DECRYPT);
         fat_flags = read16 (ptr);
         ptr += 2;
         /* max_stack = read16 (ptr); */
@@ -646,7 +647,7 @@ dis_locals (MonoImage *m, MonoMethodHeader *mh, const char *ptr)
         local_var_sig_tok = read32 (ptr);
         ptr += 4;
 		// Modified by zx start
-		if (m->is_rgdll) {
+		if (m->is_rgdll && format == METHOD_HEADER_FAT_FORMAT_DECRYPT) {
 			local_var_sig_tok = mono_image_decrypt_value(m, local_var_sig_tok);
 		}
 		// Modified by zx end
