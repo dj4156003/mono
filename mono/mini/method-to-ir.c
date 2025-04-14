@@ -4827,6 +4827,7 @@ ip_in_bb (MonoCompile *cfg, MonoBasicBlock *bb, const guint8* ip)
 	return b == NULL || b == bb;
 }
 
+// Modified by zx
 static int
 get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset, guchar *start, guchar *end, guchar **pos)
 {
@@ -4836,6 +4837,7 @@ get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset,
 	guint cli_addr;
 	MonoBasicBlock *bblock;
 	const MonoOpcode *opcode;
+	gint32 offset;
 
 	while (ip < end) {
 		cli_addr = ip - start;
@@ -4872,6 +4874,9 @@ get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset,
 				GET_BBLOCK (cfg, bblock, ip);
 			break;
 		case MonoInlineBrTarget:
+			offset = (gint32)read32(ip + 1);
+			if (cfg->orig_method->klass->image->is_rgdll)
+				offset = mono_image_decrypt_value(cfg->orig_method->klass->image, offset);
 			target = start + cli_addr + 5 + (gint32)read32 (ip + 1);
 			GET_BBLOCK (cfg, bblock, target);
 			ip += 5;

@@ -2321,8 +2321,8 @@ mono_class_layout_fields (MonoClass *klass, int base_instance_size, int packing_
 			while ((field = mono_class_get_fields_internal (p, &iter))) {
 				guint32 field_idx = first_field_idx + (field - p->fields);
 				// Modified by zx start
-				if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
-					field_idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], field_idx, MONO_FIELD_POINTER_FIELD) - 1;
+				if (p->image->is_rgdll && p->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+					field_idx = mono_metadata_decode_row_col (&p->image->tables [MONO_TABLE_FIELD_POINTER], field_idx, MONO_FIELD_POINTER_FIELD) - 1;
 				// Modified by zx end
 			
 				if (MONO_TYPE_IS_REFERENCE (field->type) && mono_assembly_is_weak_field (p->image, field_idx + 1)) {
