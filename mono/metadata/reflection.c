@@ -1254,6 +1254,12 @@ method_body_object_construct (MonoDomain *domain, MonoClass *unused_class, MonoM
 			ptr += 2;
 			ptr += 4;
 			local_var_sig_token = read32 (ptr);
+			// Modified by zx start
+			if (image->is_rgdll) {
+				local_var_sig_token = mono_image_decrypt_value(image, local_var_sig_token);
+			}
+			// Modified by zx end
+
 			break;
 		default:
 			g_assert_not_reached ();
@@ -1407,14 +1413,18 @@ get_default_param_value_blobs (MonoMethod *method, char **blobs, guint32 *types)
 
 	for (i = param_index; i < lastp; ++i) {
 		guint32 paramseq;
+		// Modified by zx
+		int param_idx = i;
+		if (image->is_rgdll && image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			param_idx = mono_metadata_decode_row_col (&image->tables[MONO_TABLE_PARAM_POINTER], param_idx - 1, MONO_PARAM_POINTER_PARAM);
 
-		mono_metadata_decode_row (paramt, i - 1, param_cols, MONO_PARAM_SIZE);
+		mono_metadata_decode_row (paramt, param_idx - 1, param_cols, MONO_PARAM_SIZE);
 		paramseq = param_cols [MONO_PARAM_SEQUENCE];
 
 		if (!(param_cols [MONO_PARAM_FLAGS] & PARAM_ATTRIBUTE_HAS_DEFAULT))
 			continue;
 
-		crow = mono_metadata_get_constant_index (image, MONO_TOKEN_PARAM_DEF | i, crow + 1);
+		crow = mono_metadata_get_constant_index (image, MONO_TOKEN_PARAM_DEF | param_idx, crow + 1);
 		if (!crow) {
 			continue;
 		}

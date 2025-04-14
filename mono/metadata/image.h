@@ -92,6 +92,12 @@ MONO_API void          mono_image_add_to_name_cache (MonoImage *image,
 			const char *nspace, const char *name, uint32_t idx);
 MONO_API mono_bool     mono_image_has_authenticode_entry (MonoImage *image);
 
+// Modified by zx start
+uint32_t mono_image_decrypt_value(MonoImage* image, uint32_t value);
+
+MONO_API mono_bool     mono_image_is_rgdll(MonoImage* image);
+// Modified by zx end
+
 mono_bool mono_has_pdb_checksum (char *raw_data, uint32_t raw_data_len);
 
 MONO_END_DECLS

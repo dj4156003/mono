@@ -278,6 +278,10 @@ MONO_API int32_t mono_metadata_decode_signed_value (const char *ptr, const char 
 MONO_API uint32_t mono_metadata_decode_blob_size (const char            *ptr,
                                         const char           **rptr);
 
+// Modified by zx start
+MONO_API uint32_t mono_metadata_decode_length (MonoImage* m, const char *ptr, const char **rptr);
+// Modified by zx end
+
 MONO_API void mono_metadata_encode_value (uint32_t value, char *bug, char **endbuf);
 
 #define MONO_OFFSET_IN_CLAUSE(clause,offset) \
@@ -514,6 +518,10 @@ MONO_API char *mono_guid_to_string_minimal (const uint8_t *guid);
 MONO_API uint32_t mono_metadata_declsec_from_index (MonoImage *meta, uint32_t idx);
 
 MONO_API uint32_t mono_metadata_translate_token_index (MonoImage *image, int table, uint32_t idx);
+
+// Modified by zx start
+MONO_API uint32_t mono_metadata_map_pointer_index (MonoImage *image, int table, uint32_t idx);
+// Modified by zx end
 
 MONO_API void    mono_metadata_decode_table_row (MonoImage *image, int table,
 				       int                    idx,

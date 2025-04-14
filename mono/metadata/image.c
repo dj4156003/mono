@@ -120,6 +120,10 @@ static GHashTable *images_storage_hash;
 
 static void install_pe_loader (void);
 
+// Modified by zx start
+static void install_rgdll_loader(void);
+// Modified by zx end
+
 typedef struct ImageUnloadHook ImageUnloadHook;
 struct ImageUnloadHook {
 	MonoImageUnloadFunc func;
@@ -267,6 +271,10 @@ mono_images_init (void)
 
 	install_pe_loader ();
 
+	// Modified by zx start
+	install_rgdll_loader();
+	// Modifiled by zx end
+    
 	mutex_inited = TRUE;
 }
 
@@ -444,7 +452,27 @@ mono_image_load_cli_header (MonoImage *image, MonoCLIImageInfo *iinfo)
 		/* g_warning ("Some fields in the CLI header which should have been zero are not zero"); */
 
 	}
-	    
+
+	// Modified by zx start
+	if (image->is_rgdll)
+	{
+		iinfo->cli_cli_header.ch_metadata.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_metadata.rva);
+		iinfo->cli_cli_header.ch_resources.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_resources.rva);
+		iinfo->cli_cli_header.ch_strong_name.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_strong_name.rva);
+		iinfo->cli_cli_header.ch_code_manager_table.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_code_manager_table.rva);
+		iinfo->cli_cli_header.ch_vtable_fixups.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_vtable_fixups.rva);
+		iinfo->cli_cli_header.ch_export_address_table_jumps.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_export_address_table_jumps.rva);
+		iinfo->cli_cli_header.ch_eeinfo_table.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_eeinfo_table.rva);
+		iinfo->cli_cli_header.ch_helper_table.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_helper_table.rva);
+		iinfo->cli_cli_header.ch_dynamic_info.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_dynamic_info.rva);
+		iinfo->cli_cli_header.ch_delay_load_info.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_delay_load_info.rva);
+		iinfo->cli_cli_header.ch_module_image.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_module_image.rva);
+		iinfo->cli_cli_header.ch_external_fixups.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_external_fixups.rva);
+		iinfo->cli_cli_header.ch_ridmap.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_ridmap.rva);
+		iinfo->cli_cli_header.ch_debug_map.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_debug_map.rva);
+		iinfo->cli_cli_header.ch_ip_map.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_ip_map.rva);
+	}
+	// Modified by zx end
 	return TRUE;
 }
 
@@ -485,7 +513,8 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 	/* 24.2.1: Metadata root starts here */
 	ptr = image->raw_metadata;
 
-	if (strncmp (ptr, "BSJB", 4) == 0){
+	// Modified by zx
+	if (strncmp(ptr, image->is_rgdll ? "RGMD" : "BSJB", 4) == 0) {
 		guint32 version_string_len;
 
 		ptr += 4;
@@ -548,7 +577,13 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 			image->minimal_delta = TRUE;
 			mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_METADATA_UPDATE, "Image '%s' has a minimal delta marker", image->name);
 			ptr += 8 + 5;
-		} else {
+		}// Modified by zx start
+		else if (strncmp(ptr + 8, "#CFSet", 5) == 0) {
+			image->rg_changed_methods_heap.data = image->raw_metadata + read32(ptr);
+			image->rg_changed_methods_heap.size = read32(ptr + 4);
+			ptr += 8 + 5;
+		}//Modified by zx end
+		else {
 			g_message ("Unknown heap type: %s\n", ptr + 8);
 			ptr += 8 + strlen (ptr + 8) + 1;
 		}
@@ -698,7 +733,12 @@ mono_image_check_for_module_cctor (MonoImage *image)
 			else 
 				last_method = mt->rows;
 			for (; first_method < last_method; first_method++) {
-				nameidx = mono_metadata_decode_row_col (mt, first_method, MONO_METHOD_NAME);
+				// Modified by zx start
+				int idx = first_method;
+				if (image->is_rgdll && image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+					idx = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx, MONO_METHOD_POINTER_METHOD) - 1;
+				nameidx = mono_metadata_decode_row_col (mt, idx, MONO_METHOD_NAME);
+				// Modified by zx end
 				name = mono_metadata_string_heap (image, nameidx);
 				if (strcmp (name, ".cctor") == 0) {
 					image->has_module_cctor = TRUE;
@@ -863,6 +903,14 @@ mono_image_init (MonoImage *image)
 	image->method_signatures = g_hash_table_new (NULL, NULL);
 
 	image->property_hash = mono_property_hash_new ();
+
+	// Modified by zx start
+	image->is_rgdll = FALSE;
+	image->rg_generation = 0;
+	image->rg_version = 0;
+	image->rg_changed_methods_heap.data = NULL;
+	image->rg_changed_methods_heap.size = 0;
+	// Modified by zx end
 }
 
 #if G_BYTE_ORDER != G_LITTLE_ENDIAN
@@ -1246,6 +1294,311 @@ install_pe_loader (void)
 {
 	mono_install_image_loader (&pe_loader);
 }
+
+// Modified by zx start
+
+/* This is not an on-disk structure */
+typedef struct {
+	char            rgsig[2];
+	guint16         version;
+	guint32         generation;
+	guint16         coff_machine;
+	guint16			coff_sections;
+	guint32			coff_time;
+	guint16         coff_attributes;
+	guchar          pe_major;
+	guchar          pe_minor;
+	guint32			pe_code_size;
+	guint32			pe_data_size;
+	guint32			pe_rva_entry_point;
+	guint32			pe_rva_code_base;
+	guint32			pe_rva_data_base;
+	guint32			pe_image_base;		    /* must be 0x400000 */
+	guint32			pe_section_align;       /* must be 8192 */
+	guint32			pe_file_alignment;      /* must be 512 or 4096 */
+	guint16         pe_subsys_major;
+	guint16         pe_subsys_minor;
+	guint32         pe_image_size;
+	guint32         pe_header_size;
+	guint32         pe_checksum;
+	guint16         pe_subsys_required;
+	guint16         pe_dll_flags;
+	guint32         pe_stack_reserve;
+	guint32         pe_stack_commit;
+	guint32			pe_heap_reserve;
+	guint32			pe_heap_commit;
+	guint32			  pe_data_dir_count;
+	MonoPEDirEntry    pe_import_table;
+	MonoPEDirEntry    pe_resource_table;
+	MonoPEDirEntry    pe_reloc_table;
+	MonoPEDirEntry    pe_debug;
+	MonoPEDirEntry    pe_iat;
+	MonoPEDirEntry    pe_cli_header;
+} RGDLLHeader32;
+
+typedef struct {
+	char            rgsig[2];
+	guint16         version;
+	guint32         generation;
+	guint16         coff_machine;
+	guint16			coff_sections;
+	guint32			coff_time;
+	guint16         coff_attributes;
+	guchar          pe_major;
+	guchar          pe_minor;
+	guint32			pe_code_size;
+	guint32			pe_data_size;
+	guint32			pe_rva_entry_point;
+	guint32			pe_rva_code_base;
+	guint64			pe_image_base;		    /* must be 0x400000 */
+	guint32			pe_section_align;       /* must be 8192 */
+	guint32			pe_file_alignment;      /* must be 512 or 4096 */
+	guint16         pe_subsys_major;
+	guint16         pe_subsys_minor;
+	guint32         pe_image_size;
+	guint32         pe_header_size;
+	guint32         pe_checksum;
+	guint16         pe_subsys_required;
+	guint16         pe_dll_flags;
+	guint64         pe_stack_reserve;
+	guint64         pe_stack_commit;
+	guint64			pe_heap_reserve;
+	guint64			pe_heap_commit;
+	guint32			  pe_data_dir_count;
+	MonoPEDirEntry    pe_import_table;
+	MonoPEDirEntry    pe_resource_table;
+	MonoPEDirEntry    pe_reloc_table;
+	MonoPEDirEntry    pe_debug;
+	MonoPEDirEntry    pe_iat;
+	MonoPEDirEntry    pe_cli_header;
+} RGDLLHeader64;
+
+static gboolean
+rg_image_match(MonoImage* image)
+{
+	if (image->raw_data[0] == 'R' && image->raw_data[1] == 'G')
+		return TRUE;
+	return FALSE;
+}
+
+static gboolean
+isValidArchtecture(gushort arch)
+{
+	switch (arch)
+	{
+	case 0x014c:
+	case 0x8664:
+	case 0x01c0:
+	case 0xaa64:
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+static gboolean
+is_rgdll64(gushort arch)
+{
+	return arch == 0x8664 || arch == 0xaa64 || arch == 0x0200;
+}
+
+static gboolean
+rg_image_load_rgheader_data(MonoImage* image)
+{
+	MonoCLIImageInfo* iinfo;
+	MonoDotNetHeader* header;
+	gint32 offset = 0;
+
+	RGDLLHeader64 rgheader64;
+	RGDLLHeader32 rgheader32;
+
+	iinfo = image->image_info;
+	header = &iinfo->cli_header;
+
+#ifdef HOST_WIN32
+	if (!m_image_is_module_handle(image))
+#endif
+		if (offset + sizeof(rgheader32) > image->raw_data_len)
+			goto invalid_image;
+
+	memcpy(&rgheader32, image->raw_data + offset, sizeof(RGDLLHeader32));
+
+	if (!(rgheader32.rgsig[0] == 'R' && rgheader32.rgsig[1] == 'G'))
+		goto invalid_image;
+
+	image->rg_version = rgheader32.version;
+	SWAP16(image->rg_version);
+	image->rg_generation = rgheader32.generation;
+	SWAP32(image->rg_generation);
+	image->is_rgdll = TRUE;
+
+	header->coff.coff_time = rgheader32.coff_time;
+	SWAP32(header->coff.coff_time);
+	header->coff.coff_symptr = 0;
+	header->coff.coff_symcount = 0;
+	header->coff.coff_machine = rgheader32.coff_machine;
+	SWAP16(header->coff.coff_machine);
+	header->coff.coff_sections = rgheader32.coff_sections;
+	SWAP16(header->coff.coff_sections);
+	header->coff.coff_attributes = rgheader32.coff_attributes;
+	SWAP16(header->coff.coff_attributes);
+	/* MonoPEHeader */
+	header->pe.pe_code_size = rgheader32.pe_code_size;
+	SWAP32(header->pe.pe_code_size);
+	header->pe.pe_uninit_data_size = 0;
+	header->pe.pe_rva_entry_point = rgheader32.pe_rva_entry_point;
+	SWAP32(header->pe.pe_rva_entry_point);
+	header->pe.pe_rva_code_base = rgheader32.pe_rva_code_base;
+	SWAP32(header->pe.pe_rva_code_base);
+	header->pe.pe_rva_data_base = rgheader32.pe_rva_data_base;
+	SWAP32(header->pe.pe_rva_data_base);
+
+	if (!isValidArchtecture(header->coff.coff_machine))
+		goto invalid_image;
+
+	header->pe.pe_major = rgheader32.pe_major;
+	header->pe.pe_minor = rgheader32.pe_minor;
+	header->nt.pe_os_major = 4;
+	header->nt.pe_os_minor = 0;
+	header->nt.pe_user_major = 0;
+	header->nt.pe_user_minor = 0;
+	header->nt.pe_reserved_1 = 0;
+	header->nt.pe_loader_flags = 0;
+
+	/* now we are ready for the basic tests */
+	if (!is_rgdll64(header->coff.coff_machine))
+	{
+		header->pe.pe_magic = 0x10b;
+
+		header->coff.coff_opt_header_size = 0xe0;
+		header->pe.pe_data_size = rgheader32.pe_data_size;
+		SWAP32(header->pe.pe_data_size);
+		header->nt.pe_image_base = rgheader32.pe_image_base;
+		SWAP32(header->nt.pe_image_base); 	/* must be 0x400000 */
+		header->nt.pe_stack_reserve = rgheader32.pe_stack_reserve;
+		SWAP32(header->nt.pe_stack_reserve);
+		header->nt.pe_stack_commit = rgheader32.pe_stack_commit;
+		SWAP32(header->nt.pe_stack_commit);
+		header->nt.pe_heap_reserve = rgheader32.pe_heap_reserve;
+		SWAP32(header->nt.pe_heap_reserve);
+		header->nt.pe_heap_commit = rgheader32.pe_heap_commit;
+		SWAP32(header->nt.pe_heap_commit);
+
+		header->nt.pe_section_align = rgheader32.pe_section_align;
+		header->nt.pe_file_alignment = rgheader32.pe_file_alignment;
+		header->nt.pe_subsys_major = rgheader32.pe_subsys_major;
+		header->nt.pe_subsys_minor = rgheader32.pe_subsys_minor;
+		header->nt.pe_image_size = rgheader32.pe_image_size;
+		header->nt.pe_header_size = rgheader32.pe_header_size;
+		header->nt.pe_checksum = rgheader32.pe_checksum;
+		header->nt.pe_subsys_required = rgheader32.pe_subsys_required;
+		header->nt.pe_dll_flags = rgheader32.pe_dll_flags;
+		header->nt.pe_data_dir_count = rgheader32.pe_data_dir_count;
+
+		offset += sizeof(RGDLLHeader32);
+	}
+	else
+	{
+		header->coff.coff_opt_header_size = 0xf0;
+		header->pe.pe_magic = 0x20b;
+
+		memcpy(&rgheader64, image->raw_data + offset, sizeof(RGDLLHeader64));
+		SWAP64(rgheader64.pe_image_base);
+		header->nt.pe_image_base = rgheader64.pe_image_base;
+		SWAP64(rgheader64.pe_stack_reserve);
+		header->nt.pe_stack_reserve = rgheader64.pe_stack_reserve;
+		SWAP64(rgheader64.pe_stack_commit);
+		header->nt.pe_stack_commit = rgheader64.pe_stack_commit;
+		SWAP64(rgheader64.pe_heap_reserve);
+		header->nt.pe_heap_reserve = rgheader64.pe_heap_reserve;
+		SWAP64(rgheader64.pe_heap_commit);
+		header->nt.pe_heap_commit = rgheader64.pe_heap_commit;
+
+		header->nt.pe_section_align = rgheader64.pe_section_align;
+		header->nt.pe_file_alignment = rgheader64.pe_file_alignment;
+		header->nt.pe_subsys_major = rgheader64.pe_subsys_major;
+		header->nt.pe_subsys_minor = rgheader64.pe_subsys_minor;
+		header->nt.pe_image_size = rgheader64.pe_image_size;
+		header->nt.pe_header_size = rgheader64.pe_header_size;
+		header->nt.pe_checksum = rgheader64.pe_checksum;
+		header->nt.pe_subsys_required = rgheader64.pe_subsys_required;
+		header->nt.pe_dll_flags = rgheader64.pe_dll_flags;
+		header->nt.pe_data_dir_count = rgheader64.pe_data_dir_count;
+
+		/* copy the datadir */
+		memcpy(&rgheader32.pe_import_table, &rgheader64.pe_import_table, sizeof(MonoPEDirEntry) * 6);
+	
+		offset += sizeof(RGDLLHeader64);
+	}
+
+	SWAP32(header->nt.pe_section_align);       /* must be 8192 */
+	SWAP32(header->nt.pe_file_alignment);      /* must be 512 or 4096 */
+	SWAP16(header->nt.pe_subsys_major);
+	SWAP16(header->nt.pe_subsys_minor);
+	SWAP32(header->nt.pe_image_size);
+	SWAP32(header->nt.pe_header_size);
+	SWAP32(header->nt.pe_checksum);
+	SWAP16(header->nt.pe_subsys_required);
+	SWAP16(header->nt.pe_dll_flags);
+	SWAP32(header->nt.pe_data_dir_count);
+
+	/* MonoDotNetHeader: mostly unused */
+	memset(&header->datadir.pe_export_table, 0, sizeof(MonoPEDirEntry));
+	header->datadir.pe_import_table = rgheader32.pe_import_table;
+	SWAPPDE(header->datadir.pe_import_table);
+	header->datadir.pe_import_table.rva = mono_image_decrypt_value(image, header->datadir.pe_import_table.rva);
+	header->datadir.pe_resource_table = rgheader32.pe_resource_table;
+	SWAPPDE(header->datadir.pe_resource_table);
+	header->datadir.pe_resource_table.rva = mono_image_decrypt_value(image, header->datadir.pe_resource_table.rva);
+	memset(&header->datadir.pe_exception_table, 0, sizeof(MonoPEDirEntry));
+	memset(&header->datadir.pe_certificate_table, 0, sizeof(MonoPEDirEntry));
+	header->datadir.pe_reloc_table = rgheader32.pe_reloc_table;
+	SWAPPDE(header->datadir.pe_reloc_table);
+	header->datadir.pe_reloc_table.rva = mono_image_decrypt_value(image, header->datadir.pe_reloc_table.rva);
+	header->datadir.pe_debug = rgheader32.pe_debug;
+	SWAPPDE(header->datadir.pe_debug);
+	header->datadir.pe_debug.rva = mono_image_decrypt_value(image, header->datadir.pe_debug.rva);
+	memset(&header->datadir.pe_copyright, 0, sizeof(MonoPEDirEntry));
+	memset(&header->datadir.pe_global_ptr, 0, sizeof(MonoPEDirEntry));
+	memset(&header->datadir.pe_tls_table, 0, sizeof(MonoPEDirEntry));
+	memset(&header->datadir.pe_load_config_table, 0, sizeof(MonoPEDirEntry));
+	memset(&header->datadir.pe_bound_import, 0, sizeof(MonoPEDirEntry));
+	header->datadir.pe_iat = rgheader32.pe_iat;
+	SWAPPDE(header->datadir.pe_iat);
+	header->datadir.pe_iat.rva = mono_image_decrypt_value(image, header->datadir.pe_iat.rva);
+	memset(&header->datadir.pe_delay_import_desc, 0, sizeof(MonoPEDirEntry));
+	header->datadir.pe_cli_header = rgheader32.pe_cli_header;
+	SWAPPDE(header->datadir.pe_cli_header);
+	header->datadir.pe_cli_header.rva = mono_image_decrypt_value(image, header->datadir.pe_cli_header.rva);
+	memset(&header->datadir.pe_reserved, 0, sizeof(MonoPEDirEntry));
+
+#ifdef HOST_WIN32
+	if (m_image_is_module_handle(image))
+		image->storage->raw_data_len = header->nt.pe_image_size;
+#endif
+
+	if (!load_section_tables(image, iinfo, offset))
+		goto invalid_image;
+
+	return TRUE;
+
+invalid_image:
+	return FALSE;
+}
+
+static const MonoImageLoader rg_loader = {
+	rg_image_match,
+	rg_image_load_rgheader_data,
+	pe_image_load_cli_data,
+	pe_image_load_tables,
+};
+
+static void
+install_rgdll_loader(void)
+{
+	mono_install_image_loader(&rg_loader);
+}
+// Modified by zx end
 
 #ifndef DISABLE_DESKTOP_LOADER
 
@@ -3471,3 +3824,22 @@ mono_image_append_class_to_reflection_info_set (MonoClass *klass)
 	mono_image_unlock (image);
 }
 
+// Modified by zx start
+uint32_t 
+mono_image_decrypt_value(MonoImage* image, uint32_t value)
+{
+	if (!image->is_rgdll)
+		return value;
+	value ^= 0xA5A5A5A5;
+	value -= (987654321 >> 3);
+	value ^= 987654321;
+	value = ((value >> 5) | (value << 27));
+	return value;
+}
+
+mono_bool 
+mono_image_is_rgdll(MonoImage* image)
+{
+	return image->is_rgdll;
+}
+// Modified by zx end

@@ -1652,6 +1652,44 @@ mono_metadata_decode_signed_value (const char *ptr, const char **rptr)
 	return ival - 0x20000000;
 }
 
+// Modified by zx start
+guint32
+mono_metadata_decode_length (MonoImage* m, const char *_ptr, const char **rptr)
+{
+	const unsigned char *ptr = (const unsigned char *) _ptr;
+	unsigned char b = *ptr;
+	guint32 len;
+
+	if (!m->is_rgdll)
+	{
+		if ((b & 0x80) == 0){
+			len = b;
+			++ptr;
+		} else if ((b & 0x40) == 0){
+			len = ((b & 0x3f) << 8 | ptr [1]);
+			ptr += 2;
+		} else {
+			len = ((b & 0x1f) << 24) |
+				(ptr [1] << 16) |
+				(ptr [2] << 8) |
+				ptr [3];
+			ptr += 4;
+		}
+		if (rptr)
+			*rptr = (char*)ptr;
+	}else 
+	{
+		gint32 res = mono_metadata_decode_signed_value(_ptr, rptr);
+		if (res < 0)
+			res = -res;
+		len = (guint32)res;
+	}
+	
+	return len;
+}
+
+// Modified by zx end
+
 /**
  * mono_metadata_translate_token_index:
  * Translates the given 1-based index into the \c Method, \c Field, \c Event, or \c Param tables
@@ -1697,6 +1735,45 @@ mono_metadata_translate_token_index (MonoImage *image, int table, guint32 idx)
 	}
 }
 
+// Modified by zx start
+guint32
+mono_metadata_map_pointer_index (MonoImage *image, int table, guint32 idx)
+{
+	if (!image->is_rgdll)
+		return idx;
+
+	switch (table) {
+	case MONO_TABLE_METHOD:
+		if (image->tables [MONO_TABLE_METHOD_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+		else
+			return idx;
+	case MONO_TABLE_FIELD:
+		if (image->tables [MONO_TABLE_FIELD_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+		else
+			return idx;
+	case MONO_TABLE_EVENT:
+		if (image->tables [MONO_TABLE_EVENT_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+		else
+			return idx;
+	case MONO_TABLE_PROPERTY:
+		if (image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+		else
+			return idx;
+	case MONO_TABLE_PARAM:
+		if (image->tables [MONO_TABLE_PARAM_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		else
+			return idx;
+	default:
+		return idx;
+	}
+}
+//Modified by zx end
+
 /**
  * mono_metadata_decode_table_row:
  *
@@ -1710,6 +1787,11 @@ mono_metadata_decode_table_row (MonoImage *image, int table, int idx, guint32 *r
 {
 	if (image->uncompressed_metadata)
 		idx = mono_metadata_translate_token_index (image, table, idx + 1) - 1;
+
+	// Modified by zx start
+	if (image->is_rgdll)
+		idx = mono_metadata_map_pointer_index (image, table, idx + 1) - 1;
+	// Modified by zx end
 
 	mono_metadata_decode_row (&image->tables [table], idx, res, res_size);
 }
@@ -1725,6 +1807,10 @@ guint32 mono_metadata_decode_table_row_col (MonoImage *image, int table, int idx
 {
 	if (image->uncompressed_metadata)
 		idx = mono_metadata_translate_token_index (image, table, idx + 1) - 1;
+	// Modified by zx start
+	if (image->is_rgdll)
+		idx = mono_metadata_map_pointer_index (image, table, idx + 1) - 1;
+	// Modified by zx end
 
 	return mono_metadata_decode_row_col (&image->tables [table], idx, col);
 }
@@ -2269,7 +2355,12 @@ mono_metadata_method_has_param_attrs (MonoImage *m, int def)
 		lastp = m->tables [MONO_TABLE_PARAM].rows + 1;
 
 	for (i = param_index; i < lastp; ++i) {
-		guint32 flags = mono_metadata_decode_row_col (paramt, i - 1, MONO_PARAM_FLAGS);
+		// Modified by zx
+		int idx = i;
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		
+		guint32 flags = mono_metadata_decode_row_col (paramt, idx - 1, MONO_PARAM_FLAGS);
 		if (flags)
 			return TRUE;
 	}
@@ -2303,7 +2394,12 @@ mono_metadata_get_param_attrs (MonoImage *m, int def, int param_count)
 		lastp = paramt->rows + 1;
 
 	for (i = param_index; i < lastp; ++i) {
-		mono_metadata_decode_row (paramt, i - 1, cols, MONO_PARAM_SIZE);
+		// Modified by zx
+		int idx = i;
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		
+		mono_metadata_decode_row (paramt, idx - 1, cols, MONO_PARAM_SIZE);
 		if (cols [MONO_PARAM_FLAGS]) {
 			if (!pattrs)
 				pattrs = g_new0 (int, param_count);
@@ -4767,6 +4863,11 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		ptr += 4;
 		local_var_sig_tok = read32 (ptr);
 		ptr += 4;
+		// Modified by zx start
+		if (m->is_rgdll) {
+			local_var_sig_tok = mono_image_decrypt_value(m, local_var_sig_tok);
+		}
+		// Modified by zx end
 
 		if (fat_flags & METHOD_HEADER_INIT_LOCALS)
 			init_locals = 1;
@@ -4787,7 +4888,6 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		mono_error_set_bad_image (error, m, "Invalid method header format %d", format);
 		return NULL;
 	}
-
 	if (local_var_sig_tok) {
 		int idx = mono_metadata_token_index (local_var_sig_tok) - 1;
 		if (mono_metadata_table_bounds_check (m, MONO_TABLE_STANDALONESIG, idx)) {
@@ -5207,7 +5307,8 @@ mono_metadata_typedef_from_field (MonoImage *meta, guint32 index)
 	loc.col_idx = MONO_TYPEDEF_FIELD_LIST;
 	loc.t = tdef;
 
-	if (meta->uncompressed_metadata)
+	// Modified by zx 
+	if (meta->uncompressed_metadata || (meta->is_rgdll && meta->tables[MONO_TABLE_FIELD_POINTER].rows > 0))
 		loc.idx = search_ptr_table (meta, MONO_TABLE_FIELD_POINTER, loc.idx);
 
 	if (!mono_binary_search (&loc, tdef->base, tdef->rows, tdef->row_size, typedef_locator))
@@ -5237,7 +5338,8 @@ mono_metadata_typedef_from_method (MonoImage *meta, guint32 index)
 	loc.col_idx = MONO_TYPEDEF_METHOD_LIST;
 	loc.t = tdef;
 
-	if (meta->uncompressed_metadata)
+	// Modified by zx
+	if (meta->uncompressed_metadata || (meta->is_rgdll && meta->tables[MONO_TABLE_METHOD_POINTER].rows > 0))
 		loc.idx = search_ptr_table (meta, MONO_TABLE_METHOD_POINTER, loc.idx);
 
 	if (!mono_binary_search (&loc, tdef->base, tdef->rows, tdef->row_size, typedef_locator))

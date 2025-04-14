@@ -80,6 +80,11 @@ get_default_field_value (MonoDomain* domain, MonoClassField *field, void *value,
 static void
 mono_ldstr_metadata_sig (MonoDomain *domain, const char* sig, MonoStringHandleOut string_handle, MonoError *error);
 
+// Modified by zx start
+static void
+mono_ldstr_metadata_sig2 (MonoDomain *domain, MonoImage* m, const char* sig, MonoStringHandleOut string_handle, MonoError *error);
+// Modified by zx end
+
 static void
 free_main_args (void);
 
@@ -1199,6 +1204,11 @@ mono_class_compute_gc_descriptor (MonoClass *klass)
 					MonoImage *p_image = m_class_get_image (p);
 					while ((field = mono_class_get_fields_internal (p, &iter))) {
 						guint32 field_idx = first_field_idx + (field - p_fields);
+						// Modified by zx start
+						if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+							field_idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], field_idx, MONO_FIELD_POINTER_FIELD) - 1;
+						// Modified by zx end
+			
 						if (MONO_TYPE_IS_REFERENCE (field->type) && mono_assembly_is_weak_field (p_image, field_idx + 1)) {
 							int pos = field->offset / sizeof (gpointer);
 							if (pos + 1 > weak_bitmap_nbits)
@@ -7632,7 +7642,8 @@ mono_ldstr_checked (MonoDomain *domain, MonoImage *image, guint32 idx, MonoError
 	}
 	if (!mono_verifier_verify_string_signature (image, idx, error))
 		goto exit;
-	mono_ldstr_metadata_sig (domain, mono_metadata_user_string (image, idx), str, error);
+	// Modified by zx
+	mono_ldstr_metadata_sig2 (domain, image, mono_metadata_user_string (image, idx), str, error);
 exit:
 	HANDLE_FUNCTION_RETURN_OBJ (str);
 }
@@ -7697,6 +7708,34 @@ mono_ldstr_metadata_sig (MonoDomain *domain, const char* sig, MonoStringHandleOu
 	MONO_HANDLE_ASSIGN_RAW (string_handle, MONO_HANDLE_RAW (mono_string_intern_checked (o, error)));
 }
 
+// Modified by zx start
+static void
+mono_ldstr_metadata_sig2 (MonoDomain *domain, MonoImage* m, const char* sig, MonoStringHandleOut string_handle, MonoError *error)
+{
+	MONO_REQ_GC_UNSAFE_MODE;
+
+	error_init (error);
+
+	MONO_HANDLE_ASSIGN_RAW (string_handle, NULL);
+
+	const gsize len = mono_metadata_decode_length (m, sig, &sig) / sizeof (gunichar2);
+
+	// FIXMEcoop excess handle, use mono_string_new_utf16_checked and string_handle parameter
+
+	MonoStringHandle o = mono_string_new_utf16_handle (domain, (gunichar2*)sig, len, error);
+	return_if_nok (error);
+
+#if G_BYTE_ORDER != G_LITTLE_ENDIAN
+	gunichar2 *p = mono_string_chars_internal (MONO_HANDLE_RAW (o));
+	for (gsize i = 0; i < len; ++i)
+		p [i] = GUINT16_FROM_LE (p [i]);
+#endif
+	// FIXMEcoop excess handle in mono_string_intern_checked
+
+	MONO_HANDLE_ASSIGN_RAW (string_handle, MONO_HANDLE_RAW (mono_string_intern_checked (o, error)));
+}
+// Modified by zx end
+
 /*
  * mono_ldstr_utf8:
  *
@@ -7718,7 +7757,7 @@ mono_ldstr_utf8 (MonoImage *image, guint32 idx, MonoError *error)
 		return NULL;
 	str = mono_metadata_user_string (image, idx);
 
-	len2 = mono_metadata_decode_blob_size (str, &str);
+	len2 = mono_metadata_decode_length (image, str, &str);
 	len2 >>= 1;
 
 	as = g_utf16_to_utf8 ((gunichar2*)str, len2, NULL, &written, &gerror);

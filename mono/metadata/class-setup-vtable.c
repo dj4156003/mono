@@ -1183,7 +1183,12 @@ mono_class_get_virtual_methods (MonoClass* klass, gpointer *iter)
 
 		if (i < mcount) {
 			ERROR_DECL (error);
-			res = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | (first_idx + i + 1), klass, NULL, error);
+			int idx = first_idx + i + 1;
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+				idx = mono_metadata_map_pointer_index(klass->image, MONO_TABLE_METHOD, idx);
+			// Modified by zx end
+			res = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | idx, klass, NULL, error);
 			mono_error_cleanup (error); /* FIXME don't swallow the error */
 
 			/* Add 1 here so the if (*iter) check fails */

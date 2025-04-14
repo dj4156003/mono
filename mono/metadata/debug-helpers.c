@@ -678,6 +678,10 @@ dis_one (GString *str, MonoDisHelper *dh, MonoMethod *method, const unsigned cha
 	case MonoInlineTok:
 	case MonoInlineSig:
 		token = read32 (ip);
+		// Modified by zx start
+		if (method->klass->image->is_rgdll)
+			token = mono_image_decrypt_value(method->klass->image, token);
+		// Modified by zx end
 		if (dh->tokener) {
 			tmp = dh->tokener (dh, method, token);
 			g_string_append (str, tmp);
@@ -695,9 +699,15 @@ dis_one (GString *str, MonoDisHelper *dh, MonoMethod *method, const unsigned cha
 
 		if (!image_is_dynamic (method->klass->image) && !method_is_dynamic (method)) {
 			token = read32 (ip);
+			// Modified by zx start
+			if (method->klass->image->is_rgdll)
+				token = mono_image_decrypt_value(method->klass->image, token);
+			// Modified by zx end
+			
 			blob = mono_metadata_user_string (method->klass->image, mono_metadata_token_index (token));
-
-			len2 = mono_metadata_decode_blob_size (blob, &blob);
+			// Modified by zx start
+			len2 = mono_metadata_decode_length (method->klass->image, blob, &blob);
+			// Modified by zx end
 			len2 >>= 1;
 
 #ifdef NO_UNALIGNED_ACCESS
@@ -740,6 +750,10 @@ dis_one (GString *str, MonoDisHelper *dh, MonoMethod *method, const unsigned cha
 		break;
 	case MonoInlineBrTarget:
 		sval = read32 (ip);
+		// Modified by zx start
+		if (method->klass->image->is_rgdll)
+			sval = mono_image_decrypt_value(method->klass->image, sval);
+		// Modified by zx end
 		ip += 4;
 		if (dh->label_target)
 			g_string_append_printf (str, dh->label_target, ip + sval - il_code);

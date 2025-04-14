@@ -601,6 +601,13 @@ struct _MonoImage {
 	 * It's meant to be used only to mutate and query structures part of this image.
 	 */
 	mono_mutex_t    lock;
+
+	// Modified by zx start
+	mono_bool    is_rgdll;
+	int32_t      rg_generation;
+	uint32_t     rg_version;
+	MonoStreamHeader     rg_changed_methods_heap;
+	// Modified by zx end
 };
 
 /*

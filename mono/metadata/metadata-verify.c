@@ -2488,7 +2488,11 @@ verify_typedef_table (VerifyContext *ctx)
 		if (data [MONO_TYPEDEF_FIELD_LIST] == 0)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d FieldList be be >= 1", i));
 
-		if (data [MONO_TYPEDEF_FIELD_LIST] > ctx->image->tables [MONO_TABLE_FIELD].rows + 1)
+		// Modified by zx start
+		if (!ctx->image->is_rgdll && data [MONO_TYPEDEF_FIELD_LIST] > ctx->image->tables [MONO_TABLE_FIELD].rows + 1)
+			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d FieldList rowid 0x%08x is out of range", i, data [MONO_TYPEDEF_FIELD_LIST]));
+		
+		if (ctx->image->is_rgdll && ctx->image->tables [MONO_TABLE_FIELD_POINTER].rows > 0 && data [MONO_TYPEDEF_FIELD_LIST] > ctx->image->tables [MONO_TABLE_FIELD_POINTER].rows + 1)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d FieldList rowid 0x%08x is out of range", i, data [MONO_TYPEDEF_FIELD_LIST]));
 
 		if (data [MONO_TYPEDEF_FIELD_LIST] < fieldlist)
@@ -2497,8 +2501,12 @@ verify_typedef_table (VerifyContext *ctx)
 		if (data [MONO_TYPEDEF_METHOD_LIST] == 0)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d MethodList be be >= 1", i));
 
-		if (data [MONO_TYPEDEF_METHOD_LIST] > ctx->image->tables [MONO_TABLE_METHOD].rows + 1)
+		if (!ctx->image->is_rgdll && data [MONO_TYPEDEF_METHOD_LIST] > ctx->image->tables [MONO_TABLE_METHOD].rows + 1)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d MethodList rowid 0x%08x is out of range", i, data [MONO_TYPEDEF_METHOD_LIST]));
+
+		if (ctx->image->is_rgdll && ctx->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0 && data [MONO_TYPEDEF_METHOD_LIST] > ctx->image->tables [MONO_TABLE_METHOD_POINTER].rows + 1)
+			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d MethodList rowid 0x%08x is out of range", i, data [MONO_TYPEDEF_METHOD_LIST]));
+		// Modified by zx end
 
 		if (data [MONO_TYPEDEF_METHOD_LIST] < methodlist)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid typedef row %d MethodList rowid 0x%08x can't be smaller than of previous row 0x%08x", i, data [MONO_TYPEDEF_METHOD_LIST], methodlist));
@@ -2758,7 +2766,11 @@ verify_method_table (VerifyContext *ctx)
 		if (data [MONO_METHOD_PARAMLIST] < paramlist)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid method row %d ParamList rowid 0x%08x can't be smaller than of previous row 0x%08x", i, data [MONO_METHOD_PARAMLIST], paramlist));
 
-		if (data [MONO_METHOD_PARAMLIST] > ctx->image->tables [MONO_TABLE_PARAM].rows + 1)
+		// Modified by zx
+		if (!ctx->image->is_rgdll && data [MONO_METHOD_PARAMLIST] > ctx->image->tables [MONO_TABLE_PARAM].rows + 1)
+			ADD_ERROR (ctx, g_strdup_printf ("Invalid method row %d ParamList rowid 0x%08x is out of range", i, data [MONO_METHOD_PARAMLIST]));
+
+		if (ctx->image->is_rgdll && ctx->image->tables[MONO_TABLE_PARAM_POINTER].rows > 0 && data [MONO_METHOD_PARAMLIST] > ctx->image->tables [MONO_TABLE_PARAM_POINTER].rows + 1)
 			ADD_ERROR (ctx, g_strdup_printf ("Invalid method row %d ParamList rowid 0x%08x is out of range", i, data [MONO_METHOD_PARAMLIST]));
 
 		paramlist = data [MONO_METHOD_PARAMLIST];

@@ -440,11 +440,12 @@ mono_metadata_signature_vararg_match (MonoMethodSignature *sig1, MonoMethodSigna
 	return TRUE;
 }
 
+// Modified by zx
 static MonoMethod *
 find_method_in_class (MonoClass *klass, const char *name, const char *qname, const char *fqname,
 		      MonoMethodSignature *sig, MonoClass *from_class, MonoError *error)
 {
- 	int i;
+ 	int i, idx;
 
 	/* Search directly in the metadata to avoid calling setup_methods () */
 	error_init (error);
@@ -461,6 +462,9 @@ find_method_in_class (MonoClass *klass, const char *name, const char *qname, con
 			MonoMethodSignature *other_sig;
 
 			mono_metadata_decode_table_row (klass_image, MONO_TABLE_METHOD, first_idx + i, cols, MONO_METHOD_SIZE);
+			idx = first_idx + i;
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+				idx = mono_metadata_decode_row_col (&klass_image->tables [MONO_TABLE_METHOD_POINTER], idx, MONO_METHOD_POINTER_METHOD) - 1;
 
 			m_name = mono_metadata_string_heap (klass_image, cols [MONO_METHOD_NAME]);
 
@@ -469,7 +473,7 @@ find_method_in_class (MonoClass *klass, const char *name, const char *qname, con
 				  (name && !strcmp (m_name, name))))
 				continue;
 
-			method = mono_get_method_checked (klass_image, MONO_TOKEN_METHOD_DEF | (first_idx + i + 1), klass, NULL, error);
+			method = mono_get_method_checked (klass_image, MONO_TOKEN_METHOD_DEF | (idx + 1), klass, NULL, error);
 			if (!is_ok (error)) //bail out if we hit a loader error
 				return NULL;
 			if (method) {
@@ -1500,7 +1504,12 @@ mono_method_get_param_names (MonoMethod *method, const char **names)
 		else
 			lastp = paramt->rows + 1;
 		for (i = param_index; i < lastp; ++i) {
-			mono_metadata_decode_row (paramt, i -1, cols, MONO_PARAM_SIZE);
+			// Modified by zx
+			int param_idx = i;
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				param_idx = mono_metadata_decode_row_col (&klass_image->tables[MONO_TABLE_PARAM_POINTER], param_idx - 1, MONO_PARAM_POINTER_PARAM);
+
+			mono_metadata_decode_row (paramt, param_idx -1, cols, MONO_PARAM_SIZE);
 			if (cols [MONO_PARAM_SEQUENCE] && cols [MONO_PARAM_SEQUENCE] <= signature->param_count) /* skip return param spec and bounds check*/
 				names [cols [MONO_PARAM_SEQUENCE] - 1] = mono_metadata_string_heap (klass_image, cols [MONO_PARAM_NAME]);
 		}
@@ -1531,7 +1540,13 @@ mono_method_get_param_token (MonoMethod *method, int index)
 			/* Return value */
 			return mono_metadata_make_token (MONO_TABLE_PARAM, 0);
 		else
-			return mono_metadata_make_token (MONO_TABLE_PARAM, param_index + index);
+		{
+			// Modified by zx
+			int param_idx = param_index + index;
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				param_idx = mono_metadata_decode_row_col (&klass_image->tables[MONO_TABLE_PARAM_POINTER], param_idx - 1, MONO_PARAM_POINTER_PARAM);
+			return mono_metadata_make_token (MONO_TABLE_PARAM, param_idx);
+		}
 	}
 
 	return 0;
@@ -1596,11 +1611,16 @@ mono_method_get_marshal_info (MonoMethod *method, MonoMarshalSpec **mspecs)
 			lastp = paramt->rows + 1;
 
 		for (i = param_index; i < lastp; ++i) {
-			mono_metadata_decode_row (paramt, i -1, cols, MONO_PARAM_SIZE);
+			// Modified by zx
+			int param_idx = i;
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				param_idx = mono_metadata_decode_row_col (&klass_image->tables[MONO_TABLE_PARAM_POINTER], param_idx - 1, MONO_PARAM_POINTER_PARAM);
+			
+			mono_metadata_decode_row (paramt, param_idx -1, cols, MONO_PARAM_SIZE);
 
 			if (cols [MONO_PARAM_FLAGS] & PARAM_ATTRIBUTE_HAS_FIELD_MARSHAL && cols [MONO_PARAM_SEQUENCE] <= signature->param_count) {
 				const char *tp;
-				tp = mono_metadata_get_marshal_info (klass_image, i - 1, FALSE);
+				tp = mono_metadata_get_marshal_info (klass_image, param_idx - 1, FALSE);
 				g_assert (tp);
 				mspecs [cols [MONO_PARAM_SEQUENCE]]= mono_metadata_parse_marshal_spec (klass_image, tp);
 			}
@@ -1650,7 +1670,12 @@ mono_method_has_marshal_info (MonoMethod *method)
 			lastp = paramt->rows + 1;
 
 		for (i = param_index; i < lastp; ++i) {
-			mono_metadata_decode_row (paramt, i -1, cols, MONO_PARAM_SIZE);
+			// Modified by zx
+			int param_idx = i;
+			if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				param_idx = mono_metadata_decode_row_col (&klass->image->tables[MONO_TABLE_PARAM_POINTER], param_idx - 1, MONO_PARAM_POINTER_PARAM);
+
+			mono_metadata_decode_row (paramt, param_idx -1, cols, MONO_PARAM_SIZE);
 
 			if (cols [MONO_PARAM_FLAGS] & PARAM_ATTRIBUTE_HAS_FIELD_MARSHAL)
 				return TRUE;
@@ -2183,6 +2208,8 @@ mono_method_get_index (MonoMethod *method)
 		if (method == klass_methods [i]) {
 			if (m_class_get_image (klass)->uncompressed_metadata)
 				return mono_metadata_translate_token_index (m_class_get_image (klass), MONO_TABLE_METHOD, first_idx + i + 1);
+			else if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+				return mono_metadata_map_pointer_index (m_class_get_image (klass), MONO_TABLE_METHOD, first_idx + i + 1);
 			else
 				return first_idx + i + 1;
 		}

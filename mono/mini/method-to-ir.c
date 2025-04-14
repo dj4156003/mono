@@ -6004,8 +6004,9 @@ typedef struct _MonoOpcodeInfo {
 	gint  pushes   : 3; // public -1 means variable
 } MonoOpcodeInfo;
 
+// Modified by zx
 static const MonoOpcodeInfo*
-mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeParameter *parameter)
+mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeParameter *parameter, MonoImage* m)
 {
 #define Push0 (0)
 #define Pop0 (0)
@@ -6049,6 +6050,7 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 
 	gint32 delta;
 	guchar *next_ip = ip + op_size;
+	guint32 v;
 
 	const MonoOpcodeInfo *info = &mono_opcode_info [il_op];
 
@@ -6064,7 +6066,10 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 	case MonoInlineSig:
 	case MonoShortInlineR:
 	case MonoInlineI:
-		parameter->i32 = read32 (next_ip - 4);
+		v = read32 (next_ip - 4);
+		if (m->is_rgdll)
+			v = mono_image_decrypt_value(m, v);
+		parameter->i32 = (gint32)v;
 		// FIXME check token type?
 		break;
 	case MonoShortInlineI:
@@ -6084,7 +6089,10 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 		delta = (signed char)next_ip [-1];
 		goto branch_target;
 	case MonoInlineBrTarget:
-		delta = (gint32)read32 (next_ip - 4);
+		v = read32 (next_ip - 4);;
+		if (m->is_rgdll)
+			v = mono_image_decrypt_value(m, v);
+		delta = (gint32)v;
 branch_target:
 		parameter->branch_target = delta + next_ip;
 		break;
@@ -6776,7 +6784,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 		// FIXME split 500 lines load/store field into separate file/function.
 
 		MonoOpcodeParameter parameter;
-		const MonoOpcodeInfo* info = mono_opcode_decode (ip, op_size, il_op, &parameter);
+		// Modified by zx
+		const MonoOpcodeInfo* info = mono_opcode_decode (ip, op_size, il_op, &parameter, method->klass->image);
 		g_assert (info);
 		n = parameter.i32;
 		token = parameter.i32;

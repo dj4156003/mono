@@ -2986,7 +2986,14 @@ mono_get_field_token (MonoClassField *field)
 	MonoClassField *klass_fields = m_class_get_fields (klass);
 	for (i = 0; i < fcount; ++i) {
 		if (field == &klass_fields [i])
-			return MONO_TOKEN_FIELD_DEF | (mono_class_get_first_field_idx (klass) + 1 + i);
+		{
+			int idx = mono_class_get_first_field_idx (klass) + 1 + i;
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+				idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+			// Modified by zx end
+			return MONO_TOKEN_FIELD_DEF | (idx);
+		}
 	}
 
 	g_assert_not_reached ();
