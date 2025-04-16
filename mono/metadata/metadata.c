@@ -4871,6 +4871,7 @@ mono_metadata_decrypt_code(MonoImage* m, MonoMethodHeader *mh)
                 ptr += 4;
                 for (n = 0; n < count; n++){
 					offset = read32 (ptr);
+					offset = mono_image_decrypt_value(m, offset);
 					rg_write32(ptr, offset);
                     ptr += 4;
                 }
