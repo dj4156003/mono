@@ -3509,7 +3509,7 @@ mono_class_setup_properties (MonoClass *klass)
 			// Modified by zx
 			idx = i;
 			if (image->is_rgdll && image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
-				idx = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], i - 1, MONO_PROPERTY_POINTER_PROPERTY);
+				idx = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], i, MONO_PROPERTY_POINTER_PROPERTY) - 1;
 			mono_metadata_decode_table_row (image, MONO_TABLE_PROPERTY, i, cols, MONO_PROPERTY_SIZE);
 			properties [i - first].parent = klass;
 			properties [i - first].attrs = cols [MONO_PROPERTY_FLAGS];
@@ -3646,7 +3646,7 @@ mono_class_setup_events (MonoClass *klass)
 			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
 			
 			if (image->is_rgdll && image->tables[MONO_TABLE_EVENT_POINTER].rows)
-				idx = mono_metadata_decode_row_col(&image->tables[MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+				idx = mono_metadata_decode_row_col(&image->tables[MONO_TABLE_EVENT_POINTER], idx, MONO_EVENT_POINTER_EVENT) - 1;
 
 			event->parent = klass;
 			event->attrs = cols [MONO_EVENT_FLAGS];
