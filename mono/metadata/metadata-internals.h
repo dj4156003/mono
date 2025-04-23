@@ -309,6 +309,15 @@ typedef struct {
 	gboolean (*load_tables) (MonoImage*);
 } MonoImageLoader;
 
+// Modified by zx start
+typedef struct {
+	unsigned char*  rg_decrypt_ilcode_mem;
+	unsigned        rg_decrypt_ilcode_mem_cur;
+	unsigned        rg_decrypt_ilcode_mem_len;
+	GHashTable*     rg_decrypt_ilcode_ptr_map;
+} MonoImageILCodeDecryptInfo;
+// Modified by zx end
+
 /* Represents the physical bytes for an image (usually in the file system, but
  * could be in memory).
  *
@@ -603,10 +612,11 @@ struct _MonoImage {
 	mono_mutex_t    lock;
 
 	// Modified by zx start
-	mono_bool    is_rgdll;
-	int32_t      rg_generation;
-	uint32_t     rg_version;
-	MonoStreamHeader     rg_changed_methods_heap;
+	mono_bool                   is_rgdll;
+	int32_t                     rg_generation;
+	uint32_t                    rg_version;
+	MonoStreamHeader            rg_changed_methods_heap;
+	MonoImageILCodeDecryptInfo* rg_ilcode_decrypt_info;
 	// Modified by zx end
 };
 

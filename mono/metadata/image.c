@@ -910,6 +910,7 @@ mono_image_init (MonoImage *image)
 	image->rg_version = 0;
 	image->rg_changed_methods_heap.data = NULL;
 	image->rg_changed_methods_heap.size = 0;
+	image->rg_ilcode_decrypt_info = NULL;
 	// Modified by zx end
 }
 
@@ -1296,26 +1297,26 @@ install_pe_loader (void)
 }
 
 // Modified by zx start
-
 /* This is not an on-disk structure */
 typedef struct {
 	char            rgsig[2];
 	guint16         version;
 	guint32         generation;
+	guint32         rg_flags;
 	guint16         coff_machine;
-	guint16			coff_sections;
-	guint32			coff_time;
+	guint16	        coff_sections;
+	guint32	        coff_time;
 	guint16         coff_attributes;
 	guchar          pe_major;
 	guchar          pe_minor;
-	guint32			pe_code_size;
-	guint32			pe_data_size;
-	guint32			pe_rva_entry_point;
-	guint32			pe_rva_code_base;
-	guint32			pe_rva_data_base;
-	guint32			pe_image_base;		    /* must be 0x400000 */
-	guint32			pe_section_align;       /* must be 8192 */
-	guint32			pe_file_alignment;      /* must be 512 or 4096 */
+	guint32	        pe_code_size;
+	guint32	        pe_data_size;
+	guint32	        pe_rva_entry_point;
+	guint32	        pe_rva_code_base;
+	guint32	        pe_rva_data_base;
+	guint32	        pe_image_base;		    /* must be 0x400000 */
+	guint32	        pe_section_align;       /* must be 8192 */
+	guint32	        pe_file_alignment;      /* must be 512 or 4096 */
 	guint16         pe_subsys_major;
 	guint16         pe_subsys_minor;
 	guint32         pe_image_size;
@@ -1325,9 +1326,9 @@ typedef struct {
 	guint16         pe_dll_flags;
 	guint32         pe_stack_reserve;
 	guint32         pe_stack_commit;
-	guint32			pe_heap_reserve;
-	guint32			pe_heap_commit;
-	guint32			  pe_data_dir_count;
+	guint32	        pe_heap_reserve;
+	guint32	        pe_heap_commit;
+	guint32	        pe_data_dir_count;
 	MonoPEDirEntry    pe_import_table;
 	MonoPEDirEntry    pe_resource_table;
 	MonoPEDirEntry    pe_reloc_table;
@@ -1340,19 +1341,20 @@ typedef struct {
 	char            rgsig[2];
 	guint16         version;
 	guint32         generation;
+	guint32         rg_flags;
 	guint16         coff_machine;
-	guint16			coff_sections;
-	guint32			coff_time;
+	guint16	        coff_sections;
+	guint32	        coff_time;
 	guint16         coff_attributes;
 	guchar          pe_major;
 	guchar          pe_minor;
-	guint32			pe_code_size;
-	guint32			pe_data_size;
-	guint32			pe_rva_entry_point;
-	guint32			pe_rva_code_base;
-	guint64			pe_image_base;		    /* must be 0x400000 */
-	guint32			pe_section_align;       /* must be 8192 */
-	guint32			pe_file_alignment;      /* must be 512 or 4096 */
+	guint32	        pe_code_size;
+	guint32	        pe_data_size;
+	guint32	        pe_rva_entry_point;
+	guint32	        pe_rva_code_base;
+	guint64	        pe_image_base;		    /* must be 0x400000 */
+	guint32	        pe_section_align;       /* must be 8192 */
+	guint32	        pe_file_alignment;      /* must be 512 or 4096 */
 	guint16         pe_subsys_major;
 	guint16         pe_subsys_minor;
 	guint32         pe_image_size;
@@ -1362,9 +1364,9 @@ typedef struct {
 	guint16         pe_dll_flags;
 	guint64         pe_stack_reserve;
 	guint64         pe_stack_commit;
-	guint64			pe_heap_reserve;
-	guint64			pe_heap_commit;
-	guint32			  pe_data_dir_count;
+	guint64	        pe_heap_reserve;
+	guint64	        pe_heap_commit;
+	guint32	        pe_data_dir_count;
 	MonoPEDirEntry    pe_import_table;
 	MonoPEDirEntry    pe_resource_table;
 	MonoPEDirEntry    pe_reloc_table;
@@ -1571,6 +1573,24 @@ rg_image_load_rgheader_data(MonoImage* image)
 	SWAPPDE(header->datadir.pe_cli_header);
 	header->datadir.pe_cli_header.rva = mono_image_decrypt_value(image, header->datadir.pe_cli_header.rva);
 	memset(&header->datadir.pe_reserved, 0, sizeof(MonoPEDirEntry));
+
+	if ((rgheader32.rg_flags & 0x1) != 0)
+	{
+		image->rg_ilcode_decrypt_info = g_new(MonoImageILCodeDecryptInfo, 1);
+		if (!image->rg_ilcode_decrypt_info) {
+			fprintf(stderr, "Error: Failed to allocate MonoImageILCodeDecryptInfo\n");
+			return FALSE;
+		}
+		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem = g_new(unsigned char, rgheader32.pe_code_size);
+		if (!image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem) {
+			fprintf(stderr, "Error: Failed to allocate memory for IL code decryption\n");
+			g_free(image->rg_ilcode_decrypt_info);
+			return FALSE;
+		}
+		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur = 0;
+		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len = rgheader32.pe_code_size;
+		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map = g_hash_table_new(NULL, NULL);
+	}
 
 #ifdef HOST_WIN32
 	if (m_image_is_module_handle(image))

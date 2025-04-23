@@ -4827,7 +4827,6 @@ ip_in_bb (MonoCompile *cfg, MonoBasicBlock *bb, const guint8* ip)
 	return b == NULL || b == bb;
 }
 
-// Modified by zx
 static int
 get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset, guchar *start, guchar *end, guchar **pos)
 {
@@ -6005,9 +6004,8 @@ typedef struct _MonoOpcodeInfo {
 	gint  pushes   : 3; // public -1 means variable
 } MonoOpcodeInfo;
 
-// Modified by zx
 static const MonoOpcodeInfo*
-mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeParameter *parameter, MonoImage* m)
+mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeParameter *parameter)
 {
 #define Push0 (0)
 #define Pop0 (0)
@@ -6066,7 +6064,7 @@ mono_opcode_decode (guchar *ip, guint op_size, MonoOpcodeEnum il_op, MonoOpcodeP
 	case MonoInlineSig:
 	case MonoShortInlineR:
 	case MonoInlineI:
-		parameter->i32 = (gint32)read32 (next_ip - 4);
+		parameter->i32 = read32 (next_ip - 4);
 		// FIXME check token type?
 		break;
 	case MonoShortInlineI:
@@ -6778,8 +6776,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 		// FIXME split 500 lines load/store field into separate file/function.
 
 		MonoOpcodeParameter parameter;
-		// Modified by zx
-		const MonoOpcodeInfo* info = mono_opcode_decode (ip, op_size, il_op, &parameter, method->klass->image);
+		const MonoOpcodeInfo* info = mono_opcode_decode (ip, op_size, il_op, &parameter);
 		g_assert (info);
 		n = parameter.i32;
 		token = parameter.i32;

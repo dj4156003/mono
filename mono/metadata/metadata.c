@@ -67,6 +67,9 @@ static void mono_metadata_field_info_full (MonoImage *meta, guint32 index, guint
 
 static MonoType* mono_signature_get_params_internal (MonoMethodSignature *sig, gpointer *iter);
 
+// Modified by zx start
+static unsigned char* mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize);
+// Modified by zx end
 /*
  * This enumeration is used to describe the data types in the metadata
  * tables
@@ -4737,6 +4740,7 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 	const char *ptr;
 	unsigned char flags, format;
 	guint16 fat_flags;
+	gboolean is_encrypt = 0;
 	ERROR_DECL (error);
 
 	/*Only the GMD has a pointer to the metadata.*/
@@ -4790,6 +4794,7 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 		summary->max_stack = 8;
 		summary->code = (unsigned char *) ptr;
 		summary->code_size = flags >> 2;
+		is_encrypt = (format == METHOD_HEADER_TINY_FORMAT_DECRYPT) && method->klass->image->is_rgdll;
 		break;
 	case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 	case METHOD_HEADER_FAT_FORMAT:
@@ -4804,99 +4809,156 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 		if (fat_flags & METHOD_HEADER_MORE_SECTS)
 			summary->has_clauses = TRUE;
 		summary->code = (unsigned char *) ptr;
+		is_encrypt = (format == METHOD_HEADER_FAT_FORMAT_DECRYPT) && method->klass->image->is_rgdll;
 		break;
 	default:
 		return FALSE;
 	}
+
+	if (is_encrypt)
+	{
+		summary->code = mono_metadata_decrypt_raw_code(img, summary->code, summary->code_size);
+	}
+
 	return TRUE;
 }
 
 // Modified by zx start
+static void 
+write_to_ptr(uint8_t* ptr, void* value, size_t size) {
+
+	if (((uintptr_t)ptr % size) != 0) {
+		memcpy(ptr, value, size);
+	}else {
+		switch (size) {
+		case 1:
+			*((uint8_t*)ptr) = *((uint8_t*)value);
+			break;
+		case 2:
+			*((uint16_t*)ptr) = *((uint16_t*)value);
+			break;
+		case 4:
+			*((uint32_t*)ptr) = *((uint32_t*)value);
+			break;
+		case 8:
+			*((uint64_t*)ptr) = *((uint64_t*)value);
+			break;
+		default:
+			memcpy(ptr, value, size);
+			break;
+		}
+	}
+}
+
+static unsigned char*
+mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize)
+{
+	if (!m->is_rgdll)
+		return code;
+
+	if (m->rg_ilcode_decrypt_info == NULL || m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem == NULL)
+	{
+		g_assert_not_reached();
+		return code;
+	}
+
+	unsigned char* newCode = (unsigned char*)g_hash_table_lookup(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code);
+	if (newCode != NULL)
+	{
+		return newCode;
+	}
+
+	if (codesize > m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len - m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur) {
+		fprintf(stderr, "Error: Not enough space in IL code decryption memory pool\n");
+		g_assert_not_reached();
+		return code;
+	}
+
+	newCode = m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem + m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur;
+	m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur += codesize;
+	memcpy(newCode, code, codesize);
+	const unsigned char* start = newCode;
+	int size = codesize;
+	const unsigned char* end = start + size;
+	const unsigned char* ptr = start;
+	const MonoOpcode* entry;
+	int i;
+
+	while (ptr < end) {
+		i = *ptr;
+		if (*ptr == 0xfe) {
+			ptr++;
+			i = *ptr + 256;
+		}
+		entry = &mono_opcodes[i];
+		ptr++;
+		switch (entry->argument) {
+		case MonoInlineBrTarget: {
+			guint32 target = read32 (ptr);
+			target = mono_image_decrypt_value(m, target);
+			write_to_ptr(ptr, &target, sizeof(guint32));
+			ptr += 4;
+			break;
+		}
+		case MonoInlineSig:
+		case MonoInlineField:
+		case MonoInlineString:
+		case MonoInlineTok:
+		case MonoInlineType:
+		case MonoInlineMethod: {
+			guint32 token = read32 (ptr);
+			token = mono_image_decrypt_value(m, token);
+			write_to_ptr(ptr, &token, sizeof(guint32));
+			ptr += 4;
+			break;
+		}
+		case MonoInlineNone:
+			break;
+		case MonoInlineI8:
+		case MonoInlineR: {
+			ptr += 8;
+			break;
+		}
+		case MonoInlineSwitch: {
+			guint32 count = read32(ptr);
+			guint32 n, offset;
+			ptr += 4;
+			for (n = 0; n < count; n++) {
+				offset = read32 (ptr);
+				offset = mono_image_decrypt_value(m, offset);
+				write_to_ptr(ptr, &offset, sizeof(guint32));
+				ptr += 4;
+			}
+			break;
+		}
+		case MonoInlineVar: {
+			ptr += 2;
+			break;
+		}
+		case MonoShortInlineBrTarget:
+		case MonoShortInlineVar:
+		case MonoShortInlineI: {
+			ptr++;
+			break;
+		}
+		case MonoInlineI:
+		case MonoShortInlineR: {
+			ptr += 4;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code, newCode);
+	return newCode;
+}
+
 static void
 mono_metadata_decrypt_code(MonoImage* m, MonoMethodHeader *mh)
 {
-	if (!m->is_rgdll)
-		return;
-
-	unsigned char* newCode = g_malloc(mh->code_size);
-	memcpy(newCode, mh->code, mh->code_size);
-	mh->code = newCode;
-	const unsigned char *start = mh->code;
-    int size = mh->code_size;
-    const unsigned char *end = start + size;
-    const unsigned char *ptr = start;
-    const MonoOpcode *entry;
-    int i;
-
-#define rg_write32(x, v) *((guint32 *) (x)) = (v);
-    
-    while (ptr < end){
-        i = *ptr;
-        if (*ptr == 0xfe){
-            ptr++;
-            i = *ptr + 256;
-        }
-        entry = &mono_opcodes [i];
-        ptr++;
-        switch (entry->argument){
-            case MonoInlineBrTarget: {
-                guint32 target = read32 (ptr);
-                target = mono_image_decrypt_value(m, target);
-				rg_write32(ptr, target);
-                ptr += 4;
-                break;
-            }
-			case MonoInlineSig:
-			case MonoInlineField:
-			case MonoInlineString:
-			case MonoInlineTok:
-			case MonoInlineType:
-            case MonoInlineMethod: {
-                guint32 token = read32 (ptr);
-                token = mono_image_decrypt_value(m, token);
-				rg_write32(ptr, token);
-                ptr += 4;
-                break;
-            }
-            case MonoInlineNone:
-                break;
-			case MonoInlineI8:
-            case MonoInlineR: {
-                ptr += 8;
-                break;
-            }
-            case MonoInlineSwitch: {
-                guint32 count = read32 (ptr);
-                guint32 n, offset;
-                ptr += 4;
-                for (n = 0; n < count; n++){
-					offset = read32 (ptr);
-					offset = mono_image_decrypt_value(m, offset);
-					rg_write32(ptr, offset);
-                    ptr += 4;
-                }
-                break;
-            }
-            case MonoInlineVar: {
-                ptr += 2;
-                break;
-            }
-            case MonoShortInlineBrTarget:
-			case MonoShortInlineVar:
-            case MonoShortInlineI: {
-                ptr++;
-                break;
-            }
-			case MonoInlineI:
-            case MonoShortInlineR: {
-                ptr += 4;
-                break;
-            }
-            default:
-                break;
-        }
-    }
-#undef rg_write32
+	mh->code = mono_metadata_decrypt_raw_code(m, mh->code, (unsigned)mh->code_size);
 }
 // Modified by zx end
 
