@@ -614,7 +614,18 @@ legacy_probe_for_module (MonoImage *image, const char *new_scope)
 
 	if (mono_get_find_plugin_callback ())
 	{
+#if _WIN32
+		int size = MultiByteToWideChar(CP_UTF8, 0, new_scope, -1, NULL, 0);
+		wchar_t* new_scope_w = g_malloc(sizeof(wchar_t) * size);
+		MultiByteToWideChar(CP_UTF8, 0, new_scope, -1, new_scope_w, size);
+		const wchar_t* unity_new_scope_w = mono_get_find_plugin_callback() (new_scope_w);
+		int bufferSize = WideCharToMultiByte(CP_UTF8, 0, unity_new_scope_w, -1, NULL, 0, NULL, NULL);
+		char* unity_new_scope = g_malloc(sizeof(char) * bufferSize);
+		WideCharToMultiByte(CP_UTF8, 0, unity_new_scope_w, -1, unity_new_scope, bufferSize, NULL, NULL);
+		g_free(new_scope_w);
+#else
 		const char* unity_new_scope = mono_get_find_plugin_callback () (new_scope);
+#endif
 		if (unity_new_scope == NULL || !unity_new_scope[0])
 		{
 			mono_trace (G_LOG_LEVEL_WARNING, MONO_TRACE_DLLIMPORT,
@@ -624,6 +635,9 @@ legacy_probe_for_module (MonoImage *image, const char *new_scope)
 
 		else
 			new_scope = g_strdup (unity_new_scope);
+#if _WIN32
+		g_free(unity_new_scope);
+#endif
 	}
 
 	/*

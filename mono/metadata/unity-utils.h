@@ -48,7 +48,12 @@ MONO_API void mono_unity_set_vprintf_func(unity_vprintf_func func);
 MONO_API mono_bool
 mono_unity_method_is_generic (MonoMethod* method);
 
-typedef const char*(*UnityFindPluginCallback)(const char*);
+
+#if _WIN32
+typedef const wchar_t* (*UnityFindPluginCallback)(const wchar_t*);
+#else
+typedef const char* (*UnityFindPluginCallback)(const char*);
+#endif
 
 MONO_API void
 mono_set_find_plugin_callback(UnityFindPluginCallback find);
