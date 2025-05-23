@@ -216,6 +216,10 @@ MONO_API void* mono_unity_alloc(size_t size);
 MONO_API void mono_unity_g_free (void *ptr);
 MONO_API MonoImage* mono_unity_assembly_get_image(MonoAssembly* assembly);
 MONO_API MonoClass* mono_unity_field_get_class(MonoClassField* field);
+MONO_API void mono_unity_thread_push_appdomain_ref (MonoDomain *domain);
+MONO_API void mono_unity_thread_pop_appdomain_ref (void);
+MONO_API void mono_unity_thread_fast_attach (MonoDomain *domain);
+MONO_API void mono_unity_thread_fast_detach (void);
 
 MONO_API MonoClass* mono_custom_attrs_get_attrs (MonoCustomAttrInfo *ainfo, void* *iter);
 MONO_API MonoArray* mono_unity_custom_attrs_construct (MonoCustomAttrInfo *cinfo, MonoError *error);

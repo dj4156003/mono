@@ -1438,6 +1438,7 @@ mini_get_underlying_signature (MonoMethodSignature *sig)
 	return res;
 }
 
+static GHashTable *gsharedvt_in_sig_cache = NULL;
 /*
  * mini_get_gsharedvt_in_sig_wrapper:
  *
@@ -1454,16 +1455,15 @@ mini_get_gsharedvt_in_sig_wrapper (MonoMethodSignature *sig)
 	WrapperInfo *info;
 	MonoMethodSignature *csig, *gsharedvt_sig;
 	int i, pindex;
-	static GHashTable *cache;
 
 	// FIXME: Memory management
 	sig = mini_get_underlying_signature (sig);
 
 	// FIXME: Normal cache
 	gshared_lock ();
-	if (!cache)
-		cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)mono_metadata_signature_equal, NULL, NULL);
-	res = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	if (!gsharedvt_in_sig_cache)
+		gsharedvt_in_sig_cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)mono_metadata_signature_equal, NULL, NULL);
+	res = (MonoMethod*)g_hash_table_lookup (gsharedvt_in_sig_cache, sig);
 	gshared_unlock ();
 	if (res) {
 		g_free (sig);
@@ -1483,6 +1483,7 @@ mini_get_gsharedvt_in_sig_wrapper (MonoMethodSignature *sig)
 	param_names [sig->param_count] = g_strdup ("ftndesc");
 #endif
 
+#ifndef DISABLE_JIT
 	/* Create the signature for the gsharedvt callconv */
 	gsharedvt_sig = g_malloc0 (MONO_SIZEOF_METHOD_SIGNATURE + ((sig->param_count + 2) * sizeof (MonoType*)));
 	memcpy (gsharedvt_sig, sig, mono_metadata_signature_size (sig));
@@ -1503,6 +1504,7 @@ mini_get_gsharedvt_in_sig_wrapper (MonoMethodSignature *sig)
 	/* Rgctx arg */
 	gsharedvt_sig->params [pindex ++] = mono_get_int_type ();
 	gsharedvt_sig->param_count = pindex;
+#endif	
 
 	// FIXME: Use shared signatures
 	mb = mono_mb_new (mono_defaults.object_class, sig->hasthis ? "gsharedvt_in_sig" : "gsharedvt_in_sig_static", MONO_WRAPPER_OTHER);
@@ -1551,15 +1553,16 @@ mini_get_gsharedvt_in_sig_wrapper (MonoMethodSignature *sig)
 #endif
 
 	gshared_lock ();
-	cached = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	cached = (MonoMethod*)g_hash_table_lookup (gsharedvt_in_sig_cache, sig);
 	if (cached)
 		res = cached;
 	else
-		g_hash_table_insert (cache, sig, res);
+		g_hash_table_insert (gsharedvt_in_sig_cache, sig, res);
 	gshared_unlock ();
 	return res;
 }
 
+static GHashTable *gsharedvt_out_sig_cache = NULL;
 /*
  * mini_get_gsharedvt_out_sig_wrapper:
  *
@@ -1573,16 +1576,15 @@ mini_get_gsharedvt_out_sig_wrapper (MonoMethodSignature *sig)
 	WrapperInfo *info;
 	MonoMethodSignature *normal_sig, *csig;
 	int i, pindex, args_start;
-	static GHashTable *cache;
 
 	// FIXME: Memory management
 	sig = mini_get_underlying_signature (sig);
 
 	// FIXME: Normal cache
 	gshared_lock ();
-	if (!cache)
-		cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)mono_metadata_signature_equal, NULL, NULL);
-	res = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	if (!gsharedvt_out_sig_cache)
+		gsharedvt_out_sig_cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)mono_metadata_signature_equal, NULL, NULL);
+	res = (MonoMethod*)g_hash_table_lookup (gsharedvt_out_sig_cache, sig);
 	gshared_unlock ();
 	if (res) {
 		g_free (sig);
@@ -1620,11 +1622,13 @@ mini_get_gsharedvt_out_sig_wrapper (MonoMethodSignature *sig)
 	pindex  ++;
 	csig->param_count = pindex;
 
+#ifndef DISABLE_JIT
 	/* Create the signature for the normal callconv */
 	normal_sig = g_malloc0 (MONO_SIZEOF_METHOD_SIGNATURE + ((sig->param_count + 2) * sizeof (MonoType*)));
 	memcpy (normal_sig, sig, mono_metadata_signature_size (sig));
 	normal_sig->param_count ++;
 	normal_sig->params [sig->param_count] = mono_get_int_type ();
+#endif	
 
 	// FIXME: Use shared signatures
 	mb = mono_mb_new (mono_defaults.object_class, "gsharedvt_out_sig", MONO_WRAPPER_OTHER);
@@ -1687,11 +1691,11 @@ mini_get_gsharedvt_out_sig_wrapper (MonoMethodSignature *sig)
 	g_free (param_names);
 
 	gshared_lock ();
-	cached = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	cached = (MonoMethod*)g_hash_table_lookup (gsharedvt_out_sig_cache, sig);
 	if (cached)
 		res = cached;
 	else
-		g_hash_table_insert (cache, sig, res);
+		g_hash_table_insert (gsharedvt_out_sig_cache, sig, res);
 	gshared_unlock ();
 	return res;
 }
@@ -1705,6 +1709,7 @@ signature_equal_pinvoke (MonoMethodSignature *sig1, MonoMethodSignature *sig2)
 	return mono_metadata_signature_equal (sig1, sig2);
 }
 
+static GHashTable *interp_in_wrapper_cache = NULL;
 /*
  * mini_get_interp_in_wrapper:
  *
@@ -1722,7 +1727,7 @@ mini_get_interp_in_wrapper (MonoMethodSignature *sig)
 	WrapperInfo *info;
 	MonoMethodSignature *csig, *entry_sig;
 	int i, pindex;
-	static GHashTable *cache;
+	// static GHashTable *cache;
 	const char *name;
 	gboolean generic = FALSE;
 	gboolean return_native_struct;
@@ -1730,9 +1735,9 @@ mini_get_interp_in_wrapper (MonoMethodSignature *sig)
 	sig = mini_get_underlying_reg_signature (sig);
 
 	gshared_lock ();
-	if (!cache)
-		cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)signature_equal_pinvoke, NULL, NULL);
-	res = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	if (!interp_in_wrapper_cache)
+		interp_in_wrapper_cache = g_hash_table_new_full ((GHashFunc)mono_signature_hash, (GEqualFunc)signature_equal_pinvoke, NULL, NULL);
+	res = (MonoMethod*)g_hash_table_lookup (interp_in_wrapper_cache, sig);
 	gshared_unlock ();
 	if (res) {
 		g_free (sig);
@@ -1899,12 +1904,12 @@ mini_get_interp_in_wrapper (MonoMethodSignature *sig)
 	res = mono_mb_create (mb, csig, sig->param_count + 16, info);
 
 	gshared_lock ();
-	cached = (MonoMethod*)g_hash_table_lookup (cache, sig);
+	cached = (MonoMethod*)g_hash_table_lookup (interp_in_wrapper_cache, sig);
 	if (cached) {
 		mono_free_method (res);
 		res = cached;
 	} else {
-		g_hash_table_insert (cache, sig, res);
+		g_hash_table_insert (interp_in_wrapper_cache, sig, res);
 	}
 	gshared_unlock ();
 	mono_mb_free (mb);
@@ -4521,7 +4526,10 @@ clear_parent_and_subclass_template(MonoImage *check_image, MonoClass *klass, GAr
 			int type_argc = g_array_index(clear_index_slots, int, i);
 			int slot = g_array_index(clear_index_slots, int, i + 1);
 			oti = rgctx_template_get_other_slot (parent_template, type_argc, slot);
-			oti->data = NULL;
+			if (oti)
+			{
+				oti->data = NULL;
+			}
 		}
 
 		parent = m_class_get_parent (parent);
@@ -4631,6 +4639,41 @@ mini_generic_sharing_clear_template(GHashTable *template_hash, MonoImage *check_
 	g_array_free(clear_index_slots, TRUE);
 	g_list_free(original_template_klasses);
 	g_list_free(original_templates);
+}
+
+static void 
+free_gshared_wrapper_cache_item(gpointer key, gpointer value, gpointer user_data)
+{
+	MonoMethod *method = (MonoMethod *)value;
+	if (method->signature)
+	{
+		g_free(method->signature);
+		method->signature = NULL;	
+	}
+}
+
+void mini_generic_sharing_clear_gshared_wrapper_cache()
+{
+	if (gsharedvt_out_sig_cache)
+	{
+		g_hash_table_foreach(gsharedvt_out_sig_cache, free_gshared_wrapper_cache_item, NULL);
+		g_hash_table_destroy(gsharedvt_out_sig_cache);
+		gsharedvt_out_sig_cache = NULL;
+	}
+
+	if (gsharedvt_in_sig_cache)
+	{
+		g_hash_table_foreach(gsharedvt_in_sig_cache, free_gshared_wrapper_cache_item, NULL);
+		g_hash_table_destroy(gsharedvt_in_sig_cache);
+		gsharedvt_in_sig_cache = NULL;
+	}
+
+	if (interp_in_wrapper_cache)
+	{
+		g_hash_table_foreach(interp_in_wrapper_cache, free_gshared_wrapper_cache_item, NULL);
+		g_hash_table_destroy(interp_in_wrapper_cache);
+		interp_in_wrapper_cache = NULL;
+	}
 }
 
 #ifdef MONO_ARCH_GSHAREDVT_SUPPORTED

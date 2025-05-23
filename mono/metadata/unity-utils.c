@@ -1394,6 +1394,16 @@ mono_unity_thread_fast_detach (void)
 	mono_thread_pop_appdomain_ref ();
 }
 
+MONO_API void mono_unity_thread_push_appdomain_ref (MonoDomain *domain)
+{
+	mono_thread_push_appdomain_ref (domain);
+}
+
+MONO_API void mono_unity_thread_pop_appdomain_ref (void)
+{
+	mono_thread_pop_appdomain_ref ();
+}
+
 // hack, FIXME jon
 
 /*

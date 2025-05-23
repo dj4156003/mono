@@ -3224,6 +3224,8 @@ mono_aot_reset (void)
 	g_ptr_array_free (all_aot_modules, TRUE);
 
 	mono_arch_reset ();
+
+	mini_generic_sharing_clear_gshared_wrapper_cache ();
 }
 
 gpointer

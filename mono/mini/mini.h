@@ -2796,6 +2796,7 @@ MonoMethod* mini_get_interp_in_wrapper (MonoMethodSignature *sig);
 MonoMethod* mini_get_interp_lmf_wrapper (const char *name, gpointer target);
 char* mono_get_method_from_ip (void *ip);
 void mini_generic_sharing_clear_template(GHashTable *template_hash, MonoImage* check_image);
+void mini_generic_sharing_clear_gshared_wrapper_cache();
 
 /* SIMD support */
 
