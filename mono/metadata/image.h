@@ -23,6 +23,12 @@ typedef enum {
 	MONO_IMAGE_IMAGE_INVALID
 } MonoImageOpenStatus;
 
+typedef enum {
+    RGMONO_IMAGE_ILCODE_ENCRYPT = 0x01,
+    RGMONO_IMAGE_HAS_METHOD_CHANGED_FLAGS = 0x02,
+    RGMONO_IMAGE_HAS_METHOD_HASHES = 0x04,
+} RGMonoImageFlag;
+
 MONO_API void          mono_images_init    (void);
 MONO_API void          mono_images_cleanup (void);
 

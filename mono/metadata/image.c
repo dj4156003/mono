@@ -1574,7 +1574,7 @@ rg_image_load_rgheader_data(MonoImage* image)
 	header->datadir.pe_cli_header.rva = mono_image_decrypt_value(image, header->datadir.pe_cli_header.rva);
 	memset(&header->datadir.pe_reserved, 0, sizeof(MonoPEDirEntry));
 
-	if ((rgheader32.rg_flags & 0x1) != 0)
+    if ((rgheader32.rg_flags & RGMONO_IMAGE_ILCODE_ENCRYPT) != 0)
 	{
 		image->rg_ilcode_decrypt_info = g_new(MonoImageILCodeDecryptInfo, 1);
 		if (!image->rg_ilcode_decrypt_info) {
@@ -1590,6 +1590,7 @@ rg_image_load_rgheader_data(MonoImage* image)
 		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur = 0;
 		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len = rgheader32.pe_code_size;
 		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map = g_hash_table_new(NULL, NULL);
+		mono_os_mutex_init_recursive(&image->rg_ilcode_decrypt_info->rg_decrypt_lock);
 	}
 
 #ifdef HOST_WIN32

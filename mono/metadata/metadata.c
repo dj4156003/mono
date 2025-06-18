@@ -4862,13 +4862,16 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 		return code;
 	}
 
+	mono_os_mutex_lock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
 	unsigned char* newCode = (unsigned char*)g_hash_table_lookup(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code);
 	if (newCode != NULL)
 	{
+		mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
 		return newCode;
 	}
 
 	if (codesize > m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len - m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur) {
+		mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
 		fprintf(stderr, "Error: Not enough space in IL code decryption memory pool\n");
 		g_assert_not_reached();
 		return code;
@@ -4877,6 +4880,8 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 	newCode = m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem + m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur;
 	m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur += codesize;
 	memcpy(newCode, code, codesize);
+	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code, newCode);
+	mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
 	const unsigned char* start = newCode;
 	int size = codesize;
 	const unsigned char* end = start + size;
@@ -4950,8 +4955,6 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 			break;
 		}
 	}
-
-	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code, newCode);
 	return newCode;
 }
 

@@ -933,14 +933,14 @@ dis_stringify_method_signature_full (MonoImage *m, MonoMethodSignature *method, 
         marshal_info = NULL;
         has_param_row = param_index && param_index < next_param_index;
         esname = NULL;
-
-        int idx = param_index;
-        if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
-            idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
         
         if (method->param_count == 0 && !has_param_row)
         /* method has zero parameters, and no row for return val in the PARAM table */
             continue;
+            
+        int idx = param_index;
+        if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+            idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
         
         if (has_param_row)
             mono_metadata_decode_row (&m->tables [MONO_TABLE_PARAM], idx - 1, pcols, MONO_PARAM_SIZE);

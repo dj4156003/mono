@@ -315,6 +315,7 @@ typedef struct {
 	unsigned        rg_decrypt_ilcode_mem_cur;
 	unsigned        rg_decrypt_ilcode_mem_len;
 	GHashTable*     rg_decrypt_ilcode_ptr_map;
+	mono_mutex_t    rg_decrypt_lock;
 } MonoImageILCodeDecryptInfo;
 // Modified by zx end
 
