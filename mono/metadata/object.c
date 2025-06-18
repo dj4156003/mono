@@ -3679,6 +3679,9 @@ mono_field_get_value_object_checked (MonoDomain *domain, MonoClassField *field, 
 	case MONO_TYPE_PTR:
 		is_ptr = TRUE;
 		break;
+	case MONO_TYPE_FNPTR:
+		mono_error_set_error(error, MONO_ERROR_ARGUMENT, "Cannot get value of a function pointer field");
+		goto return_null;
 	default:
 		g_error ("type 0x%x not handled in "
 			 "mono_field_get_value_object", type->type);

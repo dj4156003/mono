@@ -385,6 +385,11 @@ MonoBoolean mono_unity_class_is_class_type(MonoClass* klass)
 }
 
 MONO_API gboolean
+mono_unity_class_is_inited(MonoClass* klass)
+{
+	return m_class_is_inited (klass);
+}
+
 mono_class_is_generic(MonoClass *klass)
 {
 	g_assert(klass);

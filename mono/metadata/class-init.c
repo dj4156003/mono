@@ -299,8 +299,14 @@ mono_class_setup_fields (MonoClass *klass)
 	 * Prevent infinite recursion by using a list in TLS.
 	 */
 	GSList *init_list = (GSList *)mono_native_tls_get_value (setup_fields_tls_id);
-	if (g_slist_find (init_list, klass))
+	if (g_slist_find (init_list, klass)) {
+		// Recursive value types will not resolve their size and assert later when we attempt to fetch it.
+		// Flag here to gracefully handle and trigger exception.
+		// We also ignore special corlib types, int, long, etc that are correct while being recursive
+		if (klass->valuetype && !klass->size_inited && !mono_is_corlib_image (klass->image))
+			mono_class_set_type_load_failure (klass, "Recursive type definition detected %s", mono_type_get_full_name(klass));
 		return;
+	}
 	init_list = g_slist_prepend (init_list, klass);
 	mono_native_tls_set_value (setup_fields_tls_id, init_list);
 
@@ -616,8 +622,9 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if (tt->rows > tidx){		
 		mono_metadata_decode_row (tt, tidx, cols_next, MONO_TYPEDEF_SIZE);
-		field_last  = cols_next [MONO_TYPEDEF_FIELD_LIST] - 1;
-		method_last = cols_next [MONO_TYPEDEF_METHOD_LIST] - 1;
+		/* check if the next row has fields at all, if not, then continue run till the end of the table */
+		field_last  = cols_next [MONO_TYPEDEF_FIELD_LIST] ? cols_next [MONO_TYPEDEF_FIELD_LIST] - 1 : image->tables [MONO_TABLE_FIELD].rows;
+		method_last = cols_next [MONO_TYPEDEF_METHOD_LIST] ? cols_next [MONO_TYPEDEF_METHOD_LIST] - 1 : image->tables [MONO_TABLE_METHOD].rows;
 	} else {
 		field_last  = image->tables [MONO_TABLE_FIELD].rows;
 		method_last = image->tables [MONO_TABLE_METHOD].rows;
@@ -626,7 +633,8 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 	if (cols [MONO_TYPEDEF_FIELD_LIST] && 
 	    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD].rows)
 		mono_class_set_field_count (klass, field_last - first_field_idx);
-	if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
+	if (cols [MONO_TYPEDEF_METHOD_LIST] && 
+	    cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
 		mono_class_set_method_count (klass, method_last - first_method_idx);
 
 	/* reserve space to store vector pointer in arrays */
