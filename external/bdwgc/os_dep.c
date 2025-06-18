@@ -3,6 +3,7 @@
  * Copyright (c) 1991-1995 by Xerox Corporation.  All rights reserved.
  * Copyright (c) 1996-1999 by Silicon Graphics.  All rights reserved.
  * Copyright (c) 1999 by Hewlett-Packard Company.  All rights reserved.
+ * Copyright (c) 2008-2022 Ivan Maidanski
  *
  * THIS MATERIAL IS PROVIDED AS IS, WITH ABSOLUTELY NO WARRANTY EXPRESSED
  * OR IMPLIED.  ANY USE IS AT YOUR OWN RISK.
@@ -1169,15 +1170,6 @@ GC_INNER size_t GC_page_size = 0;
   }
 #endif /* LINUX_STACKBOTTOM */
 
-#ifdef QNX_STACKBOTTOM
-
-  STATIC ptr_t GC_qnx_main_stack_base(void)
-  {
-    return (ptr_t)__builtin_frame_address(0);
-  }
-
-#endif /* QNX_STACKBOTTOM */
-
 #ifdef FREEBSD_STACKBOTTOM
   /* This uses an undocumented sysctl call, but at least one expert     */
   /* believes it will stay.                                             */
@@ -1228,7 +1220,6 @@ GC_INNER size_t GC_page_size = 0;
     /* We could use pthread_get_stackaddr_np even in case of a  */
     /* single-threaded gclib (there is no -lpthread on Darwin). */
 #   include <pthread.h>
-void* pthread_get_stackaddr_np(pthread_t);
 #   undef STACKBOTTOM
 #   define STACKBOTTOM (ptr_t)pthread_get_stackaddr_np(pthread_self())
 # endif
@@ -1278,8 +1269,6 @@ void* pthread_get_stackaddr_np(pthread_t);
 #       endif
 #     elif defined(LINUX_STACKBOTTOM)
          result = GC_linux_main_stack_base();
-#     elif defined(QNX_STACKBOTTOM)
-         result = GC_qnx_main_stack_base();
 #     elif defined(FREEBSD_STACKBOTTOM)
          result = GC_freebsd_main_stack_base();
 #     elif defined(HEURISTIC2)
@@ -2057,9 +2046,8 @@ void GC_register_data_segments(void)
           if ((word)DATASTART < (word)p)
             GC_add_roots_inner(DATASTART, p, FALSE);
         }
-#     elif defined(HOST_ANDROID) && !defined(DYNAMIC_LOADING) && defined(GC_DONT_REGISTER_MAIN_STATIC_DATA)
-        /* avoid even referencing DATASTART & DATAEND as they are       */
-        /* unnecessary and cause linker errors when bitcode is enabled  */
+#     elif defined(GC_DONT_REGISTER_MAIN_STATIC_DATA)
+        /* avoid referencing DATASTART & DATAEND as they may be invalid */
 #     else
         if ((word)DATASTART - 1U >= (word)DATAEND) {
                                 /* Subtract one to check also for NULL  */
@@ -2576,13 +2564,27 @@ GC_INNER void GC_unmap(ptr_t start, size_t bytes)
       /* We immediately remap it to prevent an intervening mmap from    */
       /* accidentally grabbing the same address space.                  */
       {
-#       ifdef CYGWIN32
+#       if defined(CYGWIN32) || defined(LINUX)
           /* Calling mmap() with the new protection flags on an         */
           /* existing memory map with MAP_FIXED is broken on Cygwin.    */
           /* However, calling mprotect() on the given address range     */
           /* with PROT_NONE seems to work fine.                         */
-          if (mprotect(start_addr, len, PROT_NONE))
-            ABORT("mprotect(PROT_NONE) failed");
+          /* On Linux, low RLIMIT_AS value may lead to mmap failure.    */
+#         if defined(LINUX) && !defined(FORCE_MPROTECT_BEFORE_MADVISE)
+            /* On Linux, at least, madvise() should be sufficient.      */
+#         else
+            if (mprotect(start_addr, len, PROT_NONE))
+              ABORT("mprotect(PROT_NONE) failed");
+#         endif
+#         if !defined(CYGWIN32)
+            /* On Linux (and some other platforms probably),    */
+            /* mprotect(PROT_NONE) is just disabling access to  */
+            /* the pages but not returning them to OS.          */
+            if (madvise(start_addr, len, MADV_DONTNEED) == -1)
+              ABORT_ARG3("unmap: madvise failed",
+                         " at %p (length %lu), errcode= %d",
+                         (void *)start_addr, (unsigned long)len, errno);
+#         endif
 #       else
           void * result = mmap(start_addr, len, PROT_NONE,
                                MAP_PRIVATE | MAP_FIXED | OPT_MAP_ANON,
@@ -2636,10 +2638,13 @@ GC_INNER void GC_remap(ptr_t start, size_t bytes)
           start_addr += alloc_len;
           len -= alloc_len;
       }
+#     undef IGNORE_PAGES_EXECUTABLE
 #   else
       /* It was already remapped with PROT_NONE. */
       {
-#       ifdef NACL
+#       if !defined(FORCE_MPROTECT_BEFORE_MADVISE) && defined(LINUX) && !defined(PREFER_MMAP_PROT_NONE)
+          /* Nothing to unprotect as madvise() is just a hint.  */
+#       elif defined(NACL)
           /* NaCl does not expose mprotect, but mmap should work fine.  */
           void *result = mmap(start_addr, len, (PROT_READ | PROT_WRITE)
                                     | (GC_pages_executable ? PROT_EXEC : 0),
@@ -2650,6 +2655,7 @@ GC_INNER void GC_remap(ptr_t start, size_t bytes)
 #         if defined(CPPCHECK) || defined(LINT2)
             GC_noop1((word)result);
 #         endif
+#         undef IGNORE_PAGES_EXECUTABLE
 #       else
           if (mprotect(start_addr, len, (PROT_READ | PROT_WRITE)
                             | (GC_pages_executable ? PROT_EXEC : 0)) != 0) {
@@ -2657,9 +2663,9 @@ GC_INNER void GC_remap(ptr_t start, size_t bytes)
                        " at %p (length %lu), errcode= %d",
                        (void *)start_addr, (unsigned long)len, errno);
           }
+#         undef IGNORE_PAGES_EXECUTABLE
 #       endif /* !NACL */
       }
-#     undef IGNORE_PAGES_EXECUTABLE
       GC_unmapped_bytes -= len;
 #   endif
 }
@@ -2701,9 +2707,22 @@ GC_INNER void GC_unmap_gap(ptr_t start1, size_t bytes1, ptr_t start2,
 #   else
       if (len != 0) {
         /* Immediately remap as above. */
-#       ifdef CYGWIN32
-          if (mprotect(start_addr, len, PROT_NONE))
-            ABORT("mprotect(PROT_NONE) failed");
+#       if defined(CYGWIN32) || defined(LINUX)
+#         if defined(LINUX) && !defined(FORCE_MPROTECT_BEFORE_MADVISE)
+            /* On Linux, at least, madvise() should be sufficient.      */
+#         else
+            if (mprotect(start_addr, len, PROT_NONE))
+              ABORT("mprotect(PROT_NONE) failed");
+#         endif
+#         if !defined(CYGWIN32)
+            /* On Linux (and some other platforms probably),    */
+            /* mprotect(PROT_NONE) is just disabling access to  */
+            /* the pages but not returning them to OS.          */
+            if (madvise(start_addr, len, MADV_DONTNEED) == -1)
+              ABORT_ARG3("unmap_gap: madvise failed",
+                         " at %p (length %lu), errcode= %d",
+                         (void *)start_addr, (unsigned long)len, errno);
+#         endif
 #       else
           void * result = mmap(start_addr, len, PROT_NONE,
                                MAP_PRIVATE | MAP_FIXED | OPT_MAP_ANON,
