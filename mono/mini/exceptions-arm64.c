@@ -549,7 +549,7 @@ mono_arch_handle_exception (void *ctx, gpointer obj)
 	UCONTEXT_REG_R0 (sigctx) = (gsize)obj;
 
 	gpointer addr = (gpointer)handle_signal_exception;
-	UCONTEXT_REG_SET_PC (sigctx, addr);
+	UCONTEXT_REG_SET_PC (sigctx, (__uint64_t)addr);
 	host_mgreg_t sp = UCONTEXT_REG_SP (sigctx) - MONO_ARCH_REDZONE_SIZE;
 	UCONTEXT_REG_SET_SP (sigctx, sp);
 #endif
