@@ -390,6 +390,7 @@ mono_unity_class_is_inited(MonoClass* klass)
 	return m_class_is_inited (klass);
 }
 
+MONO_API gboolean
 mono_class_is_generic(MonoClass *klass)
 {
 	g_assert(klass);
