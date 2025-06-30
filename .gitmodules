@@ -63,5 +63,5 @@
 	url = https://github.com/mono/illinker-test-assets.git
 [submodule "external/llvm-project"]
 	path = external/llvm-project
-	url = https://github.com/dotnet/llvm-project.git
+url=https://github.com/dj4156003/llvm-project.git
 	branch = release/6.x
