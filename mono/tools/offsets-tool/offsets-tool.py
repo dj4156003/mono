@@ -297,10 +297,12 @@ class OffsetsTool:
 				print (d)
 				if d.severity > 2:
 					sys.exit (1)
+			type_set = set()
 			for c in tu.cursor.walk_preorder():
 				if c.kind != clang.cindex.CursorKind.STRUCT_DECL and c.kind != clang.cindex.CursorKind.TYPEDEF_DECL:
 					continue
 				name = c.spelling
+				# origc = c
 				if c.kind == clang.cindex.CursorKind.TYPEDEF_DECL:
 					for c2 in c.get_children ():
 						if c2.kind == clang.cindex.CursorKind.STRUCT_DECL or c2.kind == clang.cindex.CursorKind.UNION_DECL:
@@ -317,12 +319,18 @@ class OffsetsTool:
 					if type.get_size () < 0:
 						continue
 					rtype.size = type.get_size ()
+					if name in type_set:
+						continue
+					type_set.add(name)
+					# print("begin iter " + str(origc) + " " + str(c.spelling) + " kind " + str(c.kind))
 					for child in c.get_children ():
 						if child.kind != clang.cindex.CursorKind.FIELD_DECL:
 							continue
 						if child.is_bitfield ():
 							continue
+						# print(child.spelling + "\n")
 						rtype.fields.append (FieldInfo (child.spelling, child.get_field_offsetof () // 8))
+					# print("end iter " + c.spelling)
 				if c.spelling == "basic_types_struct":
 					for field in c.get_children ():
 						btype = field.spelling.replace ("_f", "")
