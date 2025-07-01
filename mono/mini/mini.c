@@ -667,7 +667,7 @@ mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, 
 		MonoErrorBoxed* box = mono_class_get_exception_data (inst->klass);
 		if (box) {
 			MonoErrorInternal* err = (MonoErrorInternal*)&box->error;
-			cfg->exception_message = mono_error_get_message (err);
+			cfg->exception_message = (char*)mono_error_get_message (err);
 		}
 	}
 
