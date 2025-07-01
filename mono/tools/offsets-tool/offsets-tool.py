@@ -330,6 +330,7 @@ class OffsetsTool:
 							continue
 						if child.spelling in field_set:
 							continue
+						field_set.add(child.spelling)
 						# print(child.spelling + "\n")
 						rtype.fields.append (FieldInfo (child.spelling, child.get_field_offsetof () // 8))
 					# print("end iter " + c.spelling)
