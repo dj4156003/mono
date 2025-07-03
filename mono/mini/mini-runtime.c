@@ -2569,12 +2569,10 @@ mono_jit_compile_method_with_opt (MonoMethod *method, guint32 opt, gboolean jit_
 	}
 
 	// Modified by zx start
-	{
+	if (mono_aot_only) {
 		MonoImage* image = method->klass->image;
-		if (mono_image_is_updated(image) && mono_image_support_dynamic_aot(image))
-		{
-			if (mono_image_method_is_updated(image, method->token))
-			{
+		if (mono_image_is_updated(image) && mono_image_support_dynamic_aot(image)) {
+			if (mono_image_method_is_updated(image, method->token)) {
 				code = mini_get_interp_callbacks ()->create_method_pointer (method, TRUE, error);
 				if (code)
 					return code;
