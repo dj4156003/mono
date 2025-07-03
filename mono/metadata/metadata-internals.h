@@ -613,10 +613,13 @@ struct _MonoImage {
 	mono_mutex_t    lock;
 
 	// Modified by zx start
-	mono_bool                   is_rgdll;
+	uint16_t                    is_rgdll : 1;
+	uint16_t                    is_updated : 1;
+	uint16_t                    is_dynamic_aot_supported : 1;
+	uint16_t                    rg_version;
 	int32_t                     rg_generation;
-	uint32_t                    rg_version;
-	MonoStreamHeader            rg_changed_methods_heap;
+	uint8_t*                    rg_changed_methods;
+	guint32                     rg_changed_methods_size;
 	MonoImageILCodeDecryptInfo* rg_ilcode_decrypt_info;
 	// Modified by zx end
 };

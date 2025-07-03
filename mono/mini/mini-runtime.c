@@ -2568,6 +2568,21 @@ mono_jit_compile_method_with_opt (MonoMethod *method, guint32 opt, gboolean jit_
 			return code;
 	}
 
+	// Modified by zx start
+	{
+		MonoImage* image = method->klass->image;
+		if (mono_image_is_updated(image) && mono_image_support_dynamic_aot(image))
+		{
+			if (mono_image_method_is_updated(image, method->token))
+			{
+				code = mini_get_interp_callbacks ()->create_method_pointer (method, TRUE, error);
+				if (code)
+					return code;
+			}
+		}
+	}
+	// Modified by zx end
+
 	if (mono_llvm_only)
 		/* Should be handled by the caller */
 		g_assert (!(method->iflags & METHOD_IMPL_ATTRIBUTE_SYNCHRONIZED));

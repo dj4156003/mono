@@ -24,9 +24,11 @@ typedef enum {
 } MonoImageOpenStatus;
 
 typedef enum {
-    RGMONO_IMAGE_ILCODE_ENCRYPT = 0x01,
-    RGMONO_IMAGE_HAS_METHOD_CHANGED_FLAGS = 0x02,
-    RGMONO_IMAGE_HAS_METHOD_HASHES = 0x04,
+	RGMONO_IMAGE_ILCODE_ENCRYPT = 0x01,
+	RGMONO_IMAGE_HAS_METHOD_CHANGED_FLAGS = 0x02,
+	RGMONO_IMAGE_HAS_METHOD_HASHES = 0x04,
+	RGMONO_IMAGE_SUPPORT_DYNAMIC_AOT = 0x08,
+	RGMONO_IMAGE_IS_UPDATED = 0x10,
 } RGMonoImageFlag;
 
 MONO_API void          mono_images_init    (void);
@@ -100,8 +102,11 @@ MONO_API mono_bool     mono_image_has_authenticode_entry (MonoImage *image);
 
 // Modified by zx start
 uint32_t mono_image_decrypt_value(MonoImage* image, uint32_t value);
-
 MONO_API mono_bool     mono_image_is_rgdll(MonoImage* image);
+MONO_API mono_bool     mono_image_support_dynamic_aot(MonoImage* image);
+MONO_API mono_bool     mono_image_is_updated(MonoImage* image);
+MONO_API mono_bool     mono_image_method_is_updated(MonoImage* image, uint32_t methodToken);
+MONO_API void          mono_image_set_global_aot_supported(mono_bool supported);
 // Modified by zx end
 
 mono_bool mono_has_pdb_checksum (char *raw_data, uint32_t raw_data_len);

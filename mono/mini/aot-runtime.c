@@ -95,6 +95,10 @@ typedef struct {
 #define GOT_INITIALIZING 1
 #define GOT_INITIALIZED  2
 
+// Modified by zx start
+mono_bool global_dynmaic_aot_support = FALSE;
+// Modified by zx end
+
 struct MonoAotModule {
 	char *aot_name;
 	/* Pointer to the Global Offset Table */
@@ -2242,6 +2246,15 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (image_is_dynamic (assembly->image) || mono_asmctx_get_kind (&assembly->context) == MONO_ASMCTX_REFONLY || mono_domain_get () != mono_get_root_domain ())
 		return;
+
+	// Modified by zx start
+	if (mono_image_is_updated(assembly->image) && !mono_image_support_dynamic_aot(assembly->image)) {
+		g_message("DynamicAOT : The assembly %s is updated and don't support dynamic aot\n", assembly->aname.name);
+		return;
+	} else {
+		g_message("DynamicAOT : The assembly %s is updated and support dynamic aot\n", assembly->aname.name);
+	}
+	// Modified by zx end
 
 	mono_aot_lock ();
 

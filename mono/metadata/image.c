@@ -499,6 +499,8 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 	int i;
 	guint32 pad;
 	char *ptr;
+	char* rgCMData = NULL;
+	guint32 rgCMDataSize = 0;
 	
 	offset = mono_cli_rva_image_map (image, iinfo->cli_cli_header.ch_metadata.rva);
 	if (offset == INVALID_ADDRESS)
@@ -578,11 +580,18 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 			mono_trace (G_LOG_LEVEL_INFO, MONO_TRACE_METADATA_UPDATE, "Image '%s' has a minimal delta marker", image->name);
 			ptr += 8 + 5;
 		}// Modified by zx start
-		else if (strncmp(ptr + 8, "#CFSet", 5) == 0) {
-			image->rg_changed_methods_heap.data = image->raw_metadata + read32(ptr);
-			image->rg_changed_methods_heap.size = read32(ptr + 4);
+		else if (strncmp(ptr + 8, "#CFSet", 7) == 0) {
+			ptr += 8 + 7;
+		}
+		else if (strncmp(ptr + 8, "#MH", 4) == 0) {
+			ptr += 8 + 4;
+		}
+		else if (strncmp(ptr + 8, "#MCF", 5) == 0) {
+			rgCMData = image->raw_metadata + read32(ptr);
+			rgCMDataSize = read32(ptr + 4);
 			ptr += 8 + 5;
-		}//Modified by zx end
+		}
+		//Modified by zx end
 		else {
 			g_message ("Unknown heap type: %s\n", ptr + 8);
 			ptr += 8 + strlen (ptr + 8) + 1;
@@ -591,6 +600,18 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 		if (pad % 4)
 			ptr += 4 - (pad % 4);
 	}
+
+	// Modified by zx start
+	if (rgCMDataSize > 0)
+	{
+		image->rg_changed_methods_size = read32(rgCMData);
+		if ((image->rg_changed_methods_size + sizeof(guint32)) != rgCMDataSize){
+			g_error("Invalid #MCF heap data!");
+			return FALSE;
+		}
+		image->rg_changed_methods = rgCMData + sizeof(guint32);
+	}
+	// Modified by zx end
 
 	{
 		/* Compute the precise size of the string heap by walking back over the trailing nul padding.
@@ -906,10 +927,12 @@ mono_image_init (MonoImage *image)
 
 	// Modified by zx start
 	image->is_rgdll = FALSE;
+	image->is_updated = FALSE;
+	image->is_dynamic_aot_supported = FALSE;
 	image->rg_generation = 0;
 	image->rg_version = 0;
-	image->rg_changed_methods_heap.data = NULL;
-	image->rg_changed_methods_heap.size = 0;
+	image->rg_changed_methods = NULL;
+	image->rg_changed_methods_size = 0;
 	image->rg_ilcode_decrypt_info = NULL;
 	// Modified by zx end
 }
@@ -1574,7 +1597,7 @@ rg_image_load_rgheader_data(MonoImage* image)
 	header->datadir.pe_cli_header.rva = mono_image_decrypt_value(image, header->datadir.pe_cli_header.rva);
 	memset(&header->datadir.pe_reserved, 0, sizeof(MonoPEDirEntry));
 
-    if ((rgheader32.rg_flags & RGMONO_IMAGE_ILCODE_ENCRYPT) != 0)
+	if ((rgheader32.rg_flags & RGMONO_IMAGE_ILCODE_ENCRYPT) != 0)
 	{
 		image->rg_ilcode_decrypt_info = g_new(MonoImageILCodeDecryptInfo, 1);
 		if (!image->rg_ilcode_decrypt_info) {
@@ -1591,6 +1614,17 @@ rg_image_load_rgheader_data(MonoImage* image)
 		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len = rgheader32.pe_code_size;
 		image->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map = g_hash_table_new(NULL, NULL);
 		mono_os_mutex_init_recursive(&image->rg_ilcode_decrypt_info->rg_decrypt_lock);
+	}
+
+	gboolean supportedDynamicAOT = ((rgheader32.rg_flags & RGMONO_IMAGE_SUPPORT_DYNAMIC_AOT) != 0);
+	if ((rgheader32.rg_flags & RGMONO_IMAGE_HAS_METHOD_CHANGED_FLAGS) == 0)
+	{
+		supportedDynamicAOT = FALSE;
+	}
+	image->is_dynamic_aot_supported = supportedDynamicAOT;
+	if ((rgheader32.rg_flags & RGMONO_IMAGE_IS_UPDATED) != 0)
+	{
+		image->is_updated = TRUE;
 	}
 
 #ifdef HOST_WIN32
@@ -3846,6 +3880,8 @@ mono_image_append_class_to_reflection_info_set (MonoClass *klass)
 }
 
 // Modified by zx start
+extern mono_bool global_dynmaic_aot_support;
+
 uint32_t 
 mono_image_decrypt_value(MonoImage* image, uint32_t value)
 {
@@ -3863,4 +3899,56 @@ mono_image_is_rgdll(MonoImage* image)
 {
 	return image->is_rgdll;
 }
+
+mono_bool 
+mono_image_support_dynamic_aot(MonoImage* image)
+{
+	if (image->is_rgdll && image->is_dynamic_aot_supported && global_dynmaic_aot_support 
+		&& image->rg_changed_methods_size > 0 && image->rg_changed_methods != NULL) 
+		return TRUE;
+	return FALSE;
+}
+
+mono_bool 
+mono_image_is_updated(MonoImage* image)
+{
+	if (image->is_rgdll && image->is_updated)
+		return TRUE;
+	return FALSE;
+}
+
+mono_bool 
+mono_image_method_is_updated(MonoImage* image, uint32_t methodToken)
+{
+	if (!mono_image_is_updated(image))
+		return FALSE;
+
+	if (image->rg_changed_methods_size == 0 || !image->rg_changed_methods)
+	{
+		fprintf(stderr, "Logic Error: The changed method flag is empty!\n");
+		return TRUE;
+	}
+
+	if (methodToken == 0)
+		return FALSE;
+
+	int index = mono_metadata_token_index (methodToken) - 1;
+	if (index >= image->rg_changed_methods_size)
+	{
+		fprintf(stderr, "Logic Error: The method token out of bound !\n");
+		return TRUE;
+	}
+
+	if (image->rg_changed_methods[index] == 0)
+		return FALSE;
+
+	return TRUE;
+}
+
+void
+mono_image_set_global_aot_supported(mono_bool supported)
+{
+	global_dynmaic_aot_support = supported;
+}
+
 // Modified by zx end
