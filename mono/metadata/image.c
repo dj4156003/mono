@@ -456,7 +456,8 @@ mono_image_load_cli_header (MonoImage *image, MonoCLIImageInfo *iinfo)
 	// Modified by zx start
 	if (image->is_rgdll)
 	{
-		iinfo->cli_cli_header.ch_metadata.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_metadata.rva);
+		if (image->need_decrypt_mh_rva)
+			iinfo->cli_cli_header.ch_metadata.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_metadata.rva);
 		iinfo->cli_cli_header.ch_resources.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_resources.rva);
 		iinfo->cli_cli_header.ch_strong_name.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_strong_name.rva);
 		iinfo->cli_cli_header.ch_code_manager_table.rva = mono_image_decrypt_value(image, iinfo->cli_cli_header.ch_code_manager_table.rva);
@@ -929,6 +930,7 @@ mono_image_init (MonoImage *image)
 	image->is_rgdll = FALSE;
 	image->is_updated = FALSE;
 	image->is_dynamic_aot_supported = FALSE;
+	image->need_decrypt_mh_rva = TRUE;
 	image->rg_generation = 0;
 	image->rg_version = 0;
 	image->rg_changed_methods = NULL;
@@ -1617,6 +1619,7 @@ rg_image_load_rgheader_data(MonoImage* image)
 	}
 
 	gboolean supportedDynamicAOT = ((rgheader32.rg_flags & RGMONO_IMAGE_SUPPORT_DYNAMIC_AOT) != 0);
+	image->need_decrypt_mh_rva = (!supportedDynamicAOT);
 	if ((rgheader32.rg_flags & RGMONO_IMAGE_HAS_METHOD_CHANGED_FLAGS) == 0)
 	{
 		supportedDynamicAOT = FALSE;
@@ -3951,4 +3954,9 @@ mono_image_set_global_aot_supported(mono_bool supported)
 	global_dynmaic_aot_support = supported;
 }
 
+mono_bool
+mono_image_get_global_aot_supported()
+{
+	return global_dynmaic_aot_support;
+}
 // Modified by zx end

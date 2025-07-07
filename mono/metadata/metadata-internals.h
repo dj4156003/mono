@@ -616,6 +616,7 @@ struct _MonoImage {
 	uint16_t                    is_rgdll : 1;
 	uint16_t                    is_updated : 1;
 	uint16_t                    is_dynamic_aot_supported : 1;
+	uint16_t                    need_decrypt_mh_rva : 1;
 	uint16_t                    rg_version;
 	int32_t                     rg_generation;
 	uint8_t*                    rg_changed_methods;
