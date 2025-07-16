@@ -4901,7 +4901,7 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 		case MonoInlineBrTarget: {
 			guint32 target = read32 (ptr);
 			target = mono_image_decrypt_value(m, target);
-			write_to_ptr(ptr, &target, sizeof(guint32));
+			write_to_ptr((uint8_t*)ptr, &target, sizeof(guint32));
 			ptr += 4;
 			break;
 		}
@@ -4913,7 +4913,7 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 		case MonoInlineMethod: {
 			guint32 token = read32 (ptr);
 			token = mono_image_decrypt_value(m, token);
-			write_to_ptr(ptr, &token, sizeof(guint32));
+			write_to_ptr((uint8_t*)ptr, &token, sizeof(guint32));
 			ptr += 4;
 			break;
 		}
@@ -4931,7 +4931,7 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 			for (n = 0; n < count; n++) {
 				offset = read32 (ptr);
 				offset = mono_image_decrypt_value(m, offset);
-				write_to_ptr(ptr, &offset, sizeof(guint32));
+				write_to_ptr((uint8_t*)ptr, &offset, sizeof(guint32));
 				ptr += 4;
 			}
 			break;
