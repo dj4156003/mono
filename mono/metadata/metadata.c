@@ -4880,7 +4880,7 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 	newCode = m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem + m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur;
 	m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur += codesize;
 	memcpy(newCode, code, codesize);
-	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code, newCode);
+	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, (gpointer)code, (gpointer)newCode);
 	mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
 	const unsigned char* start = newCode;
 	int size = codesize;
