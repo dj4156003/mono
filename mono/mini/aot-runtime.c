@@ -3166,11 +3166,11 @@ reuse_mscorlib_aot_module(GArray *reserved_async_jit_info_maps)
 		mscorlib_aot_module->method_ref_to_method = NULL;
 	}
 
-	if (mscorlib_aot_module->extra_methods)
-	{
-		g_hash_table_destroy (mscorlib_aot_module->extra_methods);
-		mscorlib_aot_module->extra_methods = g_hash_table_new (NULL, NULL);
-	}
+	// if (mscorlib_aot_module->extra_methods)
+	// {
+	// 	g_hash_table_destroy (mscorlib_aot_module->extra_methods);
+	// 	mscorlib_aot_module->extra_methods = g_hash_table_new (NULL, NULL);
+	// }
 
 	mscorlib_aot_module->plt_inited = FALSE;
 }
