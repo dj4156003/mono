@@ -68,7 +68,7 @@ static void mono_metadata_field_info_full (MonoImage *meta, guint32 index, guint
 static MonoType* mono_signature_get_params_internal (MonoMethodSignature *sig, gpointer *iter);
 
 // Modified by zx start
-static unsigned char* mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize);
+static const unsigned char* mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize);
 // Modified by zx end
 /*
  * This enumeration is used to describe the data types in the metadata
@@ -4850,7 +4850,7 @@ write_to_ptr(uint8_t* ptr, void* value, size_t size) {
 	}
 }
 
-static unsigned char*
+static const unsigned char*
 mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize)
 {
 	if (!m->is_rgdll)
