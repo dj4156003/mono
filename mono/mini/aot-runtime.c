@@ -95,10 +95,6 @@ typedef struct {
 #define GOT_INITIALIZING 1
 #define GOT_INITIALIZED  2
 
-// Modified by zx start
-mono_bool global_dynmaic_aot_support = FALSE;
-// Modified by zx end
-
 struct MonoAotModule {
 	char *aot_name;
 	/* Pointer to the Global Offset Table */

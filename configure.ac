@@ -451,7 +451,7 @@ case "$host" in
 				;;
 			aarch64*-darwin20*)
 				# OSX/arm64
-				support_boehm=no
+				support_boehm=yes
 				;;
 			aarch64*-darwin*)
 				platform_ios=yes

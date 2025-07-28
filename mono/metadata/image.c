@@ -3883,7 +3883,7 @@ mono_image_append_class_to_reflection_info_set (MonoClass *klass)
 }
 
 // Modified by zx start
-extern mono_bool global_dynmaic_aot_support;
+mono_bool global_dynmaic_aot_support = FALSE;
 
 uint32_t 
 mono_image_decrypt_value(MonoImage* image, uint32_t value)
