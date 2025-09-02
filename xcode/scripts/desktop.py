@@ -89,6 +89,7 @@ def setup_desktop_template(env: dict, opts: DesktopOpts, product: str, target_pl
         '--with-libatomic-ops=none',
         '--disable-mcs-build',
         '--enable-maintainer-mode',
+        '--enable-icall-symbol-map',
         '--with-tls=pthread',
         '--without-ikvm-native',
         '--enable-btls',
