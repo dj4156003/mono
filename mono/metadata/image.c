@@ -1624,7 +1624,8 @@ rg_image_load_rgheader_data(MonoImage* image)
 	{
 		supportedDynamicAOT = FALSE;
 	}
-	image->is_dynamic_aot_supported = supportedDynamicAOT;
+	gboolean enableDynamicAOT = ((rgheader32.rg_flags & RGMONO_IMAGE_ENABLE_DYNAMIC_AOT) != 0);
+	image->is_dynamic_aot_supported = (supportedDynamicAOT && enableDynamicAOT);
 	if ((rgheader32.rg_flags & RGMONO_IMAGE_IS_UPDATED) != 0)
 	{
 		image->is_updated = TRUE;

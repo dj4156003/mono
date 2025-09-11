@@ -29,6 +29,7 @@ typedef enum {
 	RGMONO_IMAGE_HAS_METHOD_HASHES = 0x04,
 	RGMONO_IMAGE_SUPPORT_DYNAMIC_AOT = 0x08,
 	RGMONO_IMAGE_IS_UPDATED = 0x10,
+	RGMONO_IMAGE_ENABLE_DYNAMIC_AOT = 0x30,
 } RGMonoImageFlag;
 
 MONO_API void          mono_images_init    (void);
