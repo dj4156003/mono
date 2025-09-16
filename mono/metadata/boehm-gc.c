@@ -61,6 +61,9 @@ static gboolean gc_initialized = FALSE;
 static gboolean gc_dont_gc_env = FALSE;
 static gboolean gc_strict_wbarriers = FALSE;
 
+static gboolean gc_incremental = FALSE;
+static guint64 gc_time_slice_ns = 0;
+
 static mono_mutex_t mono_gc_lock;
 
 static GC_push_other_roots_proc default_push_other_roots;
@@ -213,6 +216,15 @@ mono_gc_base_init (void)
 		g_free (debug_opts);
 	}
 
+	if (gc_incremental) {
+		GC_enable_incremental();
+		mono_profiler_printf ("boehm-gc init GC_enable_incremental");
+		if (gc_time_slice_ns > 0) {
+			GC_set_time_limit(gc_time_slice_ns);
+			mono_profiler_printf ("boehm-gc init GC_set_time_limit %ld", gc_time_slice_ns);
+		}
+	}
+
 	/* cache value rather than calling during collection since g_hasenv may take locks and can deadlock */
 	gc_dont_gc_env = g_hasenv ("GC_DONT_GC");
 
@@ -226,6 +238,8 @@ mono_gc_base_init (void)
 	GC_init_gcj_vector (VECTOR_PROC_INDEX, GC_gcj_vector_proc);
 	GC_roots_proc_index = GC_new_proc (GC_roots_proc);
 	GC_allow_register_threads ();
+
+	mono_profiler_printf ("boehm-gc gc_initialized");
 
 	params_opts = mono_gc_params_get();
 	if (params_opts) {
@@ -469,6 +483,10 @@ mono_gc_get_max_time_slice_ns()
 void
 mono_gc_set_max_time_slice_ns(int64_t maxTimeSlice)
 {
+	if (!gc_initialized) {
+		gc_time_slice_ns = maxTimeSlice;
+		return;
+	}
 	GC_set_time_limit_ns(maxTimeSlice);
 }
 
@@ -493,6 +511,10 @@ mono_gc_is_incremental()
 void 
 mono_gc_set_incremental(MonoBoolean value)
 {
+	if (!gc_initialized) {
+		gc_incremental = value;
+		return;
+	}
 	if (GC_is_incremental_mode() == value)
 		return;
 	if (value)
