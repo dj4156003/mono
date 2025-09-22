@@ -19,7 +19,7 @@ export MONO_SOURCE_ROOT="${CURRENT_DIRECTORY}/../../"
 MONO_INSTALL_PATH="${CURRENT_DIRECTORY}/../install/"
 MONO_CONFIG_PATH="${CURRENT_DIRECTORY}/../config/"
 
-mkdir -p "$MONO_INSTALL_PATH"
+#mkdir -p "$MONO_INSTALL_PATH"
 find "$MONO_INSTALL_PATH" -mindepth 1 -delete
 
 for target in "${targets[@]}"

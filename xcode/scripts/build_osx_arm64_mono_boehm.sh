@@ -35,8 +35,8 @@ if ! command -v python3 >/dev/null 2>&1; then
     brew install python3
 fi
 
-MONO_INSTALL_PATH="$CURRENT_DIRECTORY/../install/osx_arm64_release/"
-MONO_CONFIG_PATH="$CURRENT_DIRECTORY/../config/osx_arm64_release/"
+MONO_INSTALL_PATH="$CURRENT_DIRECTORY/../install/osx_mono_arm64_release/"
+MONO_CONFIG_PATH="$CURRENT_DIRECTORY/../config/osx_mono_arm64_release/"
 
 mkdir -p $MONO_INSTALL_PATH
 mkdir -p $MONO_CONFIG_PATH
@@ -47,7 +47,7 @@ for target in "${targets[@]}"
 do
     echo "Building for target $target"
     python3 $CURRENT_DIRECTORY/patch_mono.py --mono-sources $MONO_SOURCE_ROOT
-    python3 $CURRENT_DIRECTORY/osx.py configure --target=$target -j 2 --configuration 'release' --mono-sources $MONO_SOURCE_ROOT --configure-dir $MONO_CONFIG_PATH --install-dir $MONO_INSTALL_PATH
+    python3 $CURRENT_DIRECTORY/osx.py configure --target=$target -j 2 --configuration 'release' --mono-sources $MONO_SOURCE_ROOT --configure-dir $MONO_CONFIG_PATH --install-dir $MONO_INSTALL_PATH --build_mono_tool
     python3 $CURRENT_DIRECTORY/osx.py make --target=$target -j 2 --configuration 'release' --mono-sources $MONO_SOURCE_ROOT --configure-dir $MONO_CONFIG_PATH --install-dir $MONO_INSTALL_PATH
     
     # mkdir -p $MONO_SOURCE_ROOT/../mono-installs-artifacts
