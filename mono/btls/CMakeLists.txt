@@ -127,6 +127,10 @@ if (BTLS_HOST_WIN32)
 	set (CMAKE_SHARED_LIBRARY_PREFIX "lib")
 endif ()
 
+if (ANDROID)
+	target_link_options (mono-btls-shared PRIVATE "-Wl,-z,max-page-size=16384")
+endif()
+
 if (CYGWIN)
 	target_link_libraries (mono-btls-shared wsock32 ws2_32)
 endif ()
