@@ -49,7 +49,4 @@ do
     python3 $CURRENT_DIRECTORY/patch_mono.py --mono-sources $MONO_SOURCE_ROOT
     python3 $CURRENT_DIRECTORY/osx.py configure --target=$target -j 2 --configuration 'release' --mono-sources $MONO_SOURCE_ROOT --configure-dir $MONO_CONFIG_PATH --install-dir $MONO_INSTALL_PATH --build_mono_tool
     python3 $CURRENT_DIRECTORY/osx.py make --target=$target -j 2 --configuration 'release' --mono-sources $MONO_SOURCE_ROOT --configure-dir $MONO_CONFIG_PATH --install-dir $MONO_INSTALL_PATH
-    
-    # mkdir -p $MONO_SOURCE_ROOT/../mono-installs-artifacts
-    # (cd "$MONO_SOURCE_ROOT/mono-installs" && zip -ry "$MONO_SOURCE_ROOT/mono-installs-artifacts/ios-$target.zip" "ios-$target-release")
 done

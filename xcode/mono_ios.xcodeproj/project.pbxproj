@@ -1886,12 +1886,6 @@
 		8439E06A2E66CFA3002BC38D /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		8439E0822E66D389002BC38D /* libmono.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libmono.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		8439E08E2E68454C002BC38D /* eglib-config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "eglib-config.h"; sourceTree = "<group>"; };
-		8439E0912E686AA8002BC38D /* cmd_utils.cpython-310.pyc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "cmd_utils.cpython-310.pyc"; sourceTree = "<group>"; };
-		8439E0922E686AA8002BC38D /* desktop.cpython-310.pyc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "desktop.cpython-310.pyc"; sourceTree = "<group>"; };
-		8439E0932E686AA8002BC38D /* options.cpython-310.pyc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "options.cpython-310.pyc"; sourceTree = "<group>"; };
-		8439E0942E686AA8002BC38D /* os_utils.cpython-310.pyc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "os_utils.cpython-310.pyc"; sourceTree = "<group>"; };
-		8439E0952E686AA8002BC38D /* runtime.cpython-310.pyc */ = {isa = PBXFileReference; lastKnownFileType = file; path = "runtime.cpython-310.pyc"; sourceTree = "<group>"; };
-		8439E0972E686AA8002BC38D /* __init__.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = __init__.py; sourceTree = "<group>"; };
 		8439E0982E686AA8002BC38D /* android.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = android.py; sourceTree = "<group>"; };
 		8439E0992E686AA8002BC38D /* bcl.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = bcl.py; sourceTree = "<group>"; };
 		8439E09A2E686AA8002BC38D /* build_ios_bcl.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build_ios_bcl.sh; sourceTree = "<group>"; };
@@ -1902,7 +1896,6 @@
 		8439E09F2E686AA8002BC38D /* desktop.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = desktop.py; sourceTree = "<group>"; };
 		8439E0A02E686AA8002BC38D /* format.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = format.sh; sourceTree = "<group>"; };
 		8439E0A12E686AA8002BC38D /* ios.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = ios.py; sourceTree = "<group>"; };
-		8439E0A22E686AA8002BC38D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		8439E0A32E686AA8002BC38D /* linux.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = linux.py; sourceTree = "<group>"; };
 		8439E0A42E686AA8002BC38D /* llvm.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = llvm.py; sourceTree = "<group>"; };
 		8439E0A52E686AA8002BC38D /* msbuild_helper.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = msbuild_helper.py; sourceTree = "<group>"; };
@@ -1912,7 +1905,6 @@
 		8439E0A92E686AA8002BC38D /* patch_emscripten.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = patch_emscripten.py; sourceTree = "<group>"; };
 		8439E0AA2E686AA8002BC38D /* patch_mono.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = patch_mono.py; sourceTree = "<group>"; };
 		8439E0AB2E686AA8002BC38D /* print_env.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = print_env.sh; sourceTree = "<group>"; };
-		8439E0AC2E686AA8002BC38D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		8439E0AD2E686AA8002BC38D /* reference_assemblies.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = reference_assemblies.py; sourceTree = "<group>"; };
 		8439E0AE2E686AA8002BC38D /* runtime.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = runtime.py; sourceTree = "<group>"; };
 		8439E0AF2E686AA8002BC38D /* wasm.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = wasm.py; sourceTree = "<group>"; };
@@ -3121,23 +3113,9 @@
 			path = ../external/bdwgc/include;
 			sourceTree = SOURCE_ROOT;
 		};
-		8439E0962E686AA8002BC38D /* __pycache__ */ = {
-			isa = PBXGroup;
-			children = (
-				8439E0912E686AA8002BC38D /* cmd_utils.cpython-310.pyc */,
-				8439E0922E686AA8002BC38D /* desktop.cpython-310.pyc */,
-				8439E0932E686AA8002BC38D /* options.cpython-310.pyc */,
-				8439E0942E686AA8002BC38D /* os_utils.cpython-310.pyc */,
-				8439E0952E686AA8002BC38D /* runtime.cpython-310.pyc */,
-			);
-			path = __pycache__;
-			sourceTree = "<group>";
-		};
 		8439E0B12E686AA8002BC38D /* scripts */ = {
 			isa = PBXGroup;
 			children = (
-				8439E0962E686AA8002BC38D /* __pycache__ */,
-				8439E0972E686AA8002BC38D /* __init__.py */,
 				8439E0982E686AA8002BC38D /* android.py */,
 				8439E0992E686AA8002BC38D /* bcl.py */,
 				8439E09A2E686AA8002BC38D /* build_ios_bcl.sh */,
@@ -3148,7 +3126,6 @@
 				8439E09F2E686AA8002BC38D /* desktop.py */,
 				8439E0A02E686AA8002BC38D /* format.sh */,
 				8439E0A12E686AA8002BC38D /* ios.py */,
-				8439E0A22E686AA8002BC38D /* LICENSE */,
 				8439E0A32E686AA8002BC38D /* linux.py */,
 				8439E0A42E686AA8002BC38D /* llvm.py */,
 				8439E0A52E686AA8002BC38D /* msbuild_helper.py */,
@@ -3158,7 +3135,6 @@
 				8439E0A92E686AA8002BC38D /* patch_emscripten.py */,
 				8439E0AA2E686AA8002BC38D /* patch_mono.py */,
 				8439E0AB2E686AA8002BC38D /* print_env.sh */,
-				8439E0AC2E686AA8002BC38D /* README.md */,
 				8439E0AD2E686AA8002BC38D /* reference_assemblies.py */,
 				8439E0AE2E686AA8002BC38D /* runtime.py */,
 				8439E0AF2E686AA8002BC38D /* wasm.py */,
