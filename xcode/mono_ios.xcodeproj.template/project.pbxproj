@@ -92,7 +92,6 @@
 		8439DD1A2E66CBE0002BC38D /* thread_local_alloc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB572E1E889B007DAB03 /* thread_local_alloc.c */; };
 		8439DD1B2E66CBE0002BC38D /* typd_mlc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB582E1E889B007DAB03 /* typd_mlc.c */; };
 		8439DD1C2E66CBE0002BC38D /* vector_mlc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB592E1E889B007DAB03 /* vector_mlc.c */; };
-		8439DD1D2E66CBE0002BC38D /* win32_threads.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB5A2E1E889B007DAB03 /* win32_threads.c */; };
 		8439DD1E2E66CBE0002BC38D /* btls-bio.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424C7AA2E1E73E2007DAB03 /* btls-bio.h */; };
 		8439DD1F2E66CBE0002BC38D /* btls-bio.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C7AB2E1E73E2007DAB03 /* btls-bio.c */; };
 		8439DD202E66CBE0002BC38D /* btls-error.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424C7AC2E1E73E2007DAB03 /* btls-error.h */; };
@@ -190,14 +189,12 @@
 		8439DD7D2E66CBE0002BC38D /* gbytearray.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8122E1E7616007DAB03 /* gbytearray.c */; };
 		8439DD7E2E66CBE0002BC38D /* gclock-nanosleep.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8132E1E7616007DAB03 /* gclock-nanosleep.c */; };
 		8439DD7F2E66CBE0002BC38D /* gdate-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8142E1E7616007DAB03 /* gdate-unix.c */; };
-		8439DD802E66CBE0002BC38D /* gdate-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8152E1E7616007DAB03 /* gdate-win32.c */; };
 		8439DD812E66CBE0002BC38D /* gdir-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8162E1E7616007DAB03 /* gdir-unix.c */; };
 		8439DD822E66CBE0002BC38D /* gdir-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8172E1E7616007DAB03 /* gdir-win32.c */; };
 		8439DD832E66CBE0002BC38D /* gerror.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8182E1E7616007DAB03 /* gerror.c */; };
 		8439DD842E66CBE0002BC38D /* gfile.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8192E1E7616007DAB03 /* gfile.c */; };
 		8439DD852E66CBE0002BC38D /* gfile-posix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81A2E1E7616007DAB03 /* gfile-posix.c */; };
 		8439DD862E66CBE0002BC38D /* gfile-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81B2E1E7616007DAB03 /* gfile-unix.c */; };
-		8439DD872E66CBE0002BC38D /* gfile-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81C2E1E7616007DAB03 /* gfile-win32.c */; };
 		8439DD882E66CBE0002BC38D /* ghashtable.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81D2E1E7616007DAB03 /* ghashtable.c */; };
 		8439DD892E66CBE0002BC38D /* giconv.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81E2E1E7616007DAB03 /* giconv.c */; };
 		8439DD8A2E66CBE0002BC38D /* glib.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424C81F2E1E7616007DAB03 /* glib.h */; };
@@ -205,11 +202,9 @@
 		8439DD8C2E66CBE0002BC38D /* gmarkup.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8212E1E7616007DAB03 /* gmarkup.c */; };
 		8439DD8D2E66CBE0002BC38D /* gmem.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8222E1E7616007DAB03 /* gmem.c */; };
 		8439DD8E2E66CBE0002BC38D /* gmisc-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8232E1E7616007DAB03 /* gmisc-unix.c */; };
-		8439DD8F2E66CBE0002BC38D /* gmisc-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8242E1E7616007DAB03 /* gmisc-win32.c */; };
 		8439DD902E66CBE0002BC38D /* gmodule.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8252E1E7616007DAB03 /* gmodule.h */; };
 		8439DD912E66CBE0002BC38D /* gmodule-aix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8262E1E7616007DAB03 /* gmodule-aix.c */; };
 		8439DD922E66CBE0002BC38D /* gmodule-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8272E1E7616007DAB03 /* gmodule-unix.c */; };
-		8439DD932E66CBE0002BC38D /* gmodule-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8282E1E7616007DAB03 /* gmodule-win32.c */; };
 		8439DD942E66CBE0002BC38D /* goutput.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8292E1E7616007DAB03 /* goutput.c */; };
 		8439DD952E66CBE0002BC38D /* gpath.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C82A2E1E7616007DAB03 /* gpath.c */; };
 		8439DD962E66CBE0002BC38D /* gpattern.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C82B2E1E7616007DAB03 /* gpattern.c */; };
@@ -222,7 +217,6 @@
 		8439DD9D2E66CBE0002BC38D /* gstr.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8322E1E7616007DAB03 /* gstr.c */; };
 		8439DD9E2E66CBE0002BC38D /* gstring.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8332E1E7616007DAB03 /* gstring.c */; };
 		8439DD9F2E66CBE0002BC38D /* gtimer-unix.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8342E1E7616007DAB03 /* gtimer-unix.c */; };
-		8439DDA02E66CBE0002BC38D /* gtimer-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8352E1E7616007DAB03 /* gtimer-win32.c */; };
 		8439DDA12E66CBE0002BC38D /* gunicode.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8362E1E7616007DAB03 /* gunicode.c */; };
 		8439DDA22E66CBE0002BC38D /* gunicode-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8372E1E7616007DAB03 /* gunicode-win32.c */; };
 		8439DDA32E66CBE0002BC38D /* gutf8.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424C8382E1E7616007DAB03 /* gutf8.c */; };
@@ -844,7 +838,6 @@
 		8439E00C2E66CBE0002BC38D /* mono-os-mutex.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA22E1E82A0007DAB03 /* mono-os-mutex.h */; };
 		8439E00D2E66CBE0002BC38D /* mono-os-mutex.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA32E1E82A0007DAB03 /* mono-os-mutex.c */; };
 		8439E00E2E66CBE0002BC38D /* mono-os-semaphore.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA42E1E82A0007DAB03 /* mono-os-semaphore.h */; };
-		8439E00F2E66CBE0002BC38D /* mono-os-semaphore-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA52E1E82A0007DAB03 /* mono-os-semaphore-win32.c */; };
 		8439E0102E66CBE0002BC38D /* mono-os-wait.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA62E1E82A0007DAB03 /* mono-os-wait.h */; };
 		8439E0112E66CBE0002BC38D /* mono-os-wait-win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA72E1E82A0007DAB03 /* mono-os-wait-win32.c */; };
 		8439E0122E66CBE0002BC38D /* mono-path.h in Sources */ = {isa = PBXBuildFile; fileRef = 8424CAA82E1E82A0007DAB03 /* mono-path.h */; };
@@ -3264,7 +3257,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "PROJECT_DIR=\"${SRCROOT}\"\nSUB_DIRECTORY=\"scripts\"\nSUB_DIR_PATH=\"${PROJECT_DIR}/${SUB_DIRECTORY}\"\n\nif [ ! -d \"${SUB_DIR_PATH}\" ]; then\n    echo \"error：scripts directory ${SUB_DIR_PATH} is not exist!\"\n    exit 1\nfi\n\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n    SCRIPT_NAME=\"${SUB_DIR_PATH}/build_ios_local_debug.sh\"\nelif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    SCRIPT_NAME=\"${SUB_DIR_PATH}/build_ios_local_release.sh\"\nelse\n    echo \"error：unknown ${CONFIGURATION}\"\n    exit 1\nfi\n\n\nif [ -f \"${SCRIPT_NAME}\" ]; then\n    chmod +x \"${SCRIPT_NAME}\"\n    sh \"${SCRIPT_NAME}\"\n    SCRIPT_EXIT_CODE=$?\n    if [ ${SCRIPT_EXIT_CODE} -ne 0 ]; then\n        echo \"error：${SCRIPT_NAME} execute failed!\"\n        exit ${SCRIPT_EXIT_CODE}\n    fi\nelse\n    echo \"error：script ${SCRIPT_NAME} is not exists\"\n    exit 1\nfi\n\n#__COPY_OUTPUT_LIB__#";
+			shellScript = "PROJECT_DIR=\"${SRCROOT}\"\nSUB_DIRECTORY=\"xcode/scripts\"\nSUB_DIR_PATH=\"${PROJECT_DIR}/${SUB_DIRECTORY}\"\n\nif [ ! -d \"${SUB_DIR_PATH}\" ]; then\n    echo \"error：scripts directory ${SUB_DIR_PATH} is not exist!\"\n    exit 1\nfi\n\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n    SCRIPT_NAME=\"${SUB_DIR_PATH}/build_ios_local_debug.sh\"\nelif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    SCRIPT_NAME=\"${SUB_DIR_PATH}/build_ios_local_debug.sh\"\nelse\n    echo \"error：unknown ${CONFIGURATION}\"\n    exit 1\nfi\n\n\nif [ -f \"${SCRIPT_NAME}\" ]; then\n    chmod +x \"${SCRIPT_NAME}\"\n    sh \"${SCRIPT_NAME}\"\n    SCRIPT_EXIT_CODE=$?\n    if [ ${SCRIPT_EXIT_CODE} -ne 0 ]; then\n        echo \"error：${SCRIPT_NAME} execute failed!\"\n        exit ${SCRIPT_EXIT_CODE}\n    fi\nelse\n    echo \"error：script ${SCRIPT_NAME} is not exists\"\n    exit 1\nfi\n\n#__COPY_OUTPUT_LIB__#";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -3358,7 +3351,6 @@
 				8439DD1A2E66CBE0002BC38D /* thread_local_alloc.c in Sources */,
 				8439DD1B2E66CBE0002BC38D /* typd_mlc.c in Sources */,
 				8439DD1C2E66CBE0002BC38D /* vector_mlc.c in Sources */,
-				8439DD1D2E66CBE0002BC38D /* win32_threads.c in Sources */,
 				8439DD1E2E66CBE0002BC38D /* btls-bio.h in Sources */,
 				8439DD1F2E66CBE0002BC38D /* btls-bio.c in Sources */,
 				8439DD202E66CBE0002BC38D /* btls-error.h in Sources */,
@@ -3456,14 +3448,12 @@
 				8439DD7D2E66CBE0002BC38D /* gbytearray.c in Sources */,
 				8439DD7E2E66CBE0002BC38D /* gclock-nanosleep.c in Sources */,
 				8439DD7F2E66CBE0002BC38D /* gdate-unix.c in Sources */,
-				8439DD802E66CBE0002BC38D /* gdate-win32.c in Sources */,
 				8439DD812E66CBE0002BC38D /* gdir-unix.c in Sources */,
 				8439DD822E66CBE0002BC38D /* gdir-win32.c in Sources */,
 				8439DD832E66CBE0002BC38D /* gerror.c in Sources */,
 				8439DD842E66CBE0002BC38D /* gfile.c in Sources */,
 				8439DD852E66CBE0002BC38D /* gfile-posix.c in Sources */,
 				8439DD862E66CBE0002BC38D /* gfile-unix.c in Sources */,
-				8439DD872E66CBE0002BC38D /* gfile-win32.c in Sources */,
 				8439DD882E66CBE0002BC38D /* ghashtable.c in Sources */,
 				8439DD892E66CBE0002BC38D /* giconv.c in Sources */,
 				8439DD8A2E66CBE0002BC38D /* glib.h in Sources */,
@@ -3471,11 +3461,9 @@
 				8439DD8C2E66CBE0002BC38D /* gmarkup.c in Sources */,
 				8439DD8D2E66CBE0002BC38D /* gmem.c in Sources */,
 				8439DD8E2E66CBE0002BC38D /* gmisc-unix.c in Sources */,
-				8439DD8F2E66CBE0002BC38D /* gmisc-win32.c in Sources */,
 				8439DD902E66CBE0002BC38D /* gmodule.h in Sources */,
 				8439DD912E66CBE0002BC38D /* gmodule-aix.c in Sources */,
 				8439DD922E66CBE0002BC38D /* gmodule-unix.c in Sources */,
-				8439DD932E66CBE0002BC38D /* gmodule-win32.c in Sources */,
 				8439DD942E66CBE0002BC38D /* goutput.c in Sources */,
 				8439DD952E66CBE0002BC38D /* gpath.c in Sources */,
 				8439DD962E66CBE0002BC38D /* gpattern.c in Sources */,
@@ -3488,7 +3476,6 @@
 				8439DD9D2E66CBE0002BC38D /* gstr.c in Sources */,
 				8439DD9E2E66CBE0002BC38D /* gstring.c in Sources */,
 				8439DD9F2E66CBE0002BC38D /* gtimer-unix.c in Sources */,
-				8439DDA02E66CBE0002BC38D /* gtimer-win32.c in Sources */,
 				8439DDA12E66CBE0002BC38D /* gunicode.c in Sources */,
 				8439DDA22E66CBE0002BC38D /* gunicode-win32.c in Sources */,
 				8439DDA32E66CBE0002BC38D /* gutf8.c in Sources */,
@@ -4110,7 +4097,6 @@
 				8439E00C2E66CBE0002BC38D /* mono-os-mutex.h in Sources */,
 				8439E00D2E66CBE0002BC38D /* mono-os-mutex.c in Sources */,
 				8439E00E2E66CBE0002BC38D /* mono-os-semaphore.h in Sources */,
-				8439E00F2E66CBE0002BC38D /* mono-os-semaphore-win32.c in Sources */,
 				8439E0102E66CBE0002BC38D /* mono-os-wait.h in Sources */,
 				8439E0112E66CBE0002BC38D /* mono-os-wait-win32.c in Sources */,
 				8439E0122E66CBE0002BC38D /* mono-path.h in Sources */,
