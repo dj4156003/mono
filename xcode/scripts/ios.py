@@ -2,6 +2,7 @@
 
 import os
 import os.path
+import platform
 import sys
 
 from os.path import join as path_join
@@ -333,6 +334,21 @@ def llvm_for(host_arch: str) -> str:
     return 'llvmarm64' if host_arch == 'arm64' else 'llvm64'
 
 
+def get_actual_host_architecture():
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    if system == 'darwin':
+        if machine in ('x86_64', 'i386', 'i686'):
+            return 'x86_64'
+        elif machine in ('arm64', 'aarch64'):
+            return 'arm64'
+        else:
+            raise RuntimeError(f'Unsupported macOS architecture: {machine}')
+    else:
+        raise RuntimeError(f'Unsupported operating system: {system}')
+
+
 def setup_ios_cross_template(env: dict, opts: iOSOpts, target: str, host_arch: str):
     target_triple = iOSCrossTable.target_triples[target]
     device_target = iOSCrossTable.device_targets[target]
@@ -371,6 +387,15 @@ def setup_ios_cross_template(env: dict, opts: iOSOpts, target: str, host_arch: s
     else:
         tools_path = path_join(opts.osx_toolchain_path, 'usr', 'bin')
         name_fmt = path_join(tools_path, '%s')
+
+    host_actual_arch = get_actual_host_architecture()
+    if host_actual_arch == 'arm64' and host_arch == "x86_64":
+        print("Cross-compiling x86_64 Mono tool on ARM64 macOS...")
+        env['CC'] = 'clang -arch x86_64 -target x86_64-apple-darwin'
+        env['CXX'] = 'clang++ -arch x86_64 -target x86_64-apple-darwin'
+        env['CFLAGS'] = '-arch x86_64'
+        env['CXXFLAGS'] = '-arch x86_64' 
+        env['LDFLAGS'] = '-arch x86_64'
 
     env['_ios-%s_AR' % target] = name_fmt % 'ar'
     env['_ios-%s_AS' % target] = name_fmt % 'as'

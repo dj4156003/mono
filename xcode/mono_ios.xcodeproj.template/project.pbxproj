@@ -2838,7 +2838,7 @@
 				8424C79D2E1E6FFC007DAB03 /* zlib */,
 				8424C79E2E1E72B9007DAB03 /* utils */,
 			);
-            name = src;
+			name = src;
 			path = xcode/src;
 			sourceTree = "<group>";
 		};
@@ -3134,8 +3134,8 @@
 				8439E0AF2E686AA8002BC38D /* wasm.py */,
 				8439E0B02E686AA8002BC38D /* windows.py */,
 			);
+			name = scripts;
 			path = xcode/scripts;
-            name = scripts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -4217,10 +4217,11 @@
 				ENABLE_MODULE_VERIFIER = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
-                    $PROJECT_DIR/mono/,
+					$PROJECT_DIR/mono/,
 					$PROJECT_DIR/xcode/platform/ios,
 					$PROJECT_DIR/external/bdwgc/include/,
 					$PROJECT_DIR/mono/eglib/,
+					$PROJECT_DIR/,
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -4267,10 +4268,11 @@
 				ENABLE_MODULE_VERIFIER = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
-                    $PROJECT_DIR/mono/,
-                    $PROJECT_DIR/xcode/platform/ios,
-                    $PROJECT_DIR/external/bdwgc/include/,
-                    $PROJECT_DIR/mono/eglib/,
+					$PROJECT_DIR/mono/,
+					$PROJECT_DIR/xcode/platform/ios,
+					$PROJECT_DIR/external/bdwgc/include/,
+					$PROJECT_DIR/mono/eglib/,
+					$PROJECT_DIR/,
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";

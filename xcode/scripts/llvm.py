@@ -60,6 +60,32 @@ def make(opts: BaseOpts, target: str):
             search='@MXE_PATH@', replace=opts.mxe_prefix,
             dst_file='%s/external/llvm-project/llvm/cmake/modules/%s.cmake' % (opts.mono_source_root, mxe)
         )
+    else:
+        if 'llvm64' in target:
+            CMAKE_ARGS += [
+                '-DCMAKE_OSX_ARCHITECTURES=x86_64',
+                '-DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk',
+                '-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15',
+                '-DLLVM_ENABLE_THREADS=On',
+                '-DLLVM_BUILD_EXECUTION_ENGINE=On',
+                '-DZLIB_ROOT=/usr/local/opt/zlib',
+            ]
+        elif 'llvmarm64' in target:
+            # if 'ios' in target:
+            #     sdk_path = '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk'
+            #     deployment_target = '10.0'
+            # else:
+            sdk_path = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk'
+            deployment_target = '11.0'
+            
+            CMAKE_ARGS += [
+                '-DCMAKE_OSX_ARCHITECTURES=arm64',
+                '-DCMAKE_OSX_SYSROOT=' + sdk_path,
+                '-DCMAKE_OSX_DEPLOYMENT_TARGET=' + deployment_target,
+                '-DLLVM_ENABLE_THREADS=On',
+                '-DLLVM_BUILD_EXECUTION_ENGINE=On',
+                '-DZLIB_ROOT=/usr/local/opt/zlib', 
+            ]
 
     if target in ['llvm32', 'llvmwin32']:
         CMAKE_ARGS += ['-DLLVM_BUILD_32_BITS=On']

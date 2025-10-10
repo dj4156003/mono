@@ -13,17 +13,32 @@ def setup_runtime_template(env: dict, opts: RuntimeOpts, product: str, target: s
     elif 'x86_64' in host_triple:
         BITNESS = '-m64'
 
+    def extract_arch_flags(env_key):
+        value = env.get(env_key, '')
+        if value and '-arch' in value:
+            if isinstance(value, str):
+                return value.split()
+            else:
+                return value
+        return []
+
+    arch_cflags = extract_arch_flags('CFLAGS')
+    arch_cxxflags = extract_arch_flags('CXXFLAGS')
+    arch_ldflags = extract_arch_flags('LDFLAGS')
+
     CFLAGS = []
     CFLAGS += ['-O2', '-g'] if opts.release else ['-O0', '-ggdb3', '-fno-omit-frame-pointer']
     CFLAGS += env.get('_%s-%s_CFLAGS' % (product, target), [])
     CFLAGS += env.get('%s-%s_CFLAGS' % (product, target), [])
     CFLAGS += [BITNESS] if BITNESS else []
+    CFLAGS += arch_cflags
 
     CXXFLAGS = []
     CXXFLAGS += ['-O2', '-g'] if opts.release else ['-O0', '-ggdb3', '-fno-omit-frame-pointer']
     CXXFLAGS += env.get('_%s-%s_CXXFLAGS' % (product, target), [])
     CXXFLAGS += env.get('%s-%s_CXXFLAGS' % (product, target), [])
     CXXFLAGS += [BITNESS] if BITNESS else []
+    CXXFLAGS += arch_cxxflags
 
     CPPFLAGS = []
     CPPFLAGS += ['-O2', '-g'] if opts.release else ['-O0', '-ggdb3', '-fno-omit-frame-pointer']
@@ -37,9 +52,11 @@ def setup_runtime_template(env: dict, opts: RuntimeOpts, product: str, target: s
     CXXCPPFLAGS += env.get('%s-%s_CXXCPPFLAGS' % (product, target), [])
     CXXCPPFLAGS += [BITNESS] if BITNESS else []
 
+
     LDFLAGS = []
     LDFLAGS += env.get('_%s-%s_LDFLAGS' % (product, target), [])
     LDFLAGS += env.get('%s-%s_LDFLAGS' % (product, target), [])
+    LDFLAGS += arch_ldflags
 
     AC_VARS = []
     AC_VARS += env.get('_%s-%s_AC_VARS' % (product, target), [])
@@ -132,6 +149,30 @@ def setup_runtime_cross_template(env: dict, opts: RuntimeOpts, product: str, tar
 
     # Runtime template
     setup_runtime_template(env, opts, product, target, host_triple)
+
+    header_file = '%s/%s.h' % (build_dir, target_triple)
+    deduplicate_header_file(header_file)
+
+
+def deduplicate_header_file(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+    
+    seen = set()
+    unique_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        if line.startswith('#') or not stripped:
+            unique_lines.append(line)
+        elif stripped not in seen:
+            seen.add(stripped)
+            unique_lines.append(line)
+    
+    with open(filename, 'w') as f:
+        f.writelines(unique_lines)
+    
+    print(f"去重完成，原始行数: {len(lines)}, 去重后: {len(unique_lines)}")
 
 
 def run_autogen(opts: RuntimeOpts):
