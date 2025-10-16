@@ -3904,6 +3904,7 @@ mono_image_is_rgdll(MonoImage* image)
 	return image->is_rgdll;
 }
 
+#ifndef DISABLE_AOT
 mono_bool 
 mono_image_support_dynamic_aot(MonoImage* image)
 {
@@ -3956,8 +3957,9 @@ mono_image_set_global_aot_supported(mono_bool supported)
 }
 
 mono_bool
-mono_image_get_global_aot_supported()
+mono_image_get_global_aot_supported(void)
 {
 	return global_dynmaic_aot_support;
 }
+#endif // DISABLE_AOT
 // Modified by zx end

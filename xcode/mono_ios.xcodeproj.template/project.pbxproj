@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		84150B492EA091140033F6F1 /* interp.h in Headers */ = {isa = PBXBuildFile; fileRef = 84150B3D2EA091140033F6F1 /* interp.h */; };
+		84150B4A2EA091140033F6F1 /* interp-internals.h in Headers */ = {isa = PBXBuildFile; fileRef = 84150B3F2EA091140033F6F1 /* interp-internals.h */; };
+		84150B4B2EA091140033F6F1 /* mintops.h in Headers */ = {isa = PBXBuildFile; fileRef = 84150B422EA091140033F6F1 /* mintops.h */; };
+		84150B4C2EA091140033F6F1 /* transform.h in Headers */ = {isa = PBXBuildFile; fileRef = 84150B452EA091140033F6F1 /* transform.h */; };
+		84150B4D2EA091140033F6F1 /* interp-intrins.h in Headers */ = {isa = PBXBuildFile; fileRef = 84150B402EA091140033F6F1 /* interp-intrins.h */; };
+		84150B4E2EA091140033F6F1 /* interp.c in Sources */ = {isa = PBXBuildFile; fileRef = 84150B3E2EA091140033F6F1 /* interp.c */; };
+		84150B4F2EA091140033F6F1 /* interp-intrins.c in Sources */ = {isa = PBXBuildFile; fileRef = 84150B412EA091140033F6F1 /* interp-intrins.c */; };
+		84150B502EA091140033F6F1 /* whitebox.c in Sources */ = {isa = PBXBuildFile; fileRef = 84150B472EA091140033F6F1 /* whitebox.c */; };
+		84150B512EA091140033F6F1 /* transform.c in Sources */ = {isa = PBXBuildFile; fileRef = 84150B462EA091140033F6F1 /* transform.c */; };
+		84150B522EA091140033F6F1 /* mintops.c in Sources */ = {isa = PBXBuildFile; fileRef = 84150B432EA091140033F6F1 /* mintops.c */; };
+		84150B532EA091140033F6F1 /* mintops.def in Resources */ = {isa = PBXBuildFile; fileRef = 84150B442EA091140033F6F1 /* mintops.def */; };
+		84150B542EA091140033F6F1 /* whitebox-snippets.il in Resources */ = {isa = PBXBuildFile; fileRef = 84150B482EA091140033F6F1 /* whitebox-snippets.il */; };
 		8439DCC82E66CBE0002BC38D /* allchblk.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB002E1E889B007DAB03 /* allchblk.c */; };
 		8439DCC92E66CBE0002BC38D /* alloc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB012E1E889B007DAB03 /* alloc.c */; };
 		8439DCCA2E66CBE0002BC38D /* backgraph.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424CB022E1E889B007DAB03 /* backgraph.c */; };
@@ -946,6 +958,18 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		84150B3D2EA091140033F6F1 /* interp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = interp.h; path = mono/mini/interp/interp.h; sourceTree = SOURCE_ROOT; };
+		84150B3E2EA091140033F6F1 /* interp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = interp.c; path = mono/mini/interp/interp.c; sourceTree = SOURCE_ROOT; };
+		84150B3F2EA091140033F6F1 /* interp-internals.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "interp-internals.h"; path = "mono/mini/interp/interp-internals.h"; sourceTree = SOURCE_ROOT; };
+		84150B402EA091140033F6F1 /* interp-intrins.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "interp-intrins.h"; path = "mono/mini/interp/interp-intrins.h"; sourceTree = SOURCE_ROOT; };
+		84150B412EA091140033F6F1 /* interp-intrins.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "interp-intrins.c"; path = "mono/mini/interp/interp-intrins.c"; sourceTree = SOURCE_ROOT; };
+		84150B422EA091140033F6F1 /* mintops.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = mintops.h; path = mono/mini/interp/mintops.h; sourceTree = SOURCE_ROOT; };
+		84150B432EA091140033F6F1 /* mintops.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = mintops.c; path = mono/mini/interp/mintops.c; sourceTree = SOURCE_ROOT; };
+		84150B442EA091140033F6F1 /* mintops.def */ = {isa = PBXFileReference; lastKnownFileType = text; name = mintops.def; path = mono/mini/interp/mintops.def; sourceTree = SOURCE_ROOT; };
+		84150B452EA091140033F6F1 /* transform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = transform.h; path = mono/mini/interp/transform.h; sourceTree = SOURCE_ROOT; };
+		84150B462EA091140033F6F1 /* transform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = transform.c; path = mono/mini/interp/transform.c; sourceTree = SOURCE_ROOT; };
+		84150B472EA091140033F6F1 /* whitebox.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = whitebox.c; path = mono/mini/interp/whitebox.c; sourceTree = SOURCE_ROOT; };
+		84150B482EA091140033F6F1 /* whitebox-snippets.il */ = {isa = PBXFileReference; lastKnownFileType = text; name = "whitebox-snippets.il"; path = "mono/mini/interp/whitebox-snippets.il"; sourceTree = SOURCE_ROOT; };
 		8424C7922E1E6DCE007DAB03 /* mono_src.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = mono_src.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8424C7AA2E1E73E2007DAB03 /* btls-bio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "btls-bio.h"; path = "mono/btls/btls-bio.h"; sourceTree = SOURCE_ROOT; };
 		8424C7AB2E1E73E2007DAB03 /* btls-bio.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "btls-bio.c"; path = "mono/btls/btls-bio.c"; sourceTree = SOURCE_ROOT; };
@@ -1922,6 +1946,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		84150B3C2EA090E10033F6F1 /* interp */ = {
+			isa = PBXGroup;
+			children = (
+				84150B3D2EA091140033F6F1 /* interp.h */,
+				84150B3E2EA091140033F6F1 /* interp.c */,
+				84150B3F2EA091140033F6F1 /* interp-internals.h */,
+				84150B402EA091140033F6F1 /* interp-intrins.h */,
+				84150B412EA091140033F6F1 /* interp-intrins.c */,
+				84150B422EA091140033F6F1 /* mintops.h */,
+				84150B432EA091140033F6F1 /* mintops.c */,
+				84150B442EA091140033F6F1 /* mintops.def */,
+				84150B452EA091140033F6F1 /* transform.h */,
+				84150B462EA091140033F6F1 /* transform.c */,
+				84150B472EA091140033F6F1 /* whitebox.c */,
+				84150B482EA091140033F6F1 /* whitebox-snippets.il */,
+			);
+			path = interp;
+			sourceTree = "<group>";
+		};
 		8424C7882E1E6DCE007DAB03 = {
 			isa = PBXGroup;
 			children = (
@@ -2231,6 +2274,7 @@
 		8424C7A22E1E7321007DAB03 /* mini */ = {
 			isa = PBXGroup;
 			children = (
+				84150B3C2EA090E10033F6F1 /* interp */,
 				8424C95C2E1E8234007DAB03 /* abcremoval.h */,
 				8424C95D2E1E8234007DAB03 /* abcremoval.c */,
 				8424C95E2E1E8234007DAB03 /* alias-analysis.c */,
@@ -3147,6 +3191,11 @@
 			files = (
 				8439E08F2E68454C002BC38D /* eglib-config.h in Headers */,
 				8439E06B2E66CFA3002BC38D /* config.h in Headers */,
+				84150B492EA091140033F6F1 /* interp.h in Headers */,
+				84150B4A2EA091140033F6F1 /* interp-internals.h in Headers */,
+				84150B4B2EA091140033F6F1 /* mintops.h in Headers */,
+				84150B4C2EA091140033F6F1 /* transform.h in Headers */,
+				84150B4D2EA091140033F6F1 /* interp-intrins.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3236,6 +3285,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				84150B532EA091140033F6F1 /* mintops.def in Resources */,
+				84150B542EA091140033F6F1 /* whitebox-snippets.il in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3964,6 +4015,11 @@
 				8439DF862E66CBE0002BC38D /* inftrees.c in Sources */,
 				8439DF872E66CBE0002BC38D /* Makefile.am in Sources */,
 				8439DF882E66CBE0002BC38D /* trees.h in Sources */,
+				84150B4E2EA091140033F6F1 /* interp.c in Sources */,
+				84150B4F2EA091140033F6F1 /* interp-intrins.c in Sources */,
+				84150B502EA091140033F6F1 /* whitebox.c in Sources */,
+				84150B512EA091140033F6F1 /* transform.c in Sources */,
+				84150B522EA091140033F6F1 /* mintops.c in Sources */,
 				8439DF892E66CBE0002BC38D /* trees.c in Sources */,
 				8439DF8A2E66CBE0002BC38D /* uncompr.c in Sources */,
 				8439DF8B2E66CBE0002BC38D /* zconf.h in Sources */,

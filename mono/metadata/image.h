@@ -104,11 +104,13 @@ MONO_API mono_bool     mono_image_has_authenticode_entry (MonoImage *image);
 // Modified by zx start
 uint32_t mono_image_decrypt_value(MonoImage* image, uint32_t value);
 MONO_API mono_bool     mono_image_is_rgdll(MonoImage* image);
+#ifndef DISABLE_AOT
 MONO_API mono_bool     mono_image_support_dynamic_aot(MonoImage* image);
 MONO_API mono_bool     mono_image_is_updated(MonoImage* image);
 MONO_API mono_bool     mono_image_method_is_updated(MonoImage* image, uint32_t methodToken);
 MONO_API void          mono_image_set_global_aot_supported(mono_bool supported);
-MONO_API mono_bool     mono_image_get_global_aot_supported();
+MONO_API mono_bool     mono_image_get_global_aot_supported(void);
+#endif
 // Modified by zx end
 
 mono_bool mono_has_pdb_checksum (char *raw_data, uint32_t raw_data_len);
