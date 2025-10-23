@@ -1411,7 +1411,14 @@ get_default_param_value_blobs (MonoMethod *method, char **blobs, guint32 *types)
 	if (idx + 1 < methodt->rows)
 		lastp = mono_metadata_decode_row_col (methodt, idx + 1, MONO_METHOD_PARAMLIST);
 	else
-		lastp = paramt->rows + 1;
+	{
+		// Modified by zx start
+		if (image->is_rgdll && image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			lastp = image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else
+			lastp = paramt->rows + 1;
+		// Modified by zx end
+	}
 
 	for (i = param_index; i < lastp; ++i) {
 		guint32 paramseq;

@@ -1502,7 +1502,14 @@ mono_method_get_param_names (MonoMethod *method, const char **names)
 		if (idx < methodt->rows)
 			lastp = mono_metadata_decode_row_col (methodt, idx, MONO_METHOD_PARAMLIST);
 		else
-			lastp = paramt->rows + 1;
+		{
+			// Modified by zx start
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				lastp = klass_image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+			else
+				lastp = paramt->rows + 1;
+			// Modified by zx end
+		}
 		for (i = param_index; i < lastp; ++i) {
 			// Modified by zx
 			int param_idx = i;
@@ -1608,7 +1615,14 @@ mono_method_get_marshal_info (MonoMethod *method, MonoMarshalSpec **mspecs)
 		if (idx < methodt->rows)
 			lastp = mono_metadata_decode_row_col (methodt, idx, MONO_METHOD_PARAMLIST);
 		else
-			lastp = paramt->rows + 1;
+		{
+			// Modified by zx start
+			if (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				lastp = klass_image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+			else
+				lastp = paramt->rows + 1;
+			// Modified by zx end
+		}
 
 		for (i = param_index; i < lastp; ++i) {
 			// Modified by zx
@@ -1667,7 +1681,14 @@ mono_method_has_marshal_info (MonoMethod *method)
 		if (idx + 1 < methodt->rows)
 			lastp = mono_metadata_decode_row_col (methodt, idx, MONO_METHOD_PARAMLIST);
 		else
-			lastp = paramt->rows + 1;
+		{
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+				lastp = klass->image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+			else
+				lastp = paramt->rows + 1;
+			// Modified by zx end
+		}
 
 		for (i = param_index; i < lastp; ++i) {
 			// Modified by zx
@@ -2216,3 +2237,37 @@ mono_method_get_index (MonoMethod *method)
 	}
 	return 0;
 }
+
+// Modified by zx start
+mono_bool
+mono_method_is_empty (MonoImage *image, uint32_t token)
+{
+	int table = mono_metadata_token_table (token);
+	int idx = mono_metadata_token_index (token);
+	if (idx == 0 || idx > image->tables [table].rows)
+	    return FALSE;
+
+	if (table == MONO_TABLE_METHOD)
+	{
+		guint32 cols [MONO_METHOD_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_METHOD], idx - 1, cols, MONO_METHOD_SIZE);
+
+		if (cols[MONO_METHOD_RVA] == 0 && cols[MONO_METHOD_IMPLFLAGS] == 0 && cols[MONO_METHOD_FLAGS] == 0 && cols[MONO_METHOD_NAME] == 0 && cols[MONO_METHOD_SIGNATURE] == 0)
+			return TRUE;
+
+	}else if (table == MONO_TABLE_METHODSPEC)
+	{
+		guint32 cols [MONO_METHODSPEC_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_METHODSPEC], idx - 1, cols, MONO_METHODSPEC_SIZE);
+
+		if (cols[MONO_METHODSPEC_METHOD] == 0 && cols[MONO_METHODSPEC_SIGNATURE] == 0)
+			return TRUE;
+	}else 
+	{
+		g_error("mono_method_is_empty: unexpected table type %d for token 0x%x", table, token);
+		return FALSE;
+	}
+	
+	return FALSE;
+}
+// Modified by zx end

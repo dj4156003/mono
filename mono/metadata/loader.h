@@ -103,6 +103,11 @@ mono_stack_walk_async_safe   (MonoStackWalkAsyncSafe func, void *initial_sig_con
 MONO_API MonoMethodHeader*
 mono_method_get_header_checked (MonoMethod *method, MonoError *error);
 
+//Modified by zx start
+MONO_API mono_bool
+mono_method_is_empty (MonoImage *image, uint32_t token);
+//Modified by zx end
+
 MONO_END_DECLS
 
 #endif

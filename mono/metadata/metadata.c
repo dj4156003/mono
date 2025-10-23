@@ -2355,7 +2355,14 @@ mono_metadata_method_has_param_attrs (MonoImage *m, int def)
 	if (def < methodt->rows)
 		lastp = mono_metadata_decode_row_col (methodt, def, MONO_METHOD_PARAMLIST);
 	else
-		lastp = m->tables [MONO_TABLE_PARAM].rows + 1;
+	{
+		// Modified by zx start
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			lastp = m->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else 
+			lastp = m->tables [MONO_TABLE_PARAM].rows + 1;
+		// Modified by zx end
+	}
 
 	for (i = param_index; i < lastp; ++i) {
 		// Modified by zx
@@ -2394,7 +2401,14 @@ mono_metadata_get_param_attrs (MonoImage *m, int def, int param_count)
 	if (def < methodt->rows)
 		lastp = mono_metadata_decode_row_col (methodt, def, MONO_METHOD_PARAMLIST);
 	else
-		lastp = paramt->rows + 1;
+	{
+		// Modified by zx start
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			lastp = m->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else
+			lastp = paramt->rows + 1;
+		// Modified by zx end
+	}
 
 	for (i = param_index; i < lastp; ++i) {
 		// Modified by zx
@@ -6969,6 +6983,7 @@ mono_metadata_get_constant_index (MonoImage *meta, guint32 token, guint32 hint)
  * \returns the 0-based index in the \c Event table for the events in the
  * type. The last event that belongs to the type (plus 1) is stored
  * in the \p end_idx pointer.
+ * NOTE: in rgdll the start and end point to table MONO_TABLE_EVENT_POINTER
  */
 guint32
 mono_metadata_events_from_typedef (MonoImage *meta, guint32 index, guint *end_idx)
@@ -6993,7 +7008,13 @@ mono_metadata_events_from_typedef (MonoImage *meta, guint32 index, guint *end_id
 	if (loc.result + 1 < tdef->rows) {
 		end = mono_metadata_decode_row_col (tdef, loc.result + 1, MONO_EVENT_MAP_EVENTLIST) - 1;
 	} else {
-		end = meta->tables [MONO_TABLE_EVENT].rows;
+		// Modified by zx start
+		if (meta->is_rgdll && meta->tables [MONO_TABLE_EVENT_POINTER].rows > 0) {
+			end = meta->tables [MONO_TABLE_EVENT_POINTER].rows;
+		} else {
+			end = meta->tables [MONO_TABLE_EVENT].rows;
+		}
+		// Modified by zx end
 	}
 
 	*end_idx = end;
@@ -7019,7 +7040,8 @@ mono_metadata_methods_from_event   (MonoImage *meta, guint32 index, guint *end_i
 	*end_idx = 0;
 	if (!msemt->base)
 		return 0;
-
+	
+	/// NOTE: DO NOT ADD (meta->is_rgdll && meta->tables[MONO_TABLE_EVENT_POINTER].rows > 0)
 	if (meta->uncompressed_metadata)
 	    index = search_ptr_table (meta, MONO_TABLE_EVENT_POINTER, index + 1) - 1;
 
@@ -7058,6 +7080,8 @@ mono_metadata_methods_from_event   (MonoImage *meta, guint32 index, guint *end_i
  * \returns the 0-based index in the \c Property table for the properties in the
  * type. The last property that belongs to the type (plus 1) is stored
  * in the \p end_idx pointer.
+ * 
+ * NOTE: in rgdll the start and end point to table MONO_TABLE_PROPERTY_POINTER
  */
 guint32
 mono_metadata_properties_from_typedef (MonoImage *meta, guint32 index, guint *end_idx)
@@ -7082,7 +7106,13 @@ mono_metadata_properties_from_typedef (MonoImage *meta, guint32 index, guint *en
 	if (loc.result + 1 < tdef->rows) {
 		end = mono_metadata_decode_row_col (tdef, loc.result + 1, MONO_PROPERTY_MAP_PROPERTY_LIST) - 1;
 	} else {
-		end = meta->tables [MONO_TABLE_PROPERTY].rows;
+		// Modified by zx start
+		if (meta->is_rgdll && meta->tables [MONO_TABLE_PROPERTY_POINTER].rows > 0) {
+			end = meta->tables [MONO_TABLE_PROPERTY_POINTER].rows;
+		} else {
+			end = meta->tables [MONO_TABLE_PROPERTY].rows;
+		}
+		// Modified by zx end
 	}
 
 	*end_idx = end;
@@ -7108,7 +7138,7 @@ mono_metadata_methods_from_property   (MonoImage *meta, guint32 index, guint *en
 	*end_idx = 0;
 	if (!msemt->base)
 		return 0;
-
+	/// NOTE: DO NOT ADD (meta->is_rgdll && meta->tables[MONO_TABLE_PROPERTY_POINTER].rows > 0)
 	if (meta->uncompressed_metadata)
 	    index = search_ptr_table (meta, MONO_TABLE_PROPERTY_POINTER, index + 1) - 1;
 
@@ -8734,3 +8764,44 @@ mono_metadata_get_class_guid (MonoClass* klass, guint8* guid, MonoError *error)
 		g_warning ("Generated GUIDs only implemented for interfaces!");
 #endif
 }
+
+// Modified by zx start
+mono_bool
+mono_type_is_empty (MonoImage *image, uint32_t token)
+{
+	int table = mono_metadata_token_table (token);
+	int idx = mono_metadata_token_index (token);
+	if (idx == 0 || idx > image->tables [table].rows)
+	    return FALSE;
+
+	if (table == MONO_TABLE_TYPEDEF)
+	{
+		guint32 cols [MONO_TYPEDEF_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPEDEF], idx - 1, cols, MONO_TYPEDEF_SIZE);
+
+		if (cols[MONO_TYPEDEF_FLAGS] == 0 && cols[MONO_TYPEDEF_NAME] == 0 && cols[MONO_TYPEDEF_NAMESPACE] == 0 && cols[MONO_TYPEDEF_EXTENDS] == 0)
+			return TRUE;
+	}else if (table == MONO_TABLE_TYPEREF)
+	{
+		guint32 cols [MONO_TYPEREF_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPEREF], idx - 1, cols, MONO_TYPEREF_SIZE);
+
+		if (cols[MONO_TYPEREF_SCOPE] == 0 && cols[MONO_TYPEREF_NAME] == 0 && cols[MONO_TYPEREF_NAMESPACE] == 0)
+			return TRUE;
+	}else if (table == MONO_TABLE_TYPESPEC)
+	{
+		guint32 cols [MONO_TYPESPEC_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPESPEC], idx - 1, cols, MONO_TYPESPEC_SIZE);
+
+		if (cols[MONO_TYPESPEC_SIGNATURE] == 0)
+			return TRUE;
+	}
+	else 
+	{
+		g_error("mono_type_is_empty: unexpected table type %d for token 0x%x", table, token);
+		return FALSE;
+	}
+	
+	return FALSE;
+}
+// Modified by zx end

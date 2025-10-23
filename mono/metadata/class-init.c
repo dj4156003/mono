@@ -623,15 +623,42 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 		field_last  = cols_next [MONO_TYPEDEF_FIELD_LIST] - 1;
 		method_last = cols_next [MONO_TYPEDEF_METHOD_LIST] - 1;
 	} else {
-		field_last  = image->tables [MONO_TABLE_FIELD].rows;
-		method_last = image->tables [MONO_TABLE_METHOD].rows;
+		// Modified by zx start
+		if (image->is_rgdll && image->tables [MONO_TABLE_FIELD_POINTER].rows > 0)
+			field_last  = image->tables [MONO_TABLE_FIELD_POINTER].rows;
+		else
+			field_last  = image->tables [MONO_TABLE_FIELD].rows;
+		
+		if (image->is_rgdll && image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)
+			method_last  = image->tables [MONO_TABLE_METHOD_POINTER].rows;
+		else
+			method_last = image->tables [MONO_TABLE_METHOD].rows;
+		// Modified by zx end
 	}
 
-	if (cols [MONO_TYPEDEF_FIELD_LIST] && 
-	    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD].rows)
-		mono_class_set_field_count (klass, field_last - first_field_idx);
-	if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
-		mono_class_set_method_count (klass, method_last - first_method_idx);
+	// Modified by zx start
+	if (image->is_rgdll && image->tables [MONO_TABLE_FIELD_POINTER].rows > 0)
+	{
+		if (cols [MONO_TYPEDEF_FIELD_LIST] && 
+		    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD_POINTER].rows)
+			mono_class_set_field_count (klass, field_last - first_field_idx);
+	}else 
+	{
+		if (cols [MONO_TYPEDEF_FIELD_LIST] && 
+		    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD].rows)
+			mono_class_set_field_count (klass, field_last - first_field_idx);
+	}
+	
+	if (image->is_rgdll && image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)
+	{
+		if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD_POINTER].rows)
+			mono_class_set_method_count (klass, method_last - first_method_idx);
+	}else
+	{
+		if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
+			mono_class_set_method_count (klass, method_last - first_method_idx);
+	}
+	// Modified by zx end
 
 	/* reserve space to store vector pointer in arrays */
 	if (mono_is_corlib_image (image) && !strcmp (nspace, "System") && !strcmp (name, "Array")) {
@@ -3643,10 +3670,10 @@ mono_class_setup_events (MonoClass *klass)
 			MonoEvent *event = &events [i - first];
 			// Modified by zx
 			idx = i;
-			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
-			
 			if (image->is_rgdll && image->tables[MONO_TABLE_EVENT_POINTER].rows)
 				idx = mono_metadata_decode_row_col(&image->tables[MONO_TABLE_EVENT_POINTER], idx, MONO_EVENT_POINTER_EVENT) - 1;
+			
+			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
 
 			event->parent = klass;
 			event->attrs = cols [MONO_EVENT_FLAGS];

@@ -532,6 +532,10 @@ MONO_API uint32_t      mono_metadata_decode_table_row_col (MonoImage *image, int
 					   int            idx,
 					   unsigned int          col);
 
+// Modified by zx start
+MONO_API mono_bool     mono_type_is_empty (MonoImage *image, uint32_t token);
+// Modified by zx end
+
 MONO_END_DECLS
 
 #endif /* __MONO_METADATA_H__ */
