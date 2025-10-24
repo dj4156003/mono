@@ -11022,7 +11022,10 @@ emit_class_info (MonoAotCompile *acfg)
 		// Modified by zx start
 		guint32 token = MONO_TOKEN_TYPE_DEF | (i + 1);
 		if (mono_type_is_empty(acfg->image, token))
+		{
+			offsets [i] = 0;
 			continue;
+		}
 		// Modified by zx end
 		offsets [i] = emit_klass_info (acfg, token);
 	}
@@ -14018,15 +14021,17 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options,
 	}
 
 	if (!(mono_aot_mode_is_interp (&acfg->aot_opts) && !mono_aot_mode_is_full (&acfg->aot_opts))) {
+		// Modified by zx start
+		int actual_index = 0;
 		for (int method_index = 0; method_index < acfg->image->tables [MONO_TABLE_METHOD].rows; ++method_index)
 		{
-			// Modified by zx start
 			guint32 token = MONO_TOKEN_METHOD_DEF | (method_index + 1);
 			if (mono_method_is_empty(acfg->image, token))
 				continue;
-			// Modified by zx end
-			g_ptr_array_add (acfg->method_order,GUINT_TO_POINTER (method_index));
+			g_ptr_array_add (acfg->method_order, GUINT_TO_POINTER (actual_index));
+			++ actual_index;
 		}
+		// Modified by zx end
 	}
 
 	acfg->num_trampolines [MONO_AOT_TRAMP_SPECIFIC] = mono_aot_mode_is_full (&acfg->aot_opts) ? acfg->aot_opts.ntrampolines : 0;
