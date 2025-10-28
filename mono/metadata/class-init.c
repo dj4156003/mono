@@ -3549,7 +3549,7 @@ mono_class_setup_properties (MonoClass *klass)
 
 				mono_metadata_decode_row (msemt, j, cols, MONO_METHOD_SEMA_SIZE);
 
-				if (klass->image->uncompressed_metadata || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)) {
+				if (klass->image->uncompressed_metadata/* || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)*/) {
 					ERROR_DECL (error);
 					/* It seems like the MONO_METHOD_SEMA_METHOD column needs no remapping */
 					method = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | cols [MONO_METHOD_SEMA_METHOD], klass, NULL, error);
@@ -3686,7 +3686,7 @@ mono_class_setup_events (MonoClass *klass)
 
 				mono_metadata_decode_row (msemt, j, cols, MONO_METHOD_SEMA_SIZE);
 
-				if (klass->image->uncompressed_metadata || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)) {
+				if (klass->image->uncompressed_metadata /* || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0) */) {
 					ERROR_DECL (error);
 					/* It seems like the MONO_METHOD_SEMA_METHOD column needs no remapping */
 					method = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | cols [MONO_METHOD_SEMA_METHOD], klass, NULL, error);

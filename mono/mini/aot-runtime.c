@@ -2244,7 +2244,12 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		return;
 
 	// Modified by zx start
-	if (mono_image_is_updated(assembly->image)) {
+	if (mono_image_rgdll_is_updated(assembly->image)) {
+		if (strcmp(assembly->image->guid, (const char*)info->assembly_guid) != 0)
+        {
+            g_message("DynamicAOT : The assembly %s is updated but doesn't match aot assembly_guid \n", assembly->aname.name);
+            return;
+        }
 		if (!mono_image_support_dynamic_aot(assembly->image)) {
 			g_message("DynamicAOT : The assembly %s is updated and don't support dynamic aot\n", assembly->aname.name);
 			return;
@@ -2252,7 +2257,6 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 			g_message("DynamicAOT : The assembly %s is updated and support dynamic aot\n", assembly->aname.name);
 		}
 	}
-	
 	// Modified by zx end
 
 	mono_aot_lock ();

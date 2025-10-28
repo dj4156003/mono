@@ -29,7 +29,7 @@ typedef enum {
 	RGMONO_IMAGE_HAS_METHOD_HASHES = 0x04,
 	RGMONO_IMAGE_SUPPORT_DYNAMIC_AOT = 0x08,
 	RGMONO_IMAGE_IS_UPDATED = 0x10,
-	RGMONO_IMAGE_ENABLE_DYNAMIC_AOT = 0x30,
+	RGMONO_IMAGE_ENABLE_DYNAMIC_AOT = 0x20,
 } RGMonoImageFlag;
 
 MONO_API void          mono_images_init    (void);
@@ -106,7 +106,7 @@ uint32_t mono_image_decrypt_value(MonoImage* image, uint32_t value);
 MONO_API mono_bool     mono_image_is_rgdll(MonoImage* image);
 #ifndef DISABLE_AOT
 MONO_API mono_bool     mono_image_support_dynamic_aot(MonoImage* image);
-MONO_API mono_bool     mono_image_is_updated(MonoImage* image);
+MONO_API mono_bool     mono_image_rgdll_is_updated(MonoImage* image);
 MONO_API mono_bool     mono_image_method_is_updated(MonoImage* image, uint32_t methodToken);
 MONO_API void          mono_image_set_global_aot_supported(mono_bool supported);
 MONO_API mono_bool     mono_image_get_global_aot_supported(void);

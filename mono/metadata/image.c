@@ -3915,7 +3915,7 @@ mono_image_support_dynamic_aot(MonoImage* image)
 }
 
 mono_bool 
-mono_image_is_updated(MonoImage* image)
+mono_image_rgdll_is_updated(MonoImage* image)
 {
 	if (image->is_rgdll && image->is_updated)
 		return TRUE;
@@ -3925,7 +3925,7 @@ mono_image_is_updated(MonoImage* image)
 mono_bool 
 mono_image_method_is_updated(MonoImage* image, uint32_t methodToken)
 {
-	if (!mono_image_is_updated(image))
+	if (!mono_image_rgdll_is_updated(image))
 		return FALSE;
 
 	if (image->rg_changed_methods_size == 0 || !image->rg_changed_methods)

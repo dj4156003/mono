@@ -12275,7 +12275,7 @@ should_emit_gsharedvt_method (MonoAotCompile *acfg, MonoMethod *method)
 static gboolean
 collect_methods (MonoAotCompile *acfg)
 {
-	int mindex, i, actuel_index;
+	int mindex, i;
 	MonoImage *image = acfg->image;
 
 	/* Collect methods */

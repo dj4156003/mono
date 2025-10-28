@@ -962,6 +962,34 @@ table_locator (const void *a, const void *b)
         return 1;
 }
 
+// Modified by zx start
+static int
+get_property_or_event_real_method_idx(MonoImage *m, int idx)
+{
+    if (!m->is_rgdll || m->tables[MONO_TABLE_METHOD_POINTER].base == NULL || m->tables[MONO_TABLE_METHOD_POINTER].rows == 0)
+        return idx;
+    
+    if (idx < 1 || idx > m->tables[MONO_TABLE_METHOD_POINTER].rows)
+        return -1;
+    
+    int realIDX = -1;
+    if (m->tables[MONO_TABLE_METHOD_POINTER].rows > 65536)
+    {
+        unsigned *data = (unsigned*)m->tables[MONO_TABLE_METHOD_POINTER].base;
+        realIDX = (int)data[idx - 1];
+    }else
+    {
+        unsigned short *data = (unsigned short*)m->tables[MONO_TABLE_METHOD_POINTER].base;
+        realIDX = (int)data[idx - 1];
+    }
+    
+    if (realIDX < 1 || realIDX > m->tables[MONO_TABLE_METHOD].rows)
+        return -1;
+
+    return realIDX;
+}
+// Modified by zx end
+
 static void
 dis_property_methods (MonoImage *m, guint32 prop, MonoGenericContainer *container)
 {
@@ -974,9 +1002,13 @@ dis_property_methods (MonoImage *m, guint32 prop, MonoGenericContainer *containe
     start = mono_metadata_methods_from_property (m, prop, &end);
     for (; start < end; ++start) {
         mono_metadata_decode_row (msemt, start, cols, MONO_METHOD_SEMA_SIZE);
-        if (!should_include_method (cols [MONO_METHOD_SEMA_METHOD]))
+        // Modified by zx
+        int realMethodIdx = get_property_or_event_real_method_idx(m, cols [MONO_METHOD_SEMA_METHOD]);
+        if (realMethodIdx < 0)
             continue;
-        sig = dis_stringify_method_signature_full (m, NULL, cols [MONO_METHOD_SEMA_METHOD], container, TRUE, FALSE);
+        if (!should_include_method (realMethodIdx))
+            continue;
+        sig = dis_stringify_method_signature_full (m, NULL, realMethodIdx, container, TRUE, FALSE);
         if (!sig)
         {
             sig = strdup("NULL");
@@ -1106,9 +1138,13 @@ dis_event_methods (MonoImage *m, guint32 event, MonoGenericContainer *container)
     start = mono_metadata_methods_from_event (m, event, &end);
     for (; start < end; ++start) {
         mono_metadata_decode_row (msemt, start, cols, MONO_METHOD_SEMA_SIZE);
-        if (!should_include_method (cols [MONO_METHOD_SEMA_METHOD]))
+        // Modified by zx
+        int realMethodIdx = get_property_or_event_real_method_idx(m, cols [MONO_METHOD_SEMA_METHOD]);
+        if (realMethodIdx < 0)
             continue;
-        sig = dis_stringify_method_signature_full (m, NULL, cols [MONO_METHOD_SEMA_METHOD], container, TRUE, FALSE);
+        if (!should_include_method (realMethodIdx))
+            continue;
+        sig = dis_stringify_method_signature_full (m, NULL, realMethodIdx, container, TRUE, FALSE);
         switch (cols [MONO_METHOD_SEMA_SEMANTICS]) {
         case METHOD_SEMANTIC_OTHER:
             type = ".other"; break;
