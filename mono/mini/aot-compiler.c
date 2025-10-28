@@ -4135,6 +4135,29 @@ get_got_offset (MonoAotCompile *acfg, gboolean llvm, MonoJumpInfo *ji)
 	return got_offset;
 }
 
+// Modified by zx start
+static void
+add_empty_method_with_index (MonoAotCompile *acfg, int index)
+{
+	g_ptr_array_add (acfg->methods, NULL);
+	acfg->nmethods = acfg->methods->len + 1;
+
+	while (acfg->nmethods >= acfg->cfgs_size) {
+		MonoCompile **new_cfgs;
+		int new_size;
+
+		new_size = acfg->cfgs_size ? acfg->cfgs_size * 2 : 128;
+		new_cfgs = g_new0 (MonoCompile*, new_size);
+		memcpy (new_cfgs, acfg->cfgs, sizeof (MonoCompile*) * acfg->cfgs_size);
+		g_free (acfg->cfgs);
+		acfg->cfgs = new_cfgs;
+		acfg->cfgs_size = new_size;
+		acfg->cfgs[index] = NULL;
+	}
+}
+
+// Modified by zx end
+
 /* Add a method to the list of methods which need to be emitted */
 static void
 add_method_with_index (MonoAotCompile *acfg, MonoMethod *method, int index, gboolean extra)
@@ -5756,6 +5779,10 @@ add_generic_instances (MonoAotCompile *acfg)
 	/* Add types of args/locals */
 	for (i = 0; i < acfg->methods->len; ++i) {
 		method = (MonoMethod *)g_ptr_array_index (acfg->methods, i);
+		// Modified by zx start
+		if (method == NULL)
+			continue;
+		// Modified by zx end
 		add_types_from_method_header (acfg, method);
 	}
 
@@ -8791,6 +8818,11 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 
 	if (acfg->aot_opts.metadata_only)
 		return;
+	
+	// Modified by zx start
+	if (method == NULL)
+		return;
+	// Modified by zx end
 
 	mono_acfg_lock (acfg);
 	index = get_method_index (acfg, method);
@@ -12243,7 +12275,7 @@ should_emit_gsharedvt_method (MonoAotCompile *acfg, MonoMethod *method)
 static gboolean
 collect_methods (MonoAotCompile *acfg)
 {
-	int mindex, i;
+	int mindex, i, actuel_index;
 	MonoImage *image = acfg->image;
 
 	/* Collect methods */
@@ -12253,7 +12285,11 @@ collect_methods (MonoAotCompile *acfg)
 		guint32 token = MONO_TOKEN_METHOD_DEF | (i + 1);
 		// Modified by zx start
 		if (mono_method_is_empty(image, token))
+		{
+			add_empty_method_with_index(acfg, i);
+			acfg->method_index ++;
 			continue;
+		}
 		// Modified by zx end
 
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
@@ -14022,14 +14058,12 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options,
 
 	if (!(mono_aot_mode_is_interp (&acfg->aot_opts) && !mono_aot_mode_is_full (&acfg->aot_opts))) {
 		// Modified by zx start
-		int actual_index = 0;
 		for (int method_index = 0; method_index < acfg->image->tables [MONO_TABLE_METHOD].rows; ++method_index)
 		{
 			guint32 token = MONO_TOKEN_METHOD_DEF | (method_index + 1);
 			if (mono_method_is_empty(acfg->image, token))
 				continue;
-			g_ptr_array_add (acfg->method_order, GUINT_TO_POINTER (actual_index));
-			++ actual_index;
+			g_ptr_array_add (acfg->method_order, GUINT_TO_POINTER (method_index));
 		}
 		// Modified by zx end
 	}

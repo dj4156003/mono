@@ -4694,8 +4694,10 @@ mono_assembly_load_full_gac_base_default (MonoAssemblyName *aname,
 	req.request.predicate_ud = predicate_ud;
 
 	len = strlen (aname->name);
-	for (ext_index = 0; ext_index < 2; ext_index ++) {
-		ext = ext_index == 0 ? ".dll" : ".exe";
+	// Modified by zx
+	static const char* exts[3] = {".dll", ".exe", ".rdl"};
+	for (ext_index = 0; ext_index < 3; ext_index ++) {
+		ext = exts[ext_index];
 		if (len > 4 && (!strcmp (aname->name + len - 4, ".dll") || !strcmp (aname->name + len - 4, ".exe"))) {
 			filename = g_strdup (aname->name);
 			/* Don't try appending .dll/.exe if it already has one of those extensions */

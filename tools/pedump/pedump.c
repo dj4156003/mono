@@ -605,15 +605,29 @@ real_load (gchar **search_path, const gchar *culture, const gchar *name, const M
 		if (try_load_from (&result, *path, local_culture, "", filename, req))
 			break;
 
-		/* 3rd try: [culture]/[name]/[name].dll (culture may be empty) */
+		// Modified by zx start
+		/* 3nd try: [culture]/[name].rdl (culture may be empty) */
+		strcpy (filename + len - 4, ".rdl");
+		if (try_load_from (&result, *path, local_culture, "", filename, req))
+			break;
+		// Modified by zx end
+
+		/* 4rd try: [culture]/[name]/[name].dll (culture may be empty) */
 		strcpy (filename + len - 4, ".dll");
 		if (try_load_from (&result, *path, local_culture, name, filename, req))
 			break;
 
-		/* 4th try: [culture]/[name]/[name].exe (culture may be empty) */
+		/* 5th try: [culture]/[name]/[name].exe (culture may be empty) */
 		strcpy (filename + len - 4, ".exe");
 		if (try_load_from (&result, *path, local_culture, name, filename, req))
 			break;
+
+		// Modified by zx start
+		/* 6th try: [culture]/[name]/[name].rdl (culture may be empty) */
+		strcpy (filename + len - 4, ".rdl");
+		if (try_load_from (&result, *path, local_culture, name, filename, req))
+			break;
+		// Modified by zx end
 	}
 
 	g_free (filename);
