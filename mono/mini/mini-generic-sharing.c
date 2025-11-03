@@ -4453,7 +4453,7 @@ free_oti_data_and_check_need_clear (MonoImage *check_image, MonoRuntimeGenericCo
 		return TRUE;
 	}
 	default:
-		
+		break;
 	}
 	return TRUE;
 }
