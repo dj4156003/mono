@@ -5782,6 +5782,7 @@ image_get_type (MonoDomain *domain, MonoImage *image, MonoTableInfo *tdef, int t
 	HANDLE_FUNCTION_RETURN ();
 }
 
+// Modified by zx
 static MonoArrayHandle
 mono_module_get_types (MonoDomain *domain, MonoImage *image, MonoArrayHandleOut exceptions, MonoBoolean exportedOnly, MonoError *error)
 {
@@ -5794,11 +5795,22 @@ mono_module_get_types (MonoDomain *domain, MonoImage *image, MonoArrayHandleOut 
 	if (exportedOnly) {
 		count = 0;
 		for (i = 1; i < tdef->rows; ++i) {
-			if (mono_module_type_is_visible (tdef, image, i + 1))
+			if (mono_module_type_is_visible (tdef, image, i + 1) && !mono_type_is_empty(image, i + 1))
 				count++;
 		}
 	} else {
-		count = tdef->rows - 1;
+		count = 0;
+		
+		if (image->is_rgdll && image->is_dynamic_aot_format)
+		{
+			for (i = 1; i < tdef->rows; ++i) {
+				if (!mono_type_is_empty(image, (i + 1) | MONO_TOKEN_TYPE_DEF))
+					count++;
+			}
+		}else 
+		{
+			count = tdef->rows - 1;
+		}
 	}
 	MonoArrayHandle res = mono_array_new_handle (domain, mono_defaults.runtimetype_class, count, error);
 	return_val_if_nok (error, NULL_HANDLE_ARRAY);
@@ -5806,6 +5818,10 @@ mono_module_get_types (MonoDomain *domain, MonoImage *image, MonoArrayHandleOut 
 	return_val_if_nok (error, NULL_HANDLE_ARRAY);
 	count = 0;
 	for (i = 1; i < tdef->rows; ++i) {
+		/* Skip empty type */
+		if (image->is_rgdll && image->is_dynamic_aot_format && mono_type_is_empty(image, (i + 1) | MONO_TOKEN_TYPE_DEF))
+		    continue;
+
 		if (!exportedOnly || mono_module_type_is_visible (tdef, image, i+1)) {
 			image_get_type (domain, image, tdef, i + 1, count, res, exceptions, exportedOnly, error);
 			return_val_if_nok (error, NULL_HANDLE_ARRAY);

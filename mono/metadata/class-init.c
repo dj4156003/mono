@@ -3535,9 +3535,9 @@ mono_class_setup_properties (MonoClass *klass)
 		for (i = first; i < last; ++i) {
 			// Modified by zx
 			idx = i;
+			mono_metadata_decode_table_row (image, MONO_TABLE_PROPERTY, i, cols, MONO_PROPERTY_SIZE);
 			if (image->is_rgdll && image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
 				idx = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], i, MONO_PROPERTY_POINTER_PROPERTY) - 1;
-			mono_metadata_decode_table_row (image, MONO_TABLE_PROPERTY, i, cols, MONO_PROPERTY_SIZE);
 			properties [i - first].parent = klass;
 			properties [i - first].attrs = cols [MONO_PROPERTY_FLAGS];
 			properties [i - first].name = mono_metadata_string_heap (klass->image, cols [MONO_PROPERTY_NAME]);
@@ -3670,10 +3670,9 @@ mono_class_setup_events (MonoClass *klass)
 			MonoEvent *event = &events [i - first];
 			// Modified by zx
 			idx = i;
+			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
 			if (image->is_rgdll && image->tables[MONO_TABLE_EVENT_POINTER].rows)
 				idx = mono_metadata_decode_row_col(&image->tables[MONO_TABLE_EVENT_POINTER], idx, MONO_EVENT_POINTER_EVENT) - 1;
-			
-			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
 
 			event->parent = klass;
 			event->attrs = cols [MONO_EVENT_FLAGS];

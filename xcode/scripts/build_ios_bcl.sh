@@ -46,8 +46,8 @@ export MONO_SOURCE_ROOT="$CURRENT_DIRECTORY/../../"
 #    brew install libtool-bin
 #fi
 
-MONO_INSTALL_PATH="$CURRENT_DIRECTORY/../install/ios_bcl_arm64/"
-MONO_CONFIG_PATH="$CURRENT_DIRECTORY/../config/ios_bcl_arm64/"
+MONO_INSTALL_PATH="$CURRENT_DIRECTORY/install/ios_bcl_arm64/"
+MONO_CONFIG_PATH="$CURRENT_DIRECTORY/config/ios_bcl_arm64/"
 
 python3 patch_mono.py --mono-sources $MONO_SOURCE_ROOT
 product="ios"
