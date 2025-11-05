@@ -2243,13 +2243,20 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 	if (image_is_dynamic (assembly->image) || mono_asmctx_get_kind (&assembly->context) == MONO_ASMCTX_REFONLY || mono_domain_get () != mono_get_root_domain ())
 		return;
 
+	mono_aot_lock ();
+
+	if (static_aot_modules)
+		info = (MonoAotFileInfo *)g_hash_table_lookup (static_aot_modules, assembly->aname.name);
+
+	mono_aot_unlock ();
+	
 	// Modified by zx start
 	if (mono_image_rgdll_is_updated(assembly->image)) {
-		if (strcmp(assembly->image->guid, (const char*)info->assembly_guid) != 0)
-        {
-            g_message("DynamicAOT : The assembly %s is updated but doesn't match aot assembly_guid \n", assembly->aname.name);
-            return;
-        }
+		if (info && strcmp(assembly->image->guid, (const char*)info->assembly_guid) != 0)
+		{
+		    g_message("DynamicAOT : The assembly %s is updated but doesn't match aot assembly_guid \n", assembly->aname.name);
+		    return;
+		}
 		if (!mono_image_support_dynamic_aot(assembly->image)) {
 			g_message("DynamicAOT : The assembly %s is updated and don't support dynamic aot\n", assembly->aname.name);
 			return;
@@ -2258,13 +2265,6 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		}
 	}
 	// Modified by zx end
-
-	mono_aot_lock ();
-
-	if (static_aot_modules)
-		info = (MonoAotFileInfo *)g_hash_table_lookup (static_aot_modules, assembly->aname.name);
-
-	mono_aot_unlock ();
 
 	sofile = NULL;
 
