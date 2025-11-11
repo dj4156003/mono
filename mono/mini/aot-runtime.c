@@ -2755,6 +2755,12 @@ decode_cached_class_info (MonoAotModule *module, MonoCachedClassInfo *info, guin
 	guint32 flags;
 	MethodRef ref;
 	gboolean res;
+	
+	// Modified by zx start 
+	// Disable aot class info cache when image supports dynamic aot and be updated
+	if (module->assembly->image && mono_image_rgdll_is_updated(module->assembly->image) && mono_image_support_dynamic_aot(module->assembly->image))
+		return FALSE;
+	// Modified by zx end
 
 	info->vtable_size = decode_value (buf, &buf);
 	if (info->vtable_size == -1)
