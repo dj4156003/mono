@@ -1107,7 +1107,16 @@ mono_interp_jit_call_supported (MonoMethod *method, MonoMethodSignature *sig)
 		return FALSE;
 	if (method->wrapper_type != MONO_WRAPPER_NONE)
 		return FALSE;
-
+	// Modified by zx start
+	if (mono_aot_only) {
+		MonoImage* image = method->klass->image;
+		if (mono_image_rgdll_is_updated(image) && mono_image_support_dynamic_aot(image)) {
+			if (mono_image_method_is_updated(image, method->token)) {
+				return FALSE;
+			}
+		}
+	}
+	// Modified by zx end
 	if (mono_aot_only && m_class_get_image (method->klass)->aot_module && !(method->iflags & METHOD_IMPL_ATTRIBUTE_SYNCHRONIZED)) {
 		ERROR_DECL (error);
 		gpointer addr = mono_jit_compile_method_jit_only (method, error);
