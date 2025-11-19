@@ -2376,7 +2376,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (!usable) {
 		if (mono_aot_only) {
-			g_error ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
+			g_warning ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
 		} else {
 			mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT: module %s is unusable: %s.", found_aot_name, msg);
 		}
@@ -2937,33 +2937,36 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 			guint32 index = entry [0];
 			guint32 next = entry [1];
 			guint32 token = mono_metadata_make_token (MONO_TABLE_TYPEDEF, index);
-
-			name_table_accesses ++;
-
-			mono_metadata_decode_row (t, index - 1, cols, MONO_TYPEDEF_SIZE);
-
-			name2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAME]);
-			name_space2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAMESPACE]);
-
-			if (!strcmp (name, name2) && !strcmp (name_space, name_space2)) {
-				ERROR_DECL (error);
-				amodule_unlock (amodule);
-				*klass = mono_class_get_checked (image, token, error);
-				if (!is_ok (error))
-					mono_error_cleanup (error); /* FIXME don't swallow the error */
-
-				/* Add to cache */
-				if (*klass) {
-					amodule_lock (amodule);
-					nspace_table = (GHashTable *)g_hash_table_lookup (amodule->name_cache, name_space);
-					if (!nspace_table) {
-						nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-						g_hash_table_insert (amodule->name_cache, (char*)name_space2, nspace_table);
-					}
-					g_hash_table_insert (nspace_table, (char*)name2, *klass);
+			
+			// Modified by zx start
+			if (index <= t->rows)
+			{
+				name_table_accesses ++;
+				mono_metadata_decode_row (t, index - 1, cols, MONO_TYPEDEF_SIZE);
+				
+				name2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAME]);
+				name_space2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAMESPACE]);
+				
+				if (!strcmp (name, name2) && !strcmp (name_space, name_space2)) {
+					ERROR_DECL (error);
 					amodule_unlock (amodule);
+					*klass = mono_class_get_checked (image, token, error);
+					if (!is_ok (error))
+						mono_error_cleanup (error); /* FIXME don't swallow the error */
+					
+					/* Add to cache */
+					if (*klass) {
+						amodule_lock (amodule);
+						nspace_table = (GHashTable *)g_hash_table_lookup (amodule->name_cache, name_space);
+						if (!nspace_table) {
+							nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
+							g_hash_table_insert (amodule->name_cache, (char*)name_space2, nspace_table);
+						}
+						g_hash_table_insert (nspace_table, (char*)name2, *klass);
+						amodule_unlock (amodule);
+					}
+					return TRUE;
 				}
-				return TRUE;
 			}
 
 			if (next != 0) {
