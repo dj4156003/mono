@@ -270,6 +270,11 @@ field_from_memberref (MonoImage *image, guint32 token, MonoClass **retklass,
 	error_init (error);
 
 	mono_metadata_decode_row (&tables [MONO_TABLE_MEMBERREF], idx-1, cols, MONO_MEMBERREF_SIZE);
+	// Modified by zx start
+	// Check if memberref is empty
+	if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+		return NULL;
+	// Modified by zx end
 	nindex = cols [MONO_MEMBERREF_CLASS] >> MONO_MEMBERREF_PARENT_BITS;
 	class_index = cols [MONO_MEMBERREF_CLASS] & MONO_MEMBERREF_PARENT_MASK;
 
@@ -871,6 +876,11 @@ method_from_memberref (MonoImage *image, guint32 idx, MonoGenericContext *typesp
 	error_init (error);
 
 	mono_metadata_decode_row (&tables [MONO_TABLE_MEMBERREF], idx-1, cols, MONO_MEMBERREF_SIZE);
+	// Modified by zx start
+	// Check if memberref is empty
+	if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+		return NULL;
+	// Modified by zx end	
 	nindex = cols [MONO_MEMBERREF_CLASS] >> MONO_MEMBERREF_PARENT_BITS;
 	class_index = cols [MONO_MEMBERREF_CLASS] & MONO_MEMBERREF_PARENT_MASK;
 	/*g_print ("methodref: 0x%x 0x%x %s\n", class, nindex,
@@ -987,6 +997,11 @@ method_from_methodspec (MonoImage *image, MonoGenericContext *context, guint32 i
 	error_init (error);
 
 	mono_metadata_decode_row (&tables [MONO_TABLE_METHODSPEC], idx - 1, cols, MONO_METHODSPEC_SIZE);
+	// Modified by zx start 
+	// Check if methodspec is empty
+	if (cols[MONO_METHODSPEC_METHOD] == 0 && cols[MONO_METHODSPEC_SIGNATURE] == 0)
+		return NULL;
+	// Modified by zx end
 	token = cols [MONO_METHODSPEC_METHOD];
 	nindex = token >> MONO_METHODDEFORREF_BITS;
 
@@ -1096,6 +1111,11 @@ mono_get_method_from_token (MonoImage *image, guint32 token, MonoClass *klass,
 	}
 
 	mono_metadata_decode_row (&image->tables [MONO_TABLE_METHOD], idx - 1, cols, MONO_METHOD_SIZE);
+	
+	// Modified by zx start
+	if (mono_method_is_empty(image, token))
+		return NULL;
+	// Modified by zx end
 
 	if ((cols [MONO_METHOD_FLAGS] & METHOD_ATTRIBUTE_PINVOKE_IMPL) ||
 	    (cols [MONO_METHOD_IMPLFLAGS] & METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL)) {

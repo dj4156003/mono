@@ -2009,8 +2009,13 @@ mono_custom_attrs_from_param_checked (MonoMethod *method, guint32 param, MonoErr
 
 	param_list = mono_metadata_decode_row_col (ca, method_index - 1, MONO_METHOD_PARAMLIST);
 	if (method_index == ca->rows) {
+		// Modified by zx start
 		ca = &image->tables [MONO_TABLE_PARAM];
-		param_last = ca->rows + 1;
+		if (image->is_rgdll && image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			param_last = image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else
+			param_last = ca->rows + 1;
+		// Modified by zx end
 	} else {
 		param_last = mono_metadata_decode_row_col (ca, method_index, MONO_METHOD_PARAMLIST);
 		ca = &image->tables [MONO_TABLE_PARAM];
@@ -2676,6 +2681,11 @@ init_weak_fields_inner (MonoImage *image, GHashTable *indexes)
 			const char *sig;
 
 			mono_metadata_decode_row (tdef, i, cols, MONO_MEMBERREF_SIZE);
+			// Modified by zx start
+			// Check if memberref is empty
+			if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+				continue;
+			// Modified by zx end
 			sig = mono_metadata_blob_heap (image, cols [MONO_MEMBERREF_SIGNATURE]);
 			mono_metadata_decode_blob_size (sig, &sig);
 

@@ -6355,6 +6355,11 @@ mono_memberref_is_method (MonoImage *image, guint32 token)
 			return FALSE;
 		}
 		mono_metadata_decode_row (table, idx, cols, MONO_MEMBERREF_SIZE);
+		// Modified by zx start
+		// Check if memberref is empty
+		if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+			return FALSE;
+		// Modified by zx end
 		sig = mono_metadata_blob_heap (image, cols [MONO_MEMBERREF_SIGNATURE]);
 		mono_metadata_decode_blob_size (sig, &sig);
 		return (*sig != 0x6);

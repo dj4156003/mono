@@ -133,6 +133,11 @@ mono_class_from_typeref_checked (MonoImage *image, guint32 type_token, MonoError
 		return NULL;
 
 	mono_metadata_decode_row (t, (type_token&0xffffff)-1, cols, MONO_TYPEREF_SIZE);
+	// Modified by zx start
+	// Check if typeref is empty
+	if (cols[MONO_TYPEREF_SCOPE] == 0 && cols[MONO_TYPEREF_NAME] == 0 && cols[MONO_TYPEREF_NAMESPACE] == 0)
+		return NULL;
+	// Modified by zx end
 
 	name = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAME]);
 	nspace = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAMESPACE]);
@@ -2875,6 +2880,11 @@ mono_class_get_checked (MonoImage *image, guint32 type_token, MonoError *error)
 		klass = (MonoClass *)mono_lookup_dynamic_token (image, type_token, NULL, error);
 		goto done;
 	}
+	
+	// Modified by zx start
+	if (mono_type_is_empty(image, type_token))
+		return NULL;
+	// Modified by zx end
 
 	switch (type_token & 0xff000000){
 	case MONO_TOKEN_TYPE_DEF:
@@ -3017,6 +3027,12 @@ mono_image_init_name_cache (MonoImage *image)
 
 	for (i = 1; i <= t->rows; ++i) {
 		mono_metadata_decode_row (t, i - 1, cols, MONO_TYPEDEF_SIZE);
+		// Modified by zx start
+		// Check if typedef is empty
+		if (cols[MONO_TYPEDEF_FLAGS] == 0 && cols[MONO_TYPEDEF_NAME] == 0 && cols[MONO_TYPEDEF_NAMESPACE] == 0 && cols[MONO_TYPEDEF_EXTENDS] == 0)
+			continue;
+		// Modified by zx end
+	
 		visib = cols [MONO_TYPEDEF_FLAGS] & TYPE_ATTRIBUTE_VISIBILITY_MASK;
 		/*
 		 * Nested types are accessed from the nesting name.  We use the fact that nested types use different visibility flags
@@ -4669,6 +4685,13 @@ mono_ldtoken_checked (MonoImage *image, guint32 token, MonoClass **handle_class,
 		guint32 cols [MONO_MEMBERREF_SIZE];
 		const char *sig;
 		mono_metadata_decode_row (&image->tables [MONO_TABLE_MEMBERREF], mono_metadata_token_index (token) - 1, cols, MONO_MEMBERREF_SIZE);
+		
+		// Modified by zx start
+		// Check if memberref is empty
+		if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+			return NULL;
+		// Modified by zx end
+		
 		sig = mono_metadata_blob_heap (image, cols [MONO_MEMBERREF_SIGNATURE]);
 		mono_metadata_decode_blob_size (sig, &sig);
 		if (*sig == 0x6) { /* it's a field */

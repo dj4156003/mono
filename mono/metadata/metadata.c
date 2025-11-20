@@ -7232,6 +7232,11 @@ mono_type_create_from_typespec_checked (MonoImage *image, guint32 type_spec, Mon
 	t = &image->tables [MONO_TABLE_TYPESPEC];
 
 	mono_metadata_decode_row (t, idx-1, cols, MONO_TYPESPEC_SIZE);
+	// Modified by zx start
+	// Check if typespec is empty
+	if (cols[MONO_TYPESPEC_SIGNATURE] == 0)
+		return NULL;
+	// Modified by zx end
 	ptr = mono_metadata_blob_heap (image, cols [MONO_TYPESPEC_SIGNATURE]);
 
 	if (!mono_verifier_verify_typespec_signature (image, cols [MONO_TYPESPEC_SIGNATURE], type_spec, error))
