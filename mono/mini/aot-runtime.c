@@ -535,7 +535,12 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf, MonoError
 		gclass = decode_klass_ref (module, p, &p, error);
 		if (!gclass)
 			return NULL;
-		g_assert (mono_class_is_gtd (gclass));
+		
+		// Modified by zx start
+		// Maybe this typedef is overrided
+		if (!mono_class_is_gtd (gclass))
+			return NULL;
+		// Modified by zx end
 
 		memset (&ctx, 0, sizeof (ctx));
 		guint32 offset = decode_value (p, &p);
