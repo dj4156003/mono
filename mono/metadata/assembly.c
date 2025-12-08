@@ -1808,6 +1808,11 @@ mono_assembly_load_reference (MonoImage *image, int index)
 		mono_error_cleanup (local_error);
 		goto commit_reference;
 	}
+	
+	// Modified by zx start
+	if (aname.name == NULL || aname.name[0] == '\0')
+		goto commit_reference;
+	// Modified by zx end
 
 	if (image->assembly) {
 		if (mono_trace_is_traced (G_LOG_LEVEL_INFO, MONO_TRACE_ASSEMBLY)) {

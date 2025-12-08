@@ -3475,6 +3475,11 @@ verify_assemblyref_table (VerifyContext *ctx)
 
 	for (i = 0; i < table->rows; ++i) {
 		mono_metadata_decode_row (table, i, data, MONO_ASSEMBLYREF_SIZE);
+		
+		// Modified by zx start
+		if (data[MONO_ASSEMBLYREF_NAME] == 0)
+			continue;
+		// Modified by zx end
 
 		if (data [MONO_ASSEMBLYREF_FLAGS] & INVALID_ASSEMBLYREF_FLAGS_BITS)
 			ADD_ERROR (ctx, g_strdup_printf ("AssemblyRef table row %d has invalid Flags %08x", i, data [MONO_ASSEMBLYREF_FLAGS]));

@@ -295,6 +295,11 @@ load_image (MonoAotModule *amodule, int index, MonoError *error)
 	g_assert (index < amodule->image_table_len);
 
 	error_init (error);
+	
+	// Modified by zx start
+	if (!amodule->image_names[index].name || amodule->image_names[index].name[0] == '\0')
+	    return NULL;
+	// Modified by zx end
 
 	if (amodule->image_table [index])
 		return amodule->image_table [index];
@@ -335,8 +340,9 @@ load_image (MonoAotModule *amodule, int index, MonoError *error)
 		amodule->out_of_date = TRUE;
 		return NULL;
 	}
-
-	if (strcmp (assembly->image->guid, amodule->image_guids [index])) {
+	
+	// Modified by zx
+	if (!assembly->image->is_rgdll && !assembly->image->is_dynamic_aot_format && strcmp (assembly->image->guid, amodule->image_guids [index])) {
 		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT: module %s is unusable (GUID of dependent assembly %s doesn't match (expected '%s', got '%s')).", amodule->aot_name, amodule->image_names [index].name, amodule->image_guids [index], assembly->image->guid);
 		mono_error_set_bad_image_by_name (error, amodule->aot_name, "module '%s' is unusable (GUID of dependent assembly %s doesn't match (expected '%s', got '%s')).", amodule->aot_name, amodule->image_names [index].name, amodule->image_guids [index], assembly->image->guid);
 		amodule->out_of_date = TRUE;
