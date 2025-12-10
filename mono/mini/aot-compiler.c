@@ -3234,7 +3234,7 @@ get_image_index (MonoAotCompile *cfg, MonoImage *image)
 		return index - 1;
 	else {
 		// Modified by zx start
-		if (is_image_support_dynamic_aot(image))
+		if (is_image_support_dynamic_aot(cfg->image))
 		{
 			for (index = 0; index < cfg->image_names->len; ++ index)
 			{
