@@ -49,6 +49,9 @@ mono_get_root_exec_domain (void);
 void
 mono_set_root_exec_domain (MonoDomain *domain);
 
+mono_bool
+mono_is_set_root_exec_domain (void);
+
 MONO_API MONO_RT_EXTERNAL_ONLY void
 mono_runtime_init          (MonoDomain *domain, MonoThreadStartCB start_cb,
 			    MonoThreadAttachCB attach_cb);

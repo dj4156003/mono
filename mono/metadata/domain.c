@@ -927,6 +927,12 @@ mono_set_root_exec_domain (MonoDomain *domain)
 	mono_root_exec_domain = domain;
 }
 
+gboolean
+mono_is_set_root_exec_domain (void)
+{
+	return mono_root_exec_domain == NULL ? FALSE : TRUE;
+}
+
 /**
  * mono_domain_get:
  *

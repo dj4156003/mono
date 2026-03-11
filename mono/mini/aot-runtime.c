@@ -2575,6 +2575,13 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (already_reused_aot_module)
 	{
+		// The AOT module is out of date!
+		if (strcmp (assembly->image->guid, (const char*)info->assembly_guid)) {
+			memset(&assembly->image->aotid, 0, 16);
+			assembly->image->aot_module = NULL;
+			g_hash_table_remove(aot_modules, assembly);
+			return;
+		}
 		reuse_aot_module(last_aot_image, assembly, already_reused_aot_module);
 		return;
 	}
@@ -2689,7 +2696,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (!usable) {
 		if (mono_aot_only) {
-			g_error ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
+			g_warning ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
 		} else {
 			mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT: module %s is unusable: %s.", found_aot_name, msg);
 		}
@@ -4337,7 +4344,7 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 
 	nmethods = amodule->info.nmethods;
 
-	if (domain != mono_get_root_exec_domain ())
+	if (mono_is_set_root_exec_domain() && domain != mono_get_root_exec_domain ())
 		/* FIXME: */
 		// return NULL;
 		domain = mono_get_root_exec_domain();
@@ -4931,7 +4938,7 @@ load_method (MonoDomain *domain, MonoAotModule *amodule, MonoImage *image, MonoM
 
 	init_amodule_got (amodule, FALSE);
 
-	if (domain != mono_get_root_exec_domain ())
+	if (mono_is_set_root_exec_domain() && domain != mono_get_root_exec_domain ())
 		/* Non shared AOT code can't be used in other appdomains */
 		// return NULL;
 		domain = mono_get_root_exec_domain();
@@ -5339,6 +5346,9 @@ static gboolean
 init_method (MonoAotModule *amodule, gpointer info, guint32 method_index, MonoMethod *method, MonoClass *init_class, MonoError *error)
 {
 	MonoDomain *domain = mono_domain_get ();
+	if (mono_is_set_root_exec_domain() && domain != mono_get_root_exec_domain ())
+		domain = mono_get_root_exec_domain();
+
 	MonoMemPool *mp;
 	MonoClass *klass_to_run_ctor = NULL;
 	gboolean from_plt = method == NULL;
@@ -5537,7 +5547,7 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method, MonoError *error)
 
 	error_init (error);
 
-	if (domain != mono_get_root_exec_domain ())
+	if (mono_is_set_root_exec_domain() && domain != mono_get_root_exec_domain ())
 		/* Non shared AOT code can't be used in other appdomains */
 		// return NULL;
 		domain = mono_get_root_exec_domain();
