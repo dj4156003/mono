@@ -85,6 +85,7 @@ def setup_desktop_template(env: dict, opts: DesktopOpts, product: str, target_pl
 
     CONFIGURE_FLAGS = [
         #'--with-sgen=no',
+		#'--disable-boehm',
         '--with-libgc=included',
         '--with-libatomic-ops=none',
         '--disable-mcs-build',
@@ -166,12 +167,6 @@ def setup_desktop_template(env: dict, opts: DesktopOpts, product: str, target_pl
 
             env['_%s-%s_CFLAGS' % (product, target)] = CFLAGS
             env['_%s-%s_CXXFLAGS' % (product, target)] = CFLAGS
-            
-            if opts.build_mono_tool:
-                CONFIGURE_FLAGS += [
-                    '--with-runtime-preset=fullaot'
-                ]
-            
 
     env['_%s-%s_CONFIGURE_FLAGS' % (product, target)] = CONFIGURE_FLAGS
 
@@ -275,7 +270,6 @@ def run_main(raw_args, target_platform):
     parser.add_argument('action', choices=['configure', 'make', 'copy-bcl', 'clean'])
     parser.add_argument('--target', choices=targets[target_platform], action='append', required=True)
     parser.add_argument('--with-llvm', action='store_true', default=False, help=default_help)
-    parser.add_argument('--build_mono_tool', action='store_true', default=False, help=default_help)
 
     cmd_utils.add_runtime_arguments(parser, default_help)
 

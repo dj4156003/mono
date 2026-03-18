@@ -5993,6 +5993,10 @@ if test "x$enable_btls" = "xyes"; then
 	x86_64)
 		btls_arch=x86_64
 		case $host_os in
+			darwin*)
+				btls_cflags="$btls_cflags -arch x86_64"
+				BTLS_CMAKE_ARGS="$BTLS_CMAKE_ARGS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_SYSTEM_PROCESSOR=x86_64"
+				;;
 			mingw*|cygwin*)
 				btls_cflags="-DNOCRYPT $WIN32_CPPFLAGS"
 				if test "x$HAVE_YASM" != "xyes"; then

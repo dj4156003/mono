@@ -43,7 +43,6 @@ class iOSOpts(RuntimeOpts):
 @dataclass
 class DesktopOpts(RuntimeOpts):
     with_llvm: bool
-    build_mono_tool: bool
 
 
 @dataclass
@@ -110,8 +109,7 @@ def bcl_opts_from_args(args):
 def desktop_opts_from_args(args):
     return DesktopOpts(
         **vars(runtime_opts_from_args(args)),
-        with_llvm = args.with_llvm,
-        build_mono_tool = args.build_mono_tool
+        with_llvm = args.with_llvm
     )
 
 
