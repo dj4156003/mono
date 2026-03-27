@@ -2499,6 +2499,10 @@ reuse_aot_module (MonoImage *last_aot_image, MonoAssembly *new_aot_assembly, Mon
 			}
 		}
 	}
+	if (already_reused_aot_module->unbox_tramp_per_method) {
+		g_free (already_reused_aot_module->unbox_tramp_per_method);
+		already_reused_aot_module->unbox_tramp_per_method = NULL;
+	}
 
 	mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "End reuse AOT: module %s", already_reused_aot_module->aot_name);
 }
@@ -3226,6 +3230,12 @@ mono_aot_reset (void)
 		{
 			g_hash_table_remove (aot_modules, module->assembly);
 			g_hash_table_insert (aot_reused_modules, module->aot_name, module);
+		}else 
+		{
+			if (mscorlib_aot_module->unbox_tramp_per_method) {
+				g_free (mscorlib_aot_module->unbox_tramp_per_method);
+				mscorlib_aot_module->unbox_tramp_per_method = NULL;
+			}
 		}
 	}
 	g_ptr_array_free (all_aot_modules, TRUE);
