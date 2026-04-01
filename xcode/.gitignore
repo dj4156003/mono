@@ -9,4 +9,8 @@ xcuserdata/
 *.xcscheme/userdata/
 *.xcworkspace/xcuserdata/
 
+*.xcodeproj.template/project.xcworkspace/
+*.xcodeproj.template/xcuserdata/
+*.xcodeproj.template/xcshareddata/
+
 .DS_Store
