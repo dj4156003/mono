@@ -101,6 +101,16 @@ def setup_desktop_template(env: dict, opts: DesktopOpts, product: str, target_pl
             '--with-libgdiplus=%s' % opts.mxe_prefix,
             '--enable-btls-lib',
         ]
+    elif target_platform == 'osx':
+        CONFIGURE_FLAGS += [
+            '--disable-thread-local-alloc',
+            '--enable-no-threads-discovery=yes',
+            '--enable-mmap=yes',
+            '--with-sigaltstack=yes',
+            '--enable-minimal=com,remoting,shared_perfcounters',
+            '--disable-cooperative-suspend',
+            '--disable-hybrid-suspend',
+        ]
     else:
         CONFIGURE_FLAGS += [
             '--disable-iconv',
