@@ -129,6 +129,24 @@ mono_os_mutex_unlock (mono_mutex_t *mutex)
 		g_error ("%s: pthread_mutex_unlock failed with \"%s\" (%d)", __func__, g_strerror (res), res);
 }
 
+static inline gboolean
+mono_os_mutex_isvalid(mono_mutex_t *mutex)
+{
+	if (!mutex) return FALSE;
+	int res = pthread_mutex_trylock(mutex);
+	if (res == 0) {
+		pthread_mutex_unlock(mutex);
+		return TRUE;
+	} 
+	else if (res == EBUSY) {
+		return TRUE;
+	} 
+	else if (res == EINVAL) {
+		return FALSE;
+	}
+	return FALSE;
+}
+
 #else /* DISABLE_THREADS */
 
 static inline void
@@ -165,6 +183,12 @@ mono_os_mutex_trylock (mono_mutex_t *mutex)
 static inline void
 mono_os_mutex_unlock (mono_mutex_t *mutex)
 {
+}
+
+static inline gboolean
+mono_os_mutex_isvalid(mono_mutex_t *mutex)
+{
+	return FALSE;
 }
 
 #endif /* DISABLE_THREADS */

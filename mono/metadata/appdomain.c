@@ -2990,6 +2990,8 @@ failure:
 	goto exit;
 }
 
+volatile int current_try_unload_domain_id = -1;
+
 /**
  * mono_domain_unload:
  * \param domain The domain to unload
@@ -3071,6 +3073,7 @@ mono_domain_try_unload (MonoDomain *domain, MonoObject **exc, MonoUnityException
 	}
 
 	mono_domain_set_fast (domain, FALSE);
+	current_try_unload_domain_id = domain->domain_id;
 	/* Notify OnDomainUnload listeners */
 	method = mono_class_get_method_from_name_checked (domain->domain->mbr.obj.vtable->klass, "DoDomainUnload", -1, 0, error);
 	g_assert (method);

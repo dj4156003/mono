@@ -2198,7 +2198,7 @@ init_amodule_got (MonoAotModule *amodule, gboolean preinit)
 			amodule->shared_got [i] = amodule;
 		} else if (ji->type == MONO_PATCH_INFO_NONE) {
 		} else {
-			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_domain (), NULL, ji, FALSE, error);
+			amodule->shared_got [i] = mono_resolve_patch_target (NULL, mono_get_root_exec_domain (), NULL, ji, FALSE, error);
 			mono_error_assert_ok (error);
 		}
 	}
@@ -3186,9 +3186,17 @@ reuse_mscorlib_aot_module(GArray *reserved_async_jit_info_maps)
 	mscorlib_aot_module->plt_inited = FALSE;
 }
 
+extern volatile int g_finalizing_domain_suspend;
+
 void
 mono_aot_reset (void)
 {
+	g_finalizing_domain_suspend = TRUE;
+#if defined(__arm64__) || defined(__x86_64__)
+	mono_memory_barrier();
+#endif
+	usleep(20000);
+
 	GArray * reserved_corlib_async_jit_info_maps = collect_corlib_async_jit_info_maps();
 	mono_clear_root_domain_jit_info(mark_ji_info_state);
 
@@ -3243,6 +3251,7 @@ mono_aot_reset (void)
 	mono_arch_reset ();
 
 	mini_generic_sharing_clear_gshared_wrapper_cache ();
+	g_finalizing_domain_suspend = FALSE;
 }
 
 gpointer

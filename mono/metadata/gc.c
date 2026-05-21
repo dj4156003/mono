@@ -230,13 +230,32 @@ mono_gc_run_finalize (void *obj, void *data)
 #endif
 	MonoMethod* finalizer = NULL;
 	MonoDomain *caller_domain = mono_domain_get ();
-	MonoDomain *domain;
+	MonoDomain *domain, *script_domain, *root_domain;
 
 	// This function is called from the innards of the GC, so our best alternative for now is to do polling here
 	mono_threads_safepoint ();
 
+#if defined(__arm64__) || defined(__x86_64__)
+	mono_memory_barrier();
+#endif
 	o = (MonoObject*)((char*)obj + GPOINTER_TO_UINT (data));
-
+	gpointer* raw_fields = (gpointer*)o;
+	if (!raw_fields || raw_fields[0] == NULL) {
+		return;
+	}
+	MonoVTable *vt = o->vtable;
+	if (!vt || ((uintptr_t)vt & 0x7) || (uintptr_t)vt < 0x10000) {
+		return;
+	}	
+	domain = o->vtable->domain;
+	if (!domain)
+		return;
+	
+	MonoClass *klass = vt->klass;
+	if (!klass || ((uintptr_t)klass & 0x7) || (uintptr_t)klass < 0x100000000) {
+		return; 
+	}
+	
 	const char *o_ns = m_class_get_name_space (mono_object_class (o));
 	const char *o_name = m_class_get_name (mono_object_class (o));
 
@@ -263,9 +282,14 @@ mono_gc_run_finalize (void *obj, void *data)
 	if (suspend_finalizers)
 		return;
 
-	domain = o->vtable->domain;
-
 #ifndef HAVE_SGEN_GC
+	script_domain = mono_get_root_exec_domain();
+	root_domain = mono_get_root_domain();
+	if (script_domain != root_domain && domain != script_domain && domain != root_domain)
+		return;
+	
+	if (!mono_os_mutex_isvalid(&domain->finalizable_objects_hash_lock))
+		return;
 	mono_domain_finalizers_lock (domain);
 
 	o2 = (MonoObject *)g_hash_table_lookup (domain->finalizable_objects_hash, o);
@@ -851,6 +875,10 @@ collect_objects (gpointer key, gpointer value, gpointer user_data)
 
 #endif
 
+#ifdef HAVE_BOEHM_GC
+extern volatile int current_try_unload_domain_id;
+#endif
+
 /*
  * finalize_domain_objects:
  *
@@ -894,6 +922,9 @@ finalize_domain_objects (void)
 
 		for (i = 0; i < objs->len; ++i) {
 			MonoObject *o = (MonoObject*)g_ptr_array_index (objs, i);
+			if (current_try_unload_domain_id == 1 && GC_base(o) == NULL) {
+				continue; 
+			}
 			/* FIXME: Avoid finalizing threads, etc */
 			mono_gc_run_finalize (o, 0);
 		}
@@ -949,6 +980,8 @@ mono_runtime_do_background_work (void)
 	hazard_free_queue_pump ();
 }
 
+volatile gboolean g_finalizing_domain_suspend = FALSE;
+
 static gsize WINAPI
 finalizer_thread (gpointer unused)
 {
@@ -975,6 +1008,12 @@ finalizer_thread (gpointer unused)
 		/* Wait to be notified that there's at least one
 		 * finaliser to run
 		 */
+		
+		while (g_finalizing_domain_suspend) 
+		{
+			mono_thread_info_sleep (10, NULL); 
+			if (finished) break; 
+		}
 
 		g_assert (mono_domain_get () == mono_get_root_domain ());
 		mono_thread_info_set_flags (MONO_THREAD_INFO_FLAGS_NO_GC);
