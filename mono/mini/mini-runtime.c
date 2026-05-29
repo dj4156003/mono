@@ -599,10 +599,6 @@ mono_tramp_info_register (MonoTrampInfo *info, MonoDomain *domain)
 void
 mono_aot_tramp_info_register (MonoTrampInfo *info, MonoDomain *domain)
 {
-	if (domain == NULL && mono_is_set_root_exec_domain())
-	{
-		domain = mono_get_root_exec_domain();
-	}
 	mono_tramp_info_register_internal (info, domain, TRUE);
 }
 

@@ -6790,6 +6790,7 @@ mono_aot_get_unbox_trampoline (MonoMethod *method, gpointer addr)
 	guint32 *ut, *ut_end, *entry;
 	int low, high, entry_index = 0;
 	MonoTrampInfo *tinfo;
+	MonoDomain* domain = NULL;
 
 	if (method->is_inflated && !mono_method_is_generic_sharable_full (method, FALSE, FALSE, FALSE)) {
 		method_index = find_aot_method (method, &amodule);
@@ -6905,7 +6906,11 @@ mono_aot_get_unbox_trampoline (MonoMethod *method, gpointer addr)
 	tinfo->method = method;
 	tinfo->code_size = *(guint32*)symbol_addr;
 	tinfo->unwind_ops = mono_arch_get_cie_program ();
-	mono_aot_tramp_info_register (tinfo, NULL);
+	if (mono_is_set_root_exec_domain())
+	{
+		domain = mono_get_root_exec_domain();
+	}
+	mono_aot_tramp_info_register (tinfo, domain);
 
 	mono_memory_barrier ();
 	amodule->unbox_tramp_per_method [method_index] = code;
