@@ -12,6 +12,10 @@
  * 25.2.1: Method header type values
  */
 #define METHOD_HEADER_FORMAT_MASK   3
+// Modified by zx start
+#define METHOD_HEADER_TINY_FORMAT_DECRYPT   0
+#define METHOD_HEADER_FAT_FORMAT_DECRYPT   1
+// Modified by zx end
 #define METHOD_HEADER_TINY_FORMAT   2
 #define METHOD_HEADER_FAT_FORMAT    3
 

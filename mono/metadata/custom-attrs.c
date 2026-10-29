@@ -158,7 +158,13 @@ find_field_index (MonoClass *klass, MonoClassField *field) {
 		return 0;
 
 	g_assert (field == &klass_fields [index]);
-	return mono_class_get_first_field_idx (klass) + 1 + index;
+
+	int idx = mono_class_get_first_field_idx (klass) + 1 + index;
+	// Modified by zx start
+	if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+		idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+	// Modified by zx end
+	return idx;
 }
 
 /*
@@ -2003,15 +2009,24 @@ mono_custom_attrs_from_param_checked (MonoMethod *method, guint32 param, MonoErr
 
 	param_list = mono_metadata_decode_row_col (ca, method_index - 1, MONO_METHOD_PARAMLIST);
 	if (method_index == ca->rows) {
+		// Modified by zx start
 		ca = &image->tables [MONO_TABLE_PARAM];
-		param_last = ca->rows + 1;
+		if (image->is_rgdll && image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			param_last = image->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else
+			param_last = ca->rows + 1;
+		// Modified by zx end
 	} else {
 		param_last = mono_metadata_decode_row_col (ca, method_index, MONO_METHOD_PARAMLIST);
 		ca = &image->tables [MONO_TABLE_PARAM];
 	}
 	found = FALSE;
 	for (i = param_list; i < param_last; ++i) {
-		param_pos = mono_metadata_decode_row_col (ca, i - 1, MONO_PARAM_SEQUENCE);
+		// Modified by zx
+		idx = i;
+		if (image->is_rgdll && image->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			idx = mono_metadata_decode_row_col (&image->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		param_pos = mono_metadata_decode_row_col (ca, idx - 1, MONO_PARAM_SEQUENCE);
 		if (param_pos == param) {
 			found = TRUE;
 			break;
@@ -2019,7 +2034,7 @@ mono_custom_attrs_from_param_checked (MonoMethod *method, guint32 param, MonoErr
 	}
 	if (!found)
 		return NULL;
-	idx = i;
+	//idx = i;
 	idx <<= MONO_CUSTOM_ATTR_BITS;
 	idx |= MONO_CUSTOM_ATTR_PARAMDEF;
 	return mono_custom_attrs_from_index_checked (image, idx, FALSE, error);
@@ -2358,7 +2373,7 @@ custom_attr_class_name_from_methoddef (MonoImage *image, guint32 method_token, c
 {
 	/* mono_get_method_from_token () */
 	g_assert (mono_metadata_token_table (method_token) == MONO_TABLE_METHOD);
-	guint32 type_token = mono_metadata_typedef_from_method (image, method_token);
+	guint32 type_token = mono_metadata_typedef_from_method(image, method_token);
 	if (!type_token) {
 		/* Bad method token (could not find corresponding typedef) */
 		return FALSE;
@@ -2666,6 +2681,11 @@ init_weak_fields_inner (MonoImage *image, GHashTable *indexes)
 			const char *sig;
 
 			mono_metadata_decode_row (tdef, i, cols, MONO_MEMBERREF_SIZE);
+			// Modified by zx start
+			// Check if memberref is empty
+			if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+				continue;
+			// Modified by zx end
 			sig = mono_metadata_blob_heap (image, cols [MONO_MEMBERREF_SIGNATURE]);
 			mono_metadata_decode_blob_size (sig, &sig);
 

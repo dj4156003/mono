@@ -295,6 +295,11 @@ load_image (MonoAotModule *amodule, int index, MonoError *error)
 	g_assert (index < amodule->image_table_len);
 
 	error_init (error);
+	
+	// Modified by zx start
+	if (!amodule->image_names[index].name || amodule->image_names[index].name[0] == '\0')
+	    return NULL;
+	// Modified by zx end
 
 	if (amodule->image_table [index])
 		return amodule->image_table [index];
@@ -335,8 +340,9 @@ load_image (MonoAotModule *amodule, int index, MonoError *error)
 		amodule->out_of_date = TRUE;
 		return NULL;
 	}
-
-	if (strcmp (assembly->image->guid, amodule->image_guids [index])) {
+	
+	// Modified by zx
+	if (!assembly->image->is_rgdll && !assembly->image->is_dynamic_aot_format && strcmp (assembly->image->guid, amodule->image_guids [index])) {
 		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT: module %s is unusable (GUID of dependent assembly %s doesn't match (expected '%s', got '%s')).", amodule->aot_name, amodule->image_names [index].name, amodule->image_guids [index], assembly->image->guid);
 		mono_error_set_bad_image_by_name (error, amodule->aot_name, "module '%s' is unusable (GUID of dependent assembly %s doesn't match (expected '%s', got '%s')).", amodule->aot_name, amodule->image_names [index].name, amodule->image_guids [index], assembly->image->guid);
 		amodule->out_of_date = TRUE;
@@ -535,7 +541,12 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf, MonoError
 		gclass = decode_klass_ref (module, p, &p, error);
 		if (!gclass)
 			return NULL;
-		g_assert (mono_class_is_gtd (gclass));
+		
+		// Modified by zx start
+		// Maybe this typedef is overrided
+		if (!mono_class_is_gtd (gclass))
+			return NULL;
+		// Modified by zx end
 
 		memset (&ctx, 0, sizeof (ctx));
 		guint32 offset = decode_value (p, &p);
@@ -2249,6 +2260,22 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 		info = (MonoAotFileInfo *)g_hash_table_lookup (static_aot_modules, assembly->aname.name);
 
 	mono_aot_unlock ();
+	
+	// Modified by zx start
+	if (mono_image_rgdll_is_updated(assembly->image)) {
+		if (info && strcmp(assembly->image->guid, (const char*)info->assembly_guid) != 0)
+		{
+		    g_message("DynamicAOT : The assembly %s is updated but doesn't match aot assembly_guid \n", assembly->aname.name);
+		    return;
+		}
+		if (!mono_image_support_dynamic_aot(assembly->image)) {
+			g_message("DynamicAOT : The assembly %s is updated and don't support dynamic aot\n", assembly->aname.name);
+			return;
+		} else {
+			g_message("DynamicAOT : The assembly %s is updated and support dynamic aot\n", assembly->aname.name);
+		}
+	}
+	// Modified by zx end
 
 	sofile = NULL;
 
@@ -2360,7 +2387,7 @@ load_aot_module (MonoAssemblyLoadContext *alc, MonoAssembly *assembly, gpointer 
 
 	if (!usable) {
 		if (mono_aot_only) {
-			g_error ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
+			g_warning ("Failed to load AOT module '%s' while running in aot-only mode: %s.\n", found_aot_name, msg);
 		} else {
 			mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT: module %s is unusable: %s.", found_aot_name, msg);
 		}
@@ -2739,6 +2766,12 @@ decode_cached_class_info (MonoAotModule *module, MonoCachedClassInfo *info, guin
 	guint32 flags;
 	MethodRef ref;
 	gboolean res;
+	
+	// Modified by zx start 
+	// Disable aot class info cache when image supports dynamic aot and be updated
+	if (module->assembly->image && mono_image_rgdll_is_updated(module->assembly->image) && mono_image_support_dynamic_aot(module->assembly->image))
+		return FALSE;
+	// Modified by zx end
 
 	info->vtable_size = decode_value (buf, &buf);
 	if (info->vtable_size == -1)
@@ -2915,33 +2948,36 @@ mono_aot_get_class_from_name (MonoImage *image, const char *name_space, const ch
 			guint32 index = entry [0];
 			guint32 next = entry [1];
 			guint32 token = mono_metadata_make_token (MONO_TABLE_TYPEDEF, index);
-
-			name_table_accesses ++;
-
-			mono_metadata_decode_row (t, index - 1, cols, MONO_TYPEDEF_SIZE);
-
-			name2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAME]);
-			name_space2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAMESPACE]);
-
-			if (!strcmp (name, name2) && !strcmp (name_space, name_space2)) {
-				ERROR_DECL (error);
-				amodule_unlock (amodule);
-				*klass = mono_class_get_checked (image, token, error);
-				if (!is_ok (error))
-					mono_error_cleanup (error); /* FIXME don't swallow the error */
-
-				/* Add to cache */
-				if (*klass) {
-					amodule_lock (amodule);
-					nspace_table = (GHashTable *)g_hash_table_lookup (amodule->name_cache, name_space);
-					if (!nspace_table) {
-						nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
-						g_hash_table_insert (amodule->name_cache, (char*)name_space2, nspace_table);
-					}
-					g_hash_table_insert (nspace_table, (char*)name2, *klass);
+			
+			// Modified by zx start
+			if (index <= t->rows)
+			{
+				name_table_accesses ++;
+				mono_metadata_decode_row (t, index - 1, cols, MONO_TYPEDEF_SIZE);
+				
+				name2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAME]);
+				name_space2 = mono_metadata_string_heap (image, cols [MONO_TYPEDEF_NAMESPACE]);
+				
+				if (!strcmp (name, name2) && !strcmp (name_space, name_space2)) {
+					ERROR_DECL (error);
 					amodule_unlock (amodule);
+					*klass = mono_class_get_checked (image, token, error);
+					if (!is_ok (error))
+						mono_error_cleanup (error); /* FIXME don't swallow the error */
+					
+					/* Add to cache */
+					if (*klass) {
+						amodule_lock (amodule);
+						nspace_table = (GHashTable *)g_hash_table_lookup (amodule->name_cache, name_space);
+						if (!nspace_table) {
+							nspace_table = g_hash_table_new (g_str_hash, g_str_equal);
+							g_hash_table_insert (amodule->name_cache, (char*)name_space2, nspace_table);
+						}
+						g_hash_table_insert (nspace_table, (char*)name2, *klass);
+						amodule_unlock (amodule);
+					}
+					return TRUE;
 				}
-				return TRUE;
 			}
 
 			if (next != 0) {

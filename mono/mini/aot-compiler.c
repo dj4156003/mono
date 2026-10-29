@@ -50,6 +50,8 @@
 #include <mono/metadata/mono-endian.h>
 #include <mono/metadata/threads-types.h>
 #include <mono/metadata/custom-attrs-internals.h>
+#include <mono/metadata/loader.h>
+#include <mono/metadata/metadata.h>
 #include <mono/utils/mono-logger-internals.h>
 #include <mono/utils/mono-compiler.h>
 #include <mono/utils/mono-time.h>
@@ -304,6 +306,7 @@ typedef struct MonoAotCompile {
 	GHashTable *method_to_external_icall_symbol_name;
 	GPtrArray *extra_methods;
 	GPtrArray *image_table;
+	GPtrArray *image_names;
 	GPtrArray *globals;
 	GPtrArray *method_order;
 	GHashTable *dedup_stats;
@@ -2986,7 +2989,14 @@ mono_get_field_token (MonoClassField *field)
 	MonoClassField *klass_fields = m_class_get_fields (klass);
 	for (i = 0; i < fcount; ++i) {
 		if (field == &klass_fields [i])
-			return MONO_TOKEN_FIELD_DEF | (mono_class_get_first_field_idx (klass) + 1 + i);
+		{
+			int idx = mono_class_get_first_field_idx (klass) + 1 + i;
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+				idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+			// Modified by zx end
+			return MONO_TOKEN_FIELD_DEF | (idx);
+		}
 	}
 
 	g_assert_not_reached ();
@@ -3206,18 +3216,59 @@ emit_offset_table (MonoAotCompile *acfg, const char *symbol, MonoAotFileTable ta
     return (int)(p - buf);
 }
 
+static gboolean
+is_image_support_dynamic_aot(MonoImage *image)
+{
+	if (!image)
+		return FALSE;
+	return image->is_rgdll && image->is_dynamic_aot_format;
+}
+
 static guint32
 get_image_index (MonoAotCompile *cfg, MonoImage *image)
 {
 	guint32 index;
-
+	gboolean found = FALSE;
 	index = GPOINTER_TO_UINT (g_hash_table_lookup (cfg->image_hash, image));
 	if (index)
 		return index - 1;
 	else {
-		index = g_hash_table_size (cfg->image_hash);
-		g_hash_table_insert (cfg->image_hash, image, GUINT_TO_POINTER (index + 1));
-		g_ptr_array_add (cfg->image_table, image);
+		// Modified by zx start
+		if (is_image_support_dynamic_aot(cfg->image))
+		{
+			for (index = 0; index < cfg->image_names->len; ++ index)
+			{
+				if (strcmp(image->assembly_name, (const char*)g_ptr_array_index(cfg->image_names, index)) == 0)
+				{
+					found = TRUE;
+					break;
+				}
+			}
+			if (!found)
+			{
+				g_error("AOT Compiler Error: Dependency Image Missing.\n"
+					"  Primary Assembly: '%s'\n"
+					"  Missing Dependency: '%s' (Version: %d.%d.%d.%d)\n"
+					"  Detail: The required dependency image was not found in the global AOT image table (cfg->image_hash). "
+					"This indicates a failure in the AOT dependency collection/linking phase.\n"
+					"  Action: Ensure all necessary assemblies are passed to the AOT compiler and linked correctly.",
+					cfg->image->assembly_name,
+					image->assembly_name,
+					image->assembly->aname.major,
+					image->assembly->aname.minor,
+					image->assembly->aname.build,
+					image->assembly->aname.revision);
+				exit(1);
+			}
+			g_hash_table_insert (cfg->image_hash, image, GUINT_TO_POINTER (index + 1));
+			cfg->image_table->pdata[index] = (gpointer) image;
+		}else 
+		{
+			index = g_hash_table_size (cfg->image_hash);
+			g_hash_table_insert (cfg->image_hash, image, GUINT_TO_POINTER (index + 1));
+			g_ptr_array_add (cfg->image_table, image);
+		}
+		// Modified by zx end
 		return index;
 	}
 }
@@ -3234,6 +3285,10 @@ find_typespec_for_class (MonoAotCompile *acfg, MonoClass *klass)
 		for (i = 0; i < len; i++) {
 			ERROR_DECL (error);
 			int typespec = MONO_TOKEN_TYPE_SPEC | (i + 1);
+			// Modified by zx start
+			if (mono_type_is_empty(acfg->image, typespec))
+				continue;
+			// Modified by zx end
 			MonoClass *klass_key = mono_class_get_and_inflate_typespec_checked (acfg->image, typespec, NULL, error);
 			if (!is_ok (error)) {
 				mono_error_cleanup (error);
@@ -4122,6 +4177,29 @@ get_got_offset (MonoAotCompile *acfg, gboolean llvm, MonoJumpInfo *ji)
 	return got_offset;
 }
 
+// Modified by zx start
+static void
+add_empty_method_with_index (MonoAotCompile *acfg, int index)
+{
+	g_ptr_array_add (acfg->methods, NULL);
+	acfg->nmethods = acfg->methods->len + 1;
+
+	while (acfg->nmethods >= acfg->cfgs_size) {
+		MonoCompile **new_cfgs;
+		int new_size;
+
+		new_size = acfg->cfgs_size ? acfg->cfgs_size * 2 : 128;
+		new_cfgs = g_new0 (MonoCompile*, new_size);
+		memcpy (new_cfgs, acfg->cfgs, sizeof (MonoCompile*) * acfg->cfgs_size);
+		g_free (acfg->cfgs);
+		acfg->cfgs = new_cfgs;
+		acfg->cfgs_size = new_size;
+		acfg->cfgs[index] = NULL;
+	}
+}
+
+// Modified by zx end
+
 /* Add a method to the list of methods which need to be emitted */
 static void
 add_method_with_index (MonoAotCompile *acfg, MonoMethod *method, int index, gboolean extra)
@@ -4580,6 +4658,11 @@ add_wrappers (MonoAotCompile *acfg)
 		guint32 token = MONO_TOKEN_METHOD_DEF | (i + 1);
 		gboolean skip = FALSE;
 
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
+
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		report_loader_error (acfg, error, TRUE, "Failed to load method token 0x%x due to %s\n", i, mono_error_get_message (error));
 
@@ -4756,6 +4839,10 @@ add_wrappers (MonoAotCompile *acfg)
 		MonoMethodSignature *sig;
 		
 		token = MONO_TOKEN_METHOD_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		g_assert (is_ok (error)); /* FIXME don't swallow the error */
 
@@ -4775,6 +4862,10 @@ add_wrappers (MonoAotCompile *acfg)
 		MonoClass *klass;
 		
 		token = MONO_TOKEN_TYPE_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_type_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		klass = mono_class_get_checked (acfg->image, token, error);
 
 		if (!klass) {
@@ -4893,6 +4984,10 @@ add_wrappers (MonoAotCompile *acfg)
 		MonoClass *klass;
 		
 		token = MONO_TOKEN_TYPE_SPEC | (i + 1);
+		// Modified by zx start
+		if (mono_type_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		klass = mono_class_get_checked (acfg->image, token, error);
 
 		if (!klass) {
@@ -4925,6 +5020,10 @@ add_wrappers (MonoAotCompile *acfg)
 	for (i = 0; i < acfg->image->tables [MONO_TABLE_METHOD].rows; ++i) {
 		ERROR_DECL (error);
 		token = MONO_TOKEN_METHOD_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		report_loader_error (acfg, error, TRUE, "Failed to load method token 0x%x due to %s\n", i, mono_error_get_message (error));
 
@@ -4959,7 +5058,10 @@ add_wrappers (MonoAotCompile *acfg)
 		ERROR_DECL (error);
 		MonoMethod *method;
 		guint32 token = MONO_TOKEN_METHOD_DEF | (i + 1);
-
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		report_loader_error (acfg, error, TRUE, "Failed to load method token 0x%x due to %s\n", i, mono_error_get_message (error));
 
@@ -4983,7 +5085,10 @@ add_wrappers (MonoAotCompile *acfg)
 		guint32 token = MONO_TOKEN_METHOD_DEF | (i + 1);
 		MonoCustomAttrInfo *cattr;
 		int j;
-
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		report_loader_error (acfg, error, TRUE, "Failed to load method token 0x%x due to %s\n", i, mono_error_get_message (error));
 
@@ -5082,6 +5187,12 @@ MONO_RESTORE_WARNING
 					named += slen;
 				}
 
+				gboolean is_unity_codegen = (method->name && strstr(method->name, "__codegen__"));
+                if (is_unity_codegen) {
+                    g_warning("AOT: Found Unity Codegen [MonoPInvokeCallback], skipping AOT wrapper generation for: %s. This method will be interpreted at runtime.", method->name);
+                    g_free (cattr);
+                    continue; 
+                }
 				wrapper = mono_marshal_get_managed_wrapper (method, klass, 0, error);
 				mono_error_assert_ok (error);
 
@@ -5106,6 +5217,10 @@ MONO_RESTORE_WARNING
 		MonoClass *klass;
 		
 		token = MONO_TOKEN_TYPE_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_type_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		klass = mono_class_get_checked (acfg->image, token, error);
 
 		if (!klass) {
@@ -5580,6 +5695,10 @@ add_generic_instances (MonoAotCompile *acfg)
 	for (i = 0; i < acfg->image->tables [MONO_TABLE_METHODSPEC].rows; ++i) {
 		ERROR_DECL (error);
 		token = MONO_TOKEN_METHOD_SPEC | (i + 1);
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 
 		if (!method) {
@@ -5691,6 +5810,10 @@ add_generic_instances (MonoAotCompile *acfg)
 		MonoClass *klass;
 
 		token = MONO_TOKEN_TYPE_SPEC | (i + 1);
+		// Modified by zx start
+		if (mono_type_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 
 		klass = mono_class_get_checked (acfg->image, token, error);
 		if (!klass || m_class_get_rank (klass)) {
@@ -5704,6 +5827,10 @@ add_generic_instances (MonoAotCompile *acfg)
 	/* Add types of args/locals */
 	for (i = 0; i < acfg->methods->len; ++i) {
 		method = (MonoMethod *)g_ptr_array_index (acfg->methods, i);
+		// Modified by zx start
+		if (method == NULL)
+			continue;
+		// Modified by zx end
 		add_types_from_method_header (acfg, method);
 	}
 
@@ -8739,6 +8866,11 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 
 	if (acfg->aot_opts.metadata_only)
 		return;
+	
+	// Modified by zx start
+	if (method == NULL)
+		return;
+	// Modified by zx end
 
 	mono_acfg_lock (acfg);
 	index = get_method_index (acfg, method);
@@ -10966,7 +11098,17 @@ emit_class_info (MonoAotCompile *acfg)
 
 	offsets = g_new0 (gint32, acfg->image->tables [MONO_TABLE_TYPEDEF].rows);
 	for (i = 0; i < acfg->image->tables [MONO_TABLE_TYPEDEF].rows; ++i)
-		offsets [i] = emit_klass_info (acfg, MONO_TOKEN_TYPE_DEF | (i + 1));
+	{
+		// Modified by zx start
+		guint32 token = MONO_TOKEN_TYPE_DEF | (i + 1);
+		if (mono_type_is_empty(acfg->image, token))
+		{
+			offsets [i] = 0;
+			continue;
+		}
+		// Modified by zx end
+		offsets [i] = emit_klass_info (acfg, token);
+	}
 
 	acfg->stats.offsets_size += emit_offset_table (acfg, "class_info_offsets", MONO_AOT_TABLE_CLASS_INFO_OFFSETS, acfg->image->tables [MONO_TABLE_TYPEDEF].rows, 10, offsets);
 	g_free (offsets);
@@ -10998,6 +11140,10 @@ emit_class_name_table (MonoAotCompile *acfg)
 	for (i = 0; i < acfg->image->tables [MONO_TABLE_TYPEDEF].rows; ++i) {
 		ERROR_DECL (error);
 		token = MONO_TOKEN_TYPE_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_type_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 		klass = mono_class_get_checked (acfg->image, token, error);
 		if (!klass) {
 			mono_error_cleanup (error);
@@ -11069,33 +11215,61 @@ emit_image_table (MonoAotCompile *acfg)
 	buf_size = acfg->image_table->len * 28 + 4;
 	for (i = 0; i < acfg->image_table->len; i++) {
 		MonoImage *image = (MonoImage*)g_ptr_array_index (acfg->image_table, i);
-		MonoAssemblyName *aname = &image->assembly->aname;
-
-		buf_size += strlen (image->assembly_name) + strlen (image->guid) + (aname->culture ? strlen (aname->culture) : 1) + strlen ((char*)aname->public_key_token) + 4;
+		// Modified by zx start
+		if (image != NULL)
+		{
+			MonoAssemblyName *aname = &image->assembly->aname;
+			buf_size += strlen (image->assembly_name) + strlen (image->guid) + (aname->culture ? strlen (aname->culture) : 1) + strlen ((char*)aname->public_key_token) + 4;
+		}else 
+		{
+			buf_size +=  4;
+		}
+		// Modified by zx end
 	}
 
 	buf = p = (guint8 *)g_malloc0 (buf_size);
 	encode_int (acfg->image_table->len, p, &p);
 	for (i = 0; i < acfg->image_table->len; i++) {
 		MonoImage *image = (MonoImage*)g_ptr_array_index (acfg->image_table, i);
-		MonoAssemblyName *aname = &image->assembly->aname;
+		// Modified by zx start
+		if (image == NULL)
+		{
+			encode_string ("", p, &p);
+			encode_string ("", p, &p);
+			encode_string ("", p, &p);
+			encode_string ("", p, &p);
 
-		/* FIXME: Support multi-module assemblies */
-		g_assert (image->assembly->image == image);
+			while (GPOINTER_TO_UINT (p) % 8 != 0)
+				p ++;
 
-		encode_string (image->assembly_name, p, &p);
-		encode_string (image->guid, p, &p);
-		encode_string (aname->culture ? aname->culture : "", p, &p);
-		encode_string ((const char*)aname->public_key_token, p, &p);
+			encode_int (0, p, &p);
+			encode_int (0, p, &p);
+			encode_int (0, p, &p);
+			encode_int (0, p, &p);
+			encode_int (0, p, &p);
 
-		while (GPOINTER_TO_UINT (p) % 8 != 0)
-			p ++;
+		}else 
+		{
+			MonoAssemblyName *aname = &image->assembly->aname;
 
-		encode_int (aname->flags, p, &p);
-		encode_int (aname->major, p, &p);
-		encode_int (aname->minor, p, &p);
-		encode_int (aname->build, p, &p);
-		encode_int (aname->revision, p, &p);
+			/* FIXME: Support multi-module assemblies */
+			g_assert (image->assembly->image == image);
+
+			encode_string (image->assembly_name, p, &p);
+			encode_string (image->guid, p, &p);
+			encode_string (aname->culture ? aname->culture : "", p, &p);
+			encode_string ((const char*)aname->public_key_token, p, &p);
+
+			while (GPOINTER_TO_UINT (p) % 8 != 0)
+				p ++;
+
+			encode_int (aname->flags, p, &p);
+			encode_int (aname->major, p, &p);
+			encode_int (aname->minor, p, &p);
+			encode_int (aname->build, p, &p);
+			encode_int (aname->revision, p, &p);
+		}
+		// Modified by zx end
 	}
 	g_assert (p - buf <= buf_size);
 
@@ -12185,6 +12359,14 @@ collect_methods (MonoAotCompile *acfg)
 		ERROR_DECL (error);
 		MonoMethod *method;
 		guint32 token = MONO_TOKEN_METHOD_DEF | (i + 1);
+		// Modified by zx start
+		if (mono_method_is_empty(image, token))
+		{
+			add_empty_method_with_index(acfg, i);
+			acfg->method_index ++;
+			continue;
+		}
+		// Modified by zx end
 
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 
@@ -12244,6 +12426,11 @@ collect_methods (MonoAotCompile *acfg)
 
 		if (!(acfg->jit_opts & MONO_OPT_GSHAREDVT))
 			continue;
+
+		// Modified by zx start
+		if (mono_method_is_empty(acfg->image, token))
+			continue;
+		// Modified by zx end
 
 		method = mono_get_method_checked (acfg->image, token, NULL, NULL, error);
 		report_loader_error (acfg, error, TRUE, "Failed to load method token 0x%x due to %s\n", i, mono_error_get_message (error));
@@ -13066,7 +13253,8 @@ acfg_create (MonoAssembly *ass, guint32 jit_opts)
 {
 	MonoImage *image = ass->image;
 	MonoAotCompile *acfg;
-
+	guint i;
+	
 	acfg = g_new0 (MonoAotCompile, 1);
 	acfg->methods = g_ptr_array_new ();
 	acfg->method_indexes = g_hash_table_new (NULL, NULL);
@@ -13079,6 +13267,21 @@ acfg_create (MonoAssembly *ass, guint32 jit_opts)
 	acfg->method_to_external_icall_symbol_name = g_hash_table_new_full (NULL, NULL, NULL, g_free);
 	acfg->image_hash = g_hash_table_new (NULL, NULL);
 	acfg->image_table = g_ptr_array_new ();
+	// Modified by zx start
+	acfg->image_names = g_ptr_array_new();
+	if (is_image_support_dynamic_aot(ass->image))
+	{
+		MonoTableInfo* table = &ass->image->tables[MONO_TABLE_CUSTOM_ASSEMBLYREF];
+		for (i = 0; i < table->rows; ++ i)
+		{
+			g_ptr_array_add(acfg->image_table, NULL);
+			guint32 data [MONO_CUSTOM_ASSEMBLYREF_SIZE];
+			mono_metadata_decode_row (table, i, data, MONO_CUSTOM_ASSEMBLYREF_SIZE);
+			const char* assembly_name = mono_metadata_string_heap (image, data[MONO_CUSTOM_ASSEMBLYREF_NAME]);
+			g_ptr_array_add(acfg->image_names, (gpointer)assembly_name);	
+		}
+	}
+	// Modified by zx end
 	acfg->globals = g_ptr_array_new ();
 	acfg->image = image;
 	acfg->jit_opts = jit_opts;
@@ -13134,6 +13337,7 @@ acfg_free (MonoAotCompile *acfg)
 	g_free (acfg->plt_symbol);
 	g_ptr_array_free (acfg->methods, TRUE);
 	g_ptr_array_free (acfg->image_table, TRUE);
+	g_ptr_array_free (acfg->image_names, FALSE);
 	g_ptr_array_free (acfg->globals, TRUE);
 	g_ptr_array_free (acfg->unwind_ops, TRUE);
 	g_hash_table_destroy (acfg->method_indexes);
@@ -13946,8 +14150,15 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options,
 	}
 
 	if (!(mono_aot_mode_is_interp (&acfg->aot_opts) && !mono_aot_mode_is_full (&acfg->aot_opts))) {
+		// Modified by zx start
 		for (int method_index = 0; method_index < acfg->image->tables [MONO_TABLE_METHOD].rows; ++method_index)
-			g_ptr_array_add (acfg->method_order,GUINT_TO_POINTER (method_index));
+		{
+			guint32 token = MONO_TOKEN_METHOD_DEF | (method_index + 1);
+			if (mono_method_is_empty(acfg->image, token))
+				continue;
+			g_ptr_array_add (acfg->method_order, GUINT_TO_POINTER (method_index));
+		}
+		// Modified by zx end
 	}
 
 	acfg->num_trampolines [MONO_AOT_TRAMP_SPECIFIC] = mono_aot_mode_is_full (&acfg->aot_opts) ? acfg->aot_opts.ntrampolines : 0;
@@ -14184,7 +14395,8 @@ create_depfile (MonoAotCompile *acfg)
 		fprintf (depfile, "%s: ", targets [tindex]);
 		for (int i = 0; i < acfg->image_table->len; i++) {
 			MonoImage *image = (MonoImage*)g_ptr_array_index (acfg->image_table, i);
-			fprintf (depfile, " %s", image->filename);
+			if (image != NULL)
+				fprintf (depfile, " %s", image->filename);
 		}
 		fprintf (depfile, "\n");
 	}

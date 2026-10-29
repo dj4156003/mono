@@ -315,7 +315,7 @@ mono_class_setup_fields (MonoClass *klass)
 	 */
 	int first_field_idx = mono_class_has_static_metadata (klass) ? mono_class_get_first_field_idx (klass) : 0;
 	for (i = 0; i < top; i++) {
-		int idx = first_field_idx + i;
+		int idx = first_field_idx + i;	
 		field = &klass->fields [i];
 
 		if (!field->type) {
@@ -338,6 +338,10 @@ mono_class_setup_fields (MonoClass *klass)
 		if (mono_field_is_deleted (field))
 			continue;
 		if (layout == TYPE_ATTRIBUTE_EXPLICIT_LAYOUT) {
+			// Modified by zx start
+			if (m->is_rgdll && m->tables [MONO_TABLE_FIELD_POINTER].rows)
+				idx = mono_metadata_decode_row_col (&m->tables [MONO_TABLE_FIELD_POINTER], idx, MONO_FIELD_POINTER_FIELD) - 1;
+			// Modified by zx end
 			guint32 uoffset;
 			mono_metadata_field_info (m, idx, &uoffset, NULL, NULL);
 			int offset = uoffset;
@@ -622,20 +626,45 @@ mono_class_create_from_typedef (MonoImage *image, guint32 type_token, MonoError 
 
 	if (tt->rows > tidx){		
 		mono_metadata_decode_row (tt, tidx, cols_next, MONO_TYPEDEF_SIZE);
-		/* check if the next row has fields at all, if not, then continue run till the end of the table */
-		field_last  = cols_next [MONO_TYPEDEF_FIELD_LIST] ? cols_next [MONO_TYPEDEF_FIELD_LIST] - 1 : image->tables [MONO_TABLE_FIELD].rows;
-		method_last = cols_next [MONO_TYPEDEF_METHOD_LIST] ? cols_next [MONO_TYPEDEF_METHOD_LIST] - 1 : image->tables [MONO_TABLE_METHOD].rows;
+		field_last  = cols_next [MONO_TYPEDEF_FIELD_LIST] - 1;
+		method_last = cols_next [MONO_TYPEDEF_METHOD_LIST] - 1;
 	} else {
-		field_last  = image->tables [MONO_TABLE_FIELD].rows;
-		method_last = image->tables [MONO_TABLE_METHOD].rows;
+		// Modified by zx start
+		if (image->is_rgdll && image->tables [MONO_TABLE_FIELD_POINTER].rows > 0)
+			field_last  = image->tables [MONO_TABLE_FIELD_POINTER].rows;
+		else
+			field_last  = image->tables [MONO_TABLE_FIELD].rows;
+		
+		if (image->is_rgdll && image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)
+			method_last  = image->tables [MONO_TABLE_METHOD_POINTER].rows;
+		else
+			method_last = image->tables [MONO_TABLE_METHOD].rows;
+		// Modified by zx end
 	}
 
-	if (cols [MONO_TYPEDEF_FIELD_LIST] && 
-	    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD].rows)
-		mono_class_set_field_count (klass, field_last - first_field_idx);
-	if (cols [MONO_TYPEDEF_METHOD_LIST] && 
-	    cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
-		mono_class_set_method_count (klass, method_last - first_method_idx);
+	// Modified by zx start
+	if (image->is_rgdll && image->tables [MONO_TABLE_FIELD_POINTER].rows > 0)
+	{
+		if (cols [MONO_TYPEDEF_FIELD_LIST] && 
+		    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD_POINTER].rows)
+			mono_class_set_field_count (klass, field_last - first_field_idx);
+	}else 
+	{
+		if (cols [MONO_TYPEDEF_FIELD_LIST] && 
+		    cols [MONO_TYPEDEF_FIELD_LIST] <= image->tables [MONO_TABLE_FIELD].rows)
+			mono_class_set_field_count (klass, field_last - first_field_idx);
+	}
+	
+	if (image->is_rgdll && image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)
+	{
+		if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD_POINTER].rows)
+			mono_class_set_method_count (klass, method_last - first_method_idx);
+	}else
+	{
+		if (cols [MONO_TYPEDEF_METHOD_LIST] <= image->tables [MONO_TABLE_METHOD].rows)
+			mono_class_set_method_count (klass, method_last - first_method_idx);
+	}
+	// Modified by zx end
 
 	/* reserve space to store vector pointer in arrays */
 	if (mono_is_corlib_image (image) && !strcmp (nspace, "System") && !strcmp (name, "Array")) {
@@ -2138,6 +2167,11 @@ mono_class_layout_fields (MonoClass *klass, int base_instance_size, int packing_
 				field_offsets [i] = field->offset + MONO_ABI_SIZEOF (MonoObject);
 			} else {
 				int idx = first_field_idx + i;
+				// Modified by zx start
+				if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+					idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx, MONO_FIELD_POINTER_FIELD) - 1;
+				// Modified by zx end
+
 				guint32 offset;
 				mono_metadata_field_info (klass->image, idx, &offset, NULL, NULL);
 				field_offsets [i] = offset + MONO_ABI_SIZEOF (MonoObject);
@@ -2319,6 +2353,11 @@ mono_class_layout_fields (MonoClass *klass, int base_instance_size, int packing_
 
 			while ((field = mono_class_get_fields_internal (p, &iter))) {
 				guint32 field_idx = first_field_idx + (field - p->fields);
+				// Modified by zx start
+				if (p->image->is_rgdll && p->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+					field_idx = mono_metadata_decode_row_col (&p->image->tables [MONO_TABLE_FIELD_POINTER], field_idx, MONO_FIELD_POINTER_FIELD) - 1;
+				// Modified by zx end
+			
 				if (MONO_TYPE_IS_REFERENCE (field->type) && mono_assembly_is_weak_field (p->image, field_idx + 1)) {
 					has_weak_fields = TRUE;
 					mono_trace_message (MONO_TRACE_TYPE, "Field %s:%s at offset %x is weak.", field->parent->name, field->name, field->offset);
@@ -3390,6 +3429,10 @@ mono_class_setup_methods (MonoClass *klass)
 		methods = (MonoMethod **)mono_class_alloc (klass, sizeof (MonoMethod*) * count);
 		for (i = 0; i < count; ++i) {
 			int idx = mono_metadata_translate_token_index (klass->image, MONO_TABLE_METHOD, first_idx + i + 1);
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+				idx = mono_metadata_map_pointer_index(klass->image, MONO_TABLE_METHOD, idx);
+			// Modified by zx end
 			methods [i] = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | idx, klass, NULL, error);
 			if (!methods [i]) {
 				mono_class_set_type_load_failure (klass, "Could not load method %d due to %s", i, mono_error_get_message (error));
@@ -3441,9 +3484,10 @@ mono_class_setup_methods (MonoClass *klass)
 void
 mono_class_setup_properties (MonoClass *klass)
 {
-	guint startm, endm, i, j;
+	guint startm, endm, i, j, idx;
 	guint32 cols [MONO_PROPERTY_SIZE];
-	MonoTableInfo *msemt = &klass->image->tables [MONO_TABLE_METHODSEMANTICS];
+	MonoImage* image = klass->image;
+	MonoTableInfo *msemt = &image->tables [MONO_TABLE_METHODSEMANTICS];
 	MonoProperty *properties;
 	guint32 last;
 	int first, count;
@@ -3495,19 +3539,23 @@ mono_class_setup_properties (MonoClass *klass)
 
 		properties = (MonoProperty *)mono_class_alloc0 (klass, sizeof (MonoProperty) * count);
 		for (i = first; i < last; ++i) {
-			mono_metadata_decode_table_row (klass->image, MONO_TABLE_PROPERTY, i, cols, MONO_PROPERTY_SIZE);
+			// Modified by zx
+			idx = i;
+			mono_metadata_decode_table_row (image, MONO_TABLE_PROPERTY, i, cols, MONO_PROPERTY_SIZE);
+			if (image->is_rgdll && image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
+				idx = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], i, MONO_PROPERTY_POINTER_PROPERTY) - 1;
 			properties [i - first].parent = klass;
 			properties [i - first].attrs = cols [MONO_PROPERTY_FLAGS];
 			properties [i - first].name = mono_metadata_string_heap (klass->image, cols [MONO_PROPERTY_NAME]);
 
-			startm = mono_metadata_methods_from_property (klass->image, i, &endm);
+			startm = mono_metadata_methods_from_property (klass->image, idx, &endm);
 			int first_idx = mono_class_get_first_method_idx (klass);
 			for (j = startm; j < endm; ++j) {
 				MonoMethod *method;
 
 				mono_metadata_decode_row (msemt, j, cols, MONO_METHOD_SEMA_SIZE);
 
-				if (klass->image->uncompressed_metadata) {
+				if (klass->image->uncompressed_metadata/* || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0)*/) {
 					ERROR_DECL (error);
 					/* It seems like the MONO_METHOD_SEMA_METHOD column needs no remapping */
 					method = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | cols [MONO_METHOD_SEMA_METHOD], klass, NULL, error);
@@ -3565,8 +3613,9 @@ void
 mono_class_setup_events (MonoClass *klass)
 {
 	int first, count;
-	guint startm, endm, i, j;
+	guint startm, endm, i, j, idx;
 	guint32 cols [MONO_EVENT_SIZE];
+	MonoImage* image = klass->image;
 	MonoTableInfo *msemt = &klass->image->tables [MONO_TABLE_METHODSEMANTICS];
 	guint32 last;
 	MonoEvent *events;
@@ -3625,20 +3674,24 @@ mono_class_setup_events (MonoClass *klass)
 		events = (MonoEvent *)mono_class_alloc0 (klass, sizeof (MonoEvent) * count);
 		for (i = first; i < last; ++i) {
 			MonoEvent *event = &events [i - first];
+			// Modified by zx
+			idx = i;
+			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, idx, cols, MONO_EVENT_SIZE);
+			if (image->is_rgdll && image->tables[MONO_TABLE_EVENT_POINTER].rows)
+				idx = mono_metadata_decode_row_col(&image->tables[MONO_TABLE_EVENT_POINTER], idx, MONO_EVENT_POINTER_EVENT) - 1;
 
-			mono_metadata_decode_table_row (klass->image, MONO_TABLE_EVENT, i, cols, MONO_EVENT_SIZE);
 			event->parent = klass;
 			event->attrs = cols [MONO_EVENT_FLAGS];
 			event->name = mono_metadata_string_heap (klass->image, cols [MONO_EVENT_NAME]);
 
-			startm = mono_metadata_methods_from_event (klass->image, i, &endm);
+			startm = mono_metadata_methods_from_event (klass->image, idx, &endm);
 			int first_idx = mono_class_get_first_method_idx (klass);
 			for (j = startm; j < endm; ++j) {
 				MonoMethod *method;
 
 				mono_metadata_decode_row (msemt, j, cols, MONO_METHOD_SEMA_SIZE);
 
-				if (klass->image->uncompressed_metadata) {
+				if (klass->image->uncompressed_metadata /* || (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_METHOD_POINTER].rows > 0) */) {
 					ERROR_DECL (error);
 					/* It seems like the MONO_METHOD_SEMA_METHOD column needs no remapping */
 					method = mono_get_method_checked (klass->image, MONO_TOKEN_METHOD_DEF | cols [MONO_METHOD_SEMA_METHOD], klass, NULL, error);

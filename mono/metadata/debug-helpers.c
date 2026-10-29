@@ -696,8 +696,9 @@ dis_one (GString *str, MonoDisHelper *dh, MonoMethod *method, const unsigned cha
 		if (!image_is_dynamic (method->klass->image) && !method_is_dynamic (method)) {
 			token = read32 (ip);
 			blob = mono_metadata_user_string (method->klass->image, mono_metadata_token_index (token));
-
-			len2 = mono_metadata_decode_blob_size (blob, &blob);
+			// Modified by zx start
+			len2 = mono_metadata_decode_length (method->klass->image, blob, &blob);
+			// Modified by zx end
 			len2 >>= 1;
 
 #ifdef NO_UNALIGNED_ACCESS

@@ -133,6 +133,11 @@ mono_class_from_typeref_checked (MonoImage *image, guint32 type_token, MonoError
 		return NULL;
 
 	mono_metadata_decode_row (t, (type_token&0xffffff)-1, cols, MONO_TYPEREF_SIZE);
+	// Modified by zx start
+	// Check if typeref is empty
+	if (cols[MONO_TYPEREF_SCOPE] == 0 && cols[MONO_TYPEREF_NAME] == 0 && cols[MONO_TYPEREF_NAMESPACE] == 0)
+		return NULL;
+	// Modified by zx end
 
 	name = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAME]);
 	nspace = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAMESPACE]);
@@ -2374,7 +2379,7 @@ mono_class_get_field_idx (MonoClass *klass, int idx)
 		int fcount = mono_class_get_field_count (klass);
 		MonoImage *klass_image = m_class_get_image (klass);
 		MonoClassField *klass_fields = m_class_get_fields (klass);
-		if (klass_image->uncompressed_metadata) {
+		if (klass_image->uncompressed_metadata || (klass_image->is_rgdll && klass_image->tables[MONO_TABLE_FIELD_POINTER].rows > 0)) {
 			/* 
 			 * first_field_idx points to the FieldPtr table, while idx points into the
 			 * Field table, so we have to do a search.
@@ -2510,6 +2515,12 @@ mono_class_get_field_token (MonoClassField *field)
 
 				if (m_class_get_image (klass)->uncompressed_metadata)
 					idx = mono_metadata_translate_token_index (m_class_get_image (klass), MONO_TABLE_FIELD, idx);
+				
+				// Modified by zx start
+				if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+					idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+				// Modified by zx end
+				
 				return mono_metadata_make_token (MONO_TABLE_FIELD, idx);
 			}
 		}
@@ -2869,6 +2880,11 @@ mono_class_get_checked (MonoImage *image, guint32 type_token, MonoError *error)
 		klass = (MonoClass *)mono_lookup_dynamic_token (image, type_token, NULL, error);
 		goto done;
 	}
+	
+	// Modified by zx start
+	if (mono_type_is_empty(image, type_token))
+		return NULL;
+	// Modified by zx end
 
 	switch (type_token & 0xff000000){
 	case MONO_TOKEN_TYPE_DEF:
@@ -3011,6 +3027,12 @@ mono_image_init_name_cache (MonoImage *image)
 
 	for (i = 1; i <= t->rows; ++i) {
 		mono_metadata_decode_row (t, i - 1, cols, MONO_TYPEDEF_SIZE);
+		// Modified by zx start
+		// Check if typedef is empty
+		if (cols[MONO_TYPEDEF_FLAGS] == 0 && cols[MONO_TYPEDEF_NAME] == 0 && cols[MONO_TYPEDEF_NAMESPACE] == 0 && cols[MONO_TYPEDEF_EXTENDS] == 0)
+			continue;
+		// Modified by zx end
+	
 		visib = cols [MONO_TYPEDEF_FLAGS] & TYPE_ATTRIBUTE_VISIBILITY_MASK;
 		/*
 		 * Nested types are accessed from the nesting name.  We use the fact that nested types use different visibility flags
@@ -4663,6 +4685,13 @@ mono_ldtoken_checked (MonoImage *image, guint32 token, MonoClass **handle_class,
 		guint32 cols [MONO_MEMBERREF_SIZE];
 		const char *sig;
 		mono_metadata_decode_row (&image->tables [MONO_TABLE_MEMBERREF], mono_metadata_token_index (token) - 1, cols, MONO_MEMBERREF_SIZE);
+		
+		// Modified by zx start
+		// Check if memberref is empty
+		if (cols[MONO_MEMBERREF_CLASS] == 0 && cols[MONO_MEMBERREF_NAME] == 0 && cols[MONO_MEMBERREF_SIGNATURE] == 0)
+			return NULL;
+		// Modified by zx end
+		
 		sig = mono_metadata_blob_heap (image, cols [MONO_MEMBERREF_SIGNATURE]);
 		mono_metadata_decode_blob_size (sig, &sig);
 		if (*sig == 0x6) { /* it's a field */
@@ -5453,7 +5482,12 @@ mono_field_get_rva (MonoClassField *field)
 		
 	if (!def_values [field_index].data && !image_is_dynamic (m_class_get_image (klass))) {
 		int first_field_idx = mono_class_get_first_field_idx (klass);
-		mono_metadata_field_info (m_class_get_image (field->parent), first_field_idx + field_index, NULL, &rva, NULL);
+		int idx = first_field_idx + field_index;
+		// Modified by zx start
+		if (klass->image->is_rgdll && klass->image->tables [MONO_TABLE_FIELD_POINTER].rows)
+			idx = mono_metadata_decode_row_col (&klass->image->tables [MONO_TABLE_FIELD_POINTER], idx, MONO_FIELD_POINTER_FIELD) - 1;
+		// Modified by zx end
+		mono_metadata_field_info (m_class_get_image (field->parent), idx, NULL, &rva, NULL);
 		if (!rva)
 			g_warning ("field %s in %s should have RVA data, but hasn't", mono_field_get_name (field), m_class_get_name (field->parent));
 		def_values [field_index].data = mono_image_rva_map (m_class_get_image (field->parent), rva);
@@ -5653,7 +5687,12 @@ mono_find_method_in_metadata (MonoClass *klass, const char *name, int param_coun
 		mono_metadata_decode_table_row (klass_image, MONO_TABLE_METHOD, first_idx + i, cols, MONO_METHOD_SIZE);
 
 		if (!strcmp (mono_metadata_string_heap (klass_image, cols [MONO_METHOD_NAME]), name)) {
-			method = mono_get_method_checked (klass_image, MONO_TOKEN_METHOD_DEF | (first_idx + i + 1), klass, NULL, error);
+			int idx = first_idx + i + 1;
+			// Modified by zx start
+			if (klass->image->is_rgdll && klass->image->tables[MONO_TABLE_METHOD_POINTER].rows > 0)
+				idx = mono_metadata_map_pointer_index(klass->image, MONO_TABLE_METHOD, idx);
+			// Modified by zx end
+			method = mono_get_method_checked (klass_image, MONO_TOKEN_METHOD_DEF | idx, klass, NULL, error);
 			if (!method) {
 				mono_error_cleanup (error); /* FIXME don't swallow the error */
 				continue;

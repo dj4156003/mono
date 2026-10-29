@@ -82,6 +82,8 @@
     <ClCompile Include="$(MonoSourceLocation)\mono\mini\llvmonly-runtime.c" />
     <ClInclude Include="$(MonoSourceLocation)\mono\mini\monovm.h" />
     <ClCompile Include="$(MonoSourceLocation)\mono\mini\monovm.c" />
+    <ClCompile Include="$(MonoSourceLocation)\mono\mini\mixed_callstack_plugin.c" />
+    <ClInclude Include="$(MonoSourceLocation)\mono\mini\mixed_callstack_plugin.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MonoSourceLocation)\mono\mini\Makefile.am.in" />

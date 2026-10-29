@@ -67,6 +67,9 @@ static void mono_metadata_field_info_full (MonoImage *meta, guint32 index, guint
 
 static MonoType* mono_signature_get_params_internal (MonoMethodSignature *sig, gpointer *iter);
 
+// Modified by zx start
+static const unsigned char* mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize);
+// Modified by zx end
 /*
  * This enumeration is used to describe the data types in the metadata
  * tables
@@ -445,8 +448,12 @@ const static unsigned char TableSchemas [] = {
 	MONO_MT_GUID_IDX,  /* Kind (Guid heap index) */
 	MONO_MT_BLOB_IDX,  /* Value (Blob heap index) */
 	MONO_MT_END,
+    
+#define CUSTOMASSEMBLYREF_SCHEMA_OFFSET CUSTOMDEBUGINFORMATION_SCHEMA_OFFSET + 4
+    MONO_MT_STRING_IDX,  /* Name */
+    MONO_MT_END,
 
-#define NULL_SCHEMA_OFFSET CUSTOMDEBUGINFORMATION_SCHEMA_OFFSET + 4
+#define NULL_SCHEMA_OFFSET CUSTOMASSEMBLYREF_SCHEMA_OFFSET + 2
 	MONO_MT_END
 };
 
@@ -498,7 +505,7 @@ table_description [] = {
 	GENPARAM_SCHEMA_OFFSET, /* 0x2a */
 	METHOD_SPEC_SCHEMA_OFFSET,
 	GEN_CONSTRAINT_SCHEMA_OFFSET,
-	NULL_SCHEMA_OFFSET,
+    CUSTOMASSEMBLYREF_SCHEMA_OFFSET,
 	NULL_SCHEMA_OFFSET,
 	NULL_SCHEMA_OFFSET,
 	DOCUMENT_SCHEMA_OFFSET, /* 0x30 */
@@ -1652,6 +1659,44 @@ mono_metadata_decode_signed_value (const char *ptr, const char **rptr)
 	return ival - 0x20000000;
 }
 
+// Modified by zx start
+guint32
+mono_metadata_decode_length (MonoImage* m, const char *_ptr, const char **rptr)
+{
+	const unsigned char *ptr = (const unsigned char *) _ptr;
+	unsigned char b = *ptr;
+	guint32 len;
+
+	if (!m->is_rgdll)
+	{
+		if ((b & 0x80) == 0){
+			len = b;
+			++ptr;
+		} else if ((b & 0x40) == 0){
+			len = ((b & 0x3f) << 8 | ptr [1]);
+			ptr += 2;
+		} else {
+			len = ((b & 0x1f) << 24) |
+				(ptr [1] << 16) |
+				(ptr [2] << 8) |
+				ptr [3];
+			ptr += 4;
+		}
+		if (rptr)
+			*rptr = (char*)ptr;
+	}else 
+	{
+		gint32 res = mono_metadata_decode_signed_value(_ptr, rptr);
+		if (res < 0)
+			res = -res;
+		len = (guint32)res;
+	}
+	
+	return len;
+}
+
+// Modified by zx end
+
 /**
  * mono_metadata_translate_token_index:
  * Translates the given 1-based index into the \c Method, \c Field, \c Event, or \c Param tables
@@ -1697,6 +1742,45 @@ mono_metadata_translate_token_index (MonoImage *image, int table, guint32 idx)
 	}
 }
 
+// Modified by zx start
+guint32
+mono_metadata_map_pointer_index (MonoImage *image, int table, guint32 idx)
+{
+	if (!image->is_rgdll)
+		return idx;
+
+	switch (table) {
+	case MONO_TABLE_METHOD:
+		if (image->tables [MONO_TABLE_METHOD_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+		else
+			return idx;
+	case MONO_TABLE_FIELD:
+		if (image->tables [MONO_TABLE_FIELD_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+		else
+			return idx;
+	case MONO_TABLE_EVENT:
+		if (image->tables [MONO_TABLE_EVENT_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+		else
+			return idx;
+	case MONO_TABLE_PROPERTY:
+		if (image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+		else
+			return idx;
+	case MONO_TABLE_PARAM:
+		if (image->tables [MONO_TABLE_PARAM_POINTER].rows)
+			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		else
+			return idx;
+	default:
+		return idx;
+	}
+}
+//Modified by zx end
+
 /**
  * mono_metadata_decode_table_row:
  *
@@ -1710,6 +1794,11 @@ mono_metadata_decode_table_row (MonoImage *image, int table, int idx, guint32 *r
 {
 	if (image->uncompressed_metadata)
 		idx = mono_metadata_translate_token_index (image, table, idx + 1) - 1;
+
+	// Modified by zx start
+	if (image->is_rgdll)
+		idx = mono_metadata_map_pointer_index (image, table, idx + 1) - 1;
+	// Modified by zx end
 
 	mono_metadata_decode_row (&image->tables [table], idx, res, res_size);
 }
@@ -1725,6 +1814,10 @@ guint32 mono_metadata_decode_table_row_col (MonoImage *image, int table, int idx
 {
 	if (image->uncompressed_metadata)
 		idx = mono_metadata_translate_token_index (image, table, idx + 1) - 1;
+	// Modified by zx start
+	if (image->is_rgdll)
+		idx = mono_metadata_map_pointer_index (image, table, idx + 1) - 1;
+	// Modified by zx end
 
 	return mono_metadata_decode_row_col (&image->tables [table], idx, col);
 }
@@ -2266,10 +2359,22 @@ mono_metadata_method_has_param_attrs (MonoImage *m, int def)
 	if (def < methodt->rows)
 		lastp = mono_metadata_decode_row_col (methodt, def, MONO_METHOD_PARAMLIST);
 	else
-		lastp = m->tables [MONO_TABLE_PARAM].rows + 1;
+	{
+		// Modified by zx start
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			lastp = m->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else 
+			lastp = m->tables [MONO_TABLE_PARAM].rows + 1;
+		// Modified by zx end
+	}
 
 	for (i = param_index; i < lastp; ++i) {
-		guint32 flags = mono_metadata_decode_row_col (paramt, i - 1, MONO_PARAM_FLAGS);
+		// Modified by zx
+		int idx = i;
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		
+		guint32 flags = mono_metadata_decode_row_col (paramt, idx - 1, MONO_PARAM_FLAGS);
 		if (flags)
 			return TRUE;
 	}
@@ -2300,10 +2405,22 @@ mono_metadata_get_param_attrs (MonoImage *m, int def, int param_count)
 	if (def < methodt->rows)
 		lastp = mono_metadata_decode_row_col (methodt, def, MONO_METHOD_PARAMLIST);
 	else
-		lastp = paramt->rows + 1;
+	{
+		// Modified by zx start
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			lastp = m->tables[MONO_TABLE_PARAM_POINTER].rows + 1;
+		else
+			lastp = paramt->rows + 1;
+		// Modified by zx end
+	}
 
 	for (i = param_index; i < lastp; ++i) {
-		mono_metadata_decode_row (paramt, i - 1, cols, MONO_PARAM_SIZE);
+		// Modified by zx
+		int idx = i;
+		if (m->is_rgdll && m->tables[MONO_TABLE_PARAM_POINTER].rows > 0)
+			idx = mono_metadata_decode_row_col (&m->tables[MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		
+		mono_metadata_decode_row (paramt, idx - 1, cols, MONO_PARAM_SIZE);
 		if (cols [MONO_PARAM_FLAGS]) {
 			if (!pattrs)
 				pattrs = g_new0 (int, param_count);
@@ -4641,6 +4758,7 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 	const char *ptr;
 	unsigned char flags, format;
 	guint16 fat_flags;
+	gboolean is_encrypt = 0;
 	ERROR_DECL (error);
 
 	/*Only the GMD has a pointer to the metadata.*/
@@ -4688,12 +4806,15 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 	format = flags & METHOD_HEADER_FORMAT_MASK;
 
 	switch (format) {
+	case METHOD_HEADER_TINY_FORMAT_DECRYPT:
 	case METHOD_HEADER_TINY_FORMAT:
 		ptr++;
 		summary->max_stack = 8;
 		summary->code = (unsigned char *) ptr;
 		summary->code_size = flags >> 2;
+		is_encrypt = (format == METHOD_HEADER_TINY_FORMAT_DECRYPT) && method->klass->image->is_rgdll;
 		break;
+	case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 	case METHOD_HEADER_FAT_FORMAT:
 		fat_flags = read16 (ptr);
 		ptr += 2;
@@ -4706,12 +4827,161 @@ mono_method_get_header_summary (MonoMethod *method, MonoMethodHeaderSummary *sum
 		if (fat_flags & METHOD_HEADER_MORE_SECTS)
 			summary->has_clauses = TRUE;
 		summary->code = (unsigned char *) ptr;
+		is_encrypt = (format == METHOD_HEADER_FAT_FORMAT_DECRYPT) && method->klass->image->is_rgdll;
 		break;
 	default:
 		return FALSE;
 	}
+
+	if (is_encrypt)
+	{
+		summary->code = mono_metadata_decrypt_raw_code(img, summary->code, summary->code_size);
+	}
+
 	return TRUE;
 }
+
+// Modified by zx start
+static void 
+write_to_ptr(uint8_t* ptr, void* value, size_t size) {
+
+	if (((uintptr_t)ptr % size) != 0) {
+		memcpy(ptr, value, size);
+	}else {
+		switch (size) {
+		case 1:
+			*((uint8_t*)ptr) = *((uint8_t*)value);
+			break;
+		case 2:
+			*((uint16_t*)ptr) = *((uint16_t*)value);
+			break;
+		case 4:
+			*((uint32_t*)ptr) = *((uint32_t*)value);
+			break;
+		case 8:
+			*((uint64_t*)ptr) = *((uint64_t*)value);
+			break;
+		default:
+			memcpy(ptr, value, size);
+			break;
+		}
+	}
+}
+
+static const unsigned char*
+mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned codesize)
+{
+	if (!m->is_rgdll)
+		return code;
+
+	if (m->rg_ilcode_decrypt_info == NULL || m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem == NULL)
+	{
+		g_assert_not_reached();
+		return code;
+	}
+
+	mono_os_mutex_lock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
+	unsigned char* newCode = (unsigned char*)g_hash_table_lookup(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, code);
+	if (newCode != NULL)
+	{
+		mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
+		return newCode;
+	}
+
+	if (codesize > m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len - m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur) {
+		mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
+		fprintf(stderr, "Error: Not enough space in IL code decryption memory pool\n");
+		g_assert_not_reached();
+		return code;
+	}
+
+	newCode = m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem + m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur;
+	m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur += codesize;
+	memcpy(newCode, code, codesize);
+	g_hash_table_insert(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_ptr_map, (gpointer)code, (gpointer)newCode);
+	mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
+	const unsigned char* start = newCode;
+	int size = codesize;
+	const unsigned char* end = start + size;
+	const unsigned char* ptr = start;
+	const MonoOpcode* entry;
+	int i;
+
+	while (ptr < end) {
+		i = *ptr;
+		if (*ptr == 0xfe) {
+			ptr++;
+			i = *ptr + 256;
+		}
+		entry = &mono_opcodes[i];
+		ptr++;
+		switch (entry->argument) {
+		case MonoInlineBrTarget: {
+			guint32 target = read32 (ptr);
+			target = mono_image_decrypt_value(m, target);
+			write_to_ptr((uint8_t*)ptr, &target, sizeof(guint32));
+			ptr += 4;
+			break;
+		}
+		case MonoInlineSig:
+		case MonoInlineField:
+		case MonoInlineString:
+		case MonoInlineTok:
+		case MonoInlineType:
+		case MonoInlineMethod: {
+			guint32 token = read32 (ptr);
+			token = mono_image_decrypt_value(m, token);
+			write_to_ptr((uint8_t*)ptr, &token, sizeof(guint32));
+			ptr += 4;
+			break;
+		}
+		case MonoInlineNone:
+			break;
+		case MonoInlineI8:
+		case MonoInlineR: {
+			ptr += 8;
+			break;
+		}
+		case MonoInlineSwitch: {
+			guint32 count = read32(ptr);
+			guint32 n, offset;
+			ptr += 4;
+			for (n = 0; n < count; n++) {
+				offset = read32 (ptr);
+				offset = mono_image_decrypt_value(m, offset);
+				write_to_ptr((uint8_t*)ptr, &offset, sizeof(guint32));
+				ptr += 4;
+			}
+			break;
+		}
+		case MonoInlineVar: {
+			ptr += 2;
+			break;
+		}
+		case MonoShortInlineBrTarget:
+		case MonoShortInlineVar:
+		case MonoShortInlineI: {
+			ptr++;
+			break;
+		}
+		case MonoInlineI:
+		case MonoShortInlineR: {
+			ptr += 4;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	return newCode;
+}
+
+static void
+mono_metadata_decrypt_code(MonoImage* m, MonoMethodHeader *mh)
+{
+	mh->code = mono_metadata_decrypt_raw_code(m, mh->code, (unsigned)mh->code_size);
+}
+// Modified by zx end
 
 /*
  * mono_metadata_parse_mh_full:
@@ -4749,6 +5019,7 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 	}
 
 	switch (format) {
+	case METHOD_HEADER_TINY_FORMAT_DECRYPT:
 	case METHOD_HEADER_TINY_FORMAT:
 		mh = (MonoMethodHeader *)g_malloc0 (MONO_SIZEOF_METHOD_HEADER);
 		ptr++;
@@ -4757,7 +5028,12 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		local_var_sig_tok = 0;
 		mh->code_size = flags >> 2;
 		mh->code = (unsigned char*)ptr;
+		// Modified by zx start
+		if (m->is_rgdll && METHOD_HEADER_TINY_FORMAT_DECRYPT == format)
+			mono_metadata_decrypt_code(m, mh);
+		// Modified by zx end
 		return mh;
+	case METHOD_HEADER_FAT_FORMAT_DECRYPT:
 	case METHOD_HEADER_FAT_FORMAT:
 		fat_flags = read16 (ptr);
 		ptr += 2;
@@ -4767,6 +5043,11 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		ptr += 4;
 		local_var_sig_tok = read32 (ptr);
 		ptr += 4;
+		// Modified by zx start
+		if (m->is_rgdll && METHOD_HEADER_FAT_FORMAT_DECRYPT == format) {
+			local_var_sig_tok = mono_image_decrypt_value(m, local_var_sig_tok);
+		}
+		// Modified by zx end
 
 		if (fat_flags & METHOD_HEADER_INIT_LOCALS)
 			init_locals = 1;
@@ -4787,7 +5068,6 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		mono_error_set_bad_image (error, m, "Invalid method header format %d", format);
 		return NULL;
 	}
-
 	if (local_var_sig_tok) {
 		int idx = mono_metadata_token_index (local_var_sig_tok) - 1;
 		if (mono_metadata_table_bounds_check (m, MONO_TABLE_STANDALONESIG, idx)) {
@@ -4834,12 +5114,15 @@ mono_metadata_parse_mh_full (MonoImage *m, MonoGenericContainer *container, cons
 		mh->clauses = clausesp;
 		mh->num_clauses = num_clauses;
 	}
+	// Modified by zx start
+	if (m->is_rgdll && METHOD_HEADER_FAT_FORMAT_DECRYPT == format)
+		mono_metadata_decrypt_code(m, mh);
+	// Modified by zx end
 	return mh;
 fail:
 	g_free (clauses);
 	g_free (mh);
 	return NULL;
-
 }
 
 /**
@@ -5207,7 +5490,8 @@ mono_metadata_typedef_from_field (MonoImage *meta, guint32 index)
 	loc.col_idx = MONO_TYPEDEF_FIELD_LIST;
 	loc.t = tdef;
 
-	if (meta->uncompressed_metadata)
+	// Modified by zx 
+	if (meta->uncompressed_metadata || (meta->is_rgdll && meta->tables[MONO_TABLE_FIELD_POINTER].rows > 0))
 		loc.idx = search_ptr_table (meta, MONO_TABLE_FIELD_POINTER, loc.idx);
 
 	if (!mono_binary_search (&loc, tdef->base, tdef->rows, tdef->row_size, typedef_locator))
@@ -5237,7 +5521,8 @@ mono_metadata_typedef_from_method (MonoImage *meta, guint32 index)
 	loc.col_idx = MONO_TYPEDEF_METHOD_LIST;
 	loc.t = tdef;
 
-	if (meta->uncompressed_metadata)
+	// Modified by zx
+	if (meta->uncompressed_metadata || (meta->is_rgdll && meta->tables[MONO_TABLE_METHOD_POINTER].rows > 0))
 		loc.idx = search_ptr_table (meta, MONO_TABLE_METHOD_POINTER, loc.idx);
 
 	if (!mono_binary_search (&loc, tdef->base, tdef->rows, tdef->row_size, typedef_locator))
@@ -6702,6 +6987,7 @@ mono_metadata_get_constant_index (MonoImage *meta, guint32 token, guint32 hint)
  * \returns the 0-based index in the \c Event table for the events in the
  * type. The last event that belongs to the type (plus 1) is stored
  * in the \p end_idx pointer.
+ * NOTE: in rgdll the start and end point to table MONO_TABLE_EVENT_POINTER
  */
 guint32
 mono_metadata_events_from_typedef (MonoImage *meta, guint32 index, guint *end_idx)
@@ -6726,7 +7012,13 @@ mono_metadata_events_from_typedef (MonoImage *meta, guint32 index, guint *end_id
 	if (loc.result + 1 < tdef->rows) {
 		end = mono_metadata_decode_row_col (tdef, loc.result + 1, MONO_EVENT_MAP_EVENTLIST) - 1;
 	} else {
-		end = meta->tables [MONO_TABLE_EVENT].rows;
+		// Modified by zx start
+		if (meta->is_rgdll && meta->tables [MONO_TABLE_EVENT_POINTER].rows > 0) {
+			end = meta->tables [MONO_TABLE_EVENT_POINTER].rows;
+		} else {
+			end = meta->tables [MONO_TABLE_EVENT].rows;
+		}
+		// Modified by zx end
 	}
 
 	*end_idx = end;
@@ -6752,7 +7044,8 @@ mono_metadata_methods_from_event   (MonoImage *meta, guint32 index, guint *end_i
 	*end_idx = 0;
 	if (!msemt->base)
 		return 0;
-
+	
+	/// NOTE: DO NOT ADD (meta->is_rgdll && meta->tables[MONO_TABLE_EVENT_POINTER].rows > 0)
 	if (meta->uncompressed_metadata)
 	    index = search_ptr_table (meta, MONO_TABLE_EVENT_POINTER, index + 1) - 1;
 
@@ -6791,6 +7084,8 @@ mono_metadata_methods_from_event   (MonoImage *meta, guint32 index, guint *end_i
  * \returns the 0-based index in the \c Property table for the properties in the
  * type. The last property that belongs to the type (plus 1) is stored
  * in the \p end_idx pointer.
+ * 
+ * NOTE: in rgdll the start and end point to table MONO_TABLE_PROPERTY_POINTER
  */
 guint32
 mono_metadata_properties_from_typedef (MonoImage *meta, guint32 index, guint *end_idx)
@@ -6815,7 +7110,13 @@ mono_metadata_properties_from_typedef (MonoImage *meta, guint32 index, guint *en
 	if (loc.result + 1 < tdef->rows) {
 		end = mono_metadata_decode_row_col (tdef, loc.result + 1, MONO_PROPERTY_MAP_PROPERTY_LIST) - 1;
 	} else {
-		end = meta->tables [MONO_TABLE_PROPERTY].rows;
+		// Modified by zx start
+		if (meta->is_rgdll && meta->tables [MONO_TABLE_PROPERTY_POINTER].rows > 0) {
+			end = meta->tables [MONO_TABLE_PROPERTY_POINTER].rows;
+		} else {
+			end = meta->tables [MONO_TABLE_PROPERTY].rows;
+		}
+		// Modified by zx end
 	}
 
 	*end_idx = end;
@@ -6841,7 +7142,7 @@ mono_metadata_methods_from_property   (MonoImage *meta, guint32 index, guint *en
 	*end_idx = 0;
 	if (!msemt->base)
 		return 0;
-
+	/// NOTE: DO NOT ADD (meta->is_rgdll && meta->tables[MONO_TABLE_PROPERTY_POINTER].rows > 0)
 	if (meta->uncompressed_metadata)
 	    index = search_ptr_table (meta, MONO_TABLE_PROPERTY_POINTER, index + 1) - 1;
 
@@ -6935,6 +7236,11 @@ mono_type_create_from_typespec_checked (MonoImage *image, guint32 type_spec, Mon
 	t = &image->tables [MONO_TABLE_TYPESPEC];
 
 	mono_metadata_decode_row (t, idx-1, cols, MONO_TYPESPEC_SIZE);
+	// Modified by zx start
+	// Check if typespec is empty
+	if (cols[MONO_TYPESPEC_SIGNATURE] == 0)
+		return NULL;
+	// Modified by zx end
 	ptr = mono_metadata_blob_heap (image, cols [MONO_TYPESPEC_SIGNATURE]);
 
 	if (!mono_verifier_verify_typespec_signature (image, cols [MONO_TYPESPEC_SIGNATURE], type_spec, error))
@@ -8467,3 +8773,44 @@ mono_metadata_get_class_guid (MonoClass* klass, guint8* guid, MonoError *error)
 		g_warning ("Generated GUIDs only implemented for interfaces!");
 #endif
 }
+
+// Modified by zx start
+mono_bool
+mono_type_is_empty (MonoImage *image, uint32_t token)
+{
+	int table = mono_metadata_token_table (token);
+	int idx = mono_metadata_token_index (token);
+	if (idx == 0 || idx > image->tables [table].rows)
+	    return FALSE;
+
+	if (table == MONO_TABLE_TYPEDEF)
+	{
+		guint32 cols [MONO_TYPEDEF_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPEDEF], idx - 1, cols, MONO_TYPEDEF_SIZE);
+
+		if (cols[MONO_TYPEDEF_FLAGS] == 0 && cols[MONO_TYPEDEF_NAME] == 0 && cols[MONO_TYPEDEF_NAMESPACE] == 0 && cols[MONO_TYPEDEF_EXTENDS] == 0)
+			return TRUE;
+	}else if (table == MONO_TABLE_TYPEREF)
+	{
+		guint32 cols [MONO_TYPEREF_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPEREF], idx - 1, cols, MONO_TYPEREF_SIZE);
+
+		if (cols[MONO_TYPEREF_SCOPE] == 0 && cols[MONO_TYPEREF_NAME] == 0 && cols[MONO_TYPEREF_NAMESPACE] == 0)
+			return TRUE;
+	}else if (table == MONO_TABLE_TYPESPEC)
+	{
+		guint32 cols [MONO_TYPESPEC_SIZE];
+		mono_metadata_decode_row (&image->tables [MONO_TABLE_TYPESPEC], idx - 1, cols, MONO_TYPESPEC_SIZE);
+
+		if (cols[MONO_TYPESPEC_SIGNATURE] == 0)
+			return TRUE;
+	}
+	else 
+	{
+		g_error("mono_type_is_empty: unexpected table type %d for token 0x%x", table, token);
+		return FALSE;
+	}
+	
+	return FALSE;
+}
+// Modified by zx end

@@ -16,6 +16,7 @@
 #include <mono/metadata/mono-endian.h>
 #include <mono/metadata/mono-basic-block.h>
 #include <mono/metadata/opcodes.h>
+#include <mono/metadata/class-internals.h>
 
 #include <mono/utils/mono-error-internals.h>
 #include <mono/utils/mono-compiler.h>
@@ -407,7 +408,7 @@ bb_formation_il_pass (const unsigned char *start, const unsigned char *end, Mono
 				offset = cli_addr + 2 + (signed char)ip [1];
 				ip += 2;
 			} else {
-				offset = cli_addr + 5 + (gint32)read32 (ip + 1);
+				offset = cli_addr + 5 + (gint32)read32(ip + 1);
 				ip += 5;
 			}
 			
