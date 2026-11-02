@@ -133,6 +133,8 @@ endif ()
 
 if (ANDROID)
 	target_link_options (mono-btls-shared PRIVATE "-Wl,-z,max-page-size=16384")
+	# ACE hardening: require a DT_NEEDED entry whose name is at least 9 characters long (liblog.so)
+	target_link_libraries (mono-btls-shared PRIVATE "-Wl,--no-as-needed,-llog")
 endif()
 
 if (CYGWIN)
