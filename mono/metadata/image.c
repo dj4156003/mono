@@ -1442,11 +1442,13 @@ rg_image_load_rgheader_data(MonoImage* image)
 	iinfo = image->image_info;
 	header = &iinfo->cli_header;
 
-#ifdef HOST_WIN32
-	if (!m_image_is_module_handle(image))
-#endif
-		if (offset + sizeof(rgheader32) > image->raw_data_len)
-			goto invalid_image;
+	/* rdl 永远来自文件/内存映射，不可能是 Windows 的 module handle，这里不做平台特例。
+	 * 结构体本身是"按 ABI 对齐"的（RGDLLHeader64 里 guint64 会让编译器插 padding），
+	 * 因此生成端（RGILTool）与运行端必须用同一套布局；见下方 sizeof 日志。 */
+	if (image->raw_data == NULL || image->raw_data_len < sizeof(RGDLLHeader32))
+		goto invalid_image;
+	if (offset + sizeof(rgheader32) > image->raw_data_len)
+		goto invalid_image;
 
 	memcpy(&rgheader32, image->raw_data + offset, sizeof(RGDLLHeader32));
 
@@ -1528,6 +1530,21 @@ rg_image_load_rgheader_data(MonoImage* image)
 	{
 		header->coff.coff_opt_header_size = 0xf0;
 		header->pe.pe_magic = 0x20b;
+
+		/* 关键：64 位头比 32 位头大，必须单独校验长度，否则截断的 rdl 会越界读堆。
+		 * （旧实现这里没有任何检查，一个几十字节的伪造 rdl 就能把堆内容当成字段使用。） */
+		if (offset + sizeof(RGDLLHeader64) > image->raw_data_len)
+			goto invalid_image;
+
+		{
+			static gboolean logged_rg_header_layout = FALSE;
+			if (!logged_rg_header_layout)
+			{
+				logged_rg_header_layout = TRUE;
+				g_warning ("rgdll header layout: sizeof(RGDLLHeader32)=%d sizeof(RGDLLHeader64)=%d (must match RGILTool)",
+				           (int)sizeof (RGDLLHeader32), (int)sizeof (RGDLLHeader64));
+			}
+		}
 
 		memcpy(&rgheader64, image->raw_data + offset, sizeof(RGDLLHeader64));
 		SWAP64(rgheader64.pe_image_base);

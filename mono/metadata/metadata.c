@@ -1697,6 +1697,22 @@ mono_metadata_decode_length (MonoImage* m, const char *_ptr, const char **rptr)
 
 // Modified by zx end
 
+/* 指针表映射：idx 是 1-based 的逻辑索引。
+ * 必须严格校验范围：被篡改的 rdl 可以让 idx-1 落到表外（读越界），
+ * 而 idx==0 时 idx-1 会回绕成 0xFFFFFFFF。 */
+static gboolean
+rg_pointer_index_valid (MonoImage *image, int pointer_table, guint32 idx)
+{
+	guint32 rows = image->tables [pointer_table].rows;
+	if (idx == 0 || rows == 0 || idx > rows)
+	{
+		g_warning ("rgdll: pointer table index out of range (table %d, idx %u, rows %u)",
+		           pointer_table, idx, rows);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /**
  * mono_metadata_translate_token_index:
  * Translates the given 1-based index into the \c Method, \c Field, \c Event, or \c Param tables
@@ -1714,27 +1730,82 @@ mono_metadata_translate_token_index (MonoImage *image, int table, guint32 idx)
 	switch (table) {
 	case MONO_TABLE_METHOD:
 		if (image->tables [MONO_TABLE_METHOD_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_METHOD_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+			guint32 rows = image->tables [MONO_TABLE_METHOD].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_METHOD_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_FIELD:
 		if (image->tables [MONO_TABLE_FIELD_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_FIELD_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+			guint32 rows = image->tables [MONO_TABLE_FIELD].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_FIELD_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_EVENT:
 		if (image->tables [MONO_TABLE_EVENT_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_EVENT_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+			guint32 rows = image->tables [MONO_TABLE_EVENT].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_EVENT_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_PROPERTY:
 		if (image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_PROPERTY_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+			guint32 rows = image->tables [MONO_TABLE_PROPERTY].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_PROPERTY_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_PARAM:
 		if (image->tables [MONO_TABLE_PARAM_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_PARAM_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+			guint32 rows = image->tables [MONO_TABLE_PARAM].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_PARAM_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	default:
@@ -1752,27 +1823,82 @@ mono_metadata_map_pointer_index (MonoImage *image, int table, guint32 idx)
 	switch (table) {
 	case MONO_TABLE_METHOD:
 		if (image->tables [MONO_TABLE_METHOD_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_METHOD_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_METHOD_POINTER], idx - 1, MONO_METHOD_POINTER_METHOD);
+			guint32 rows = image->tables [MONO_TABLE_METHOD].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_METHOD_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_FIELD:
 		if (image->tables [MONO_TABLE_FIELD_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_FIELD_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_FIELD_POINTER], idx - 1, MONO_FIELD_POINTER_FIELD);
+			guint32 rows = image->tables [MONO_TABLE_FIELD].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_FIELD_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_EVENT:
 		if (image->tables [MONO_TABLE_EVENT_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_EVENT_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_EVENT_POINTER], idx - 1, MONO_EVENT_POINTER_EVENT);
+			guint32 rows = image->tables [MONO_TABLE_EVENT].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_EVENT_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_PROPERTY:
 		if (image->tables [MONO_TABLE_PROPERTY_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_PROPERTY_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PROPERTY_POINTER], idx - 1, MONO_PROPERTY_POINTER_PROPERTY);
+			guint32 rows = image->tables [MONO_TABLE_PROPERTY].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_PROPERTY_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	case MONO_TABLE_PARAM:
 		if (image->tables [MONO_TABLE_PARAM_POINTER].rows)
-			return mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+		{
+			if (!rg_pointer_index_valid (image, MONO_TABLE_PARAM_POINTER, idx))
+				return idx;
+			guint32 mapped = mono_metadata_decode_row_col (&image->tables [MONO_TABLE_PARAM_POINTER], idx - 1, MONO_PARAM_POINTER_PARAM);
+			guint32 rows = image->tables [MONO_TABLE_PARAM].rows;
+			if (mapped == 0 || mapped > rows)
+			{
+				g_warning ("rgdll: pointer table %d maps to invalid row %u (rows %u)", MONO_TABLE_PARAM_POINTER, mapped, rows);
+				return idx;
+			}
+			return mapped;
+		}
 		else
 			return idx;
 	default:
@@ -4876,7 +5002,8 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 
 	if (m->rg_ilcode_decrypt_info == NULL || m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem == NULL)
 	{
-		g_assert_not_reached();
+		/* 头里没标 IL 加密却走到这里：说明 rdl 结构不一致，回退原始字节由上层报错 */
+		g_warning ("rgdll: IL decrypt info is missing in image %s", m->name ? m->name : "?");
 		return code;
 	}
 
@@ -4890,8 +5017,12 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 
 	if (codesize > m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len - m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur) {
 		mono_os_mutex_unlock(&m->rg_ilcode_decrypt_info->rg_decrypt_lock);
-		fprintf(stderr, "Error: Not enough space in IL code decryption memory pool\n");
-		g_assert_not_reached();
+		/* 解密池按 pe_code_size 一次性分配；耗尽说明 rdl 头里的 code_size 与实际不符（损坏或伪造）。
+		 * 返回原始字节让上层报错，不要 abort 掉整个进程。 */
+		g_warning ("rgdll: IL decrypt pool exhausted in image %s (need %u, left %u)",
+		           m->name ? m->name : "?",
+		           (unsigned)codesize,
+		           (unsigned)(m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_len - m->rg_ilcode_decrypt_info->rg_decrypt_ilcode_mem_cur));
 		return code;
 	}
 
@@ -4907,16 +5038,23 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 	const MonoOpcode* entry;
 	int i;
 
+/* rdl 是"可被替换"的输入（热更目录可写），这里的每条指令都可能被构造成越界读写。
+ * 所有 operand 读取前都必须确认还在 [ptr, end) 内，否则 write_to_ptr 会变成任意地址写。 */
+#define RG_NEED_BYTES(n) do { if ((size_t)(end - ptr) < (size_t)(n)) goto invalid_il; } while (0)
+
 	while (ptr < end) {
+		RG_NEED_BYTES (1);
 		i = *ptr;
 		if (*ptr == 0xfe) {
 			ptr++;
+			RG_NEED_BYTES (1);
 			i = *ptr + 256;
 		}
 		entry = &mono_opcodes[i];
 		ptr++;
 		switch (entry->argument) {
 		case MonoInlineBrTarget: {
+			RG_NEED_BYTES (4);
 			guint32 target = read32 (ptr);
 			target = mono_image_decrypt_value(m, target);
 			write_to_ptr((uint8_t*)ptr, &target, sizeof(guint32));
@@ -4929,6 +5067,7 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 		case MonoInlineTok:
 		case MonoInlineType:
 		case MonoInlineMethod: {
+			RG_NEED_BYTES (4);
 			guint32 token = read32 (ptr);
 			token = mono_image_decrypt_value(m, token);
 			write_to_ptr((uint8_t*)ptr, &token, sizeof(guint32));
@@ -4939,13 +5078,19 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 			break;
 		case MonoInlineI8:
 		case MonoInlineR: {
+			RG_NEED_BYTES (8);
 			ptr += 8;
 			break;
 		}
 		case MonoInlineSwitch: {
+			RG_NEED_BYTES (4);
 			guint32 count = read32(ptr);
 			guint32 n, offset;
 			ptr += 4;
+			/* 先校验整张跳转表都在范围内，再逐项写回；否则 count 可以大到把 ptr 甩出缓冲区。
+			 * 用除法比较而不是 count*4，避免 32 位平台上乘法回绕。 */
+			if (count > (guint32)((size_t)(end - ptr) / 4))
+				goto invalid_il;
 			for (n = 0; n < count; n++) {
 				offset = read32 (ptr);
 				offset = mono_image_decrypt_value(m, offset);
@@ -4955,17 +5100,20 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 			break;
 		}
 		case MonoInlineVar: {
+			RG_NEED_BYTES (2);
 			ptr += 2;
 			break;
 		}
 		case MonoShortInlineBrTarget:
 		case MonoShortInlineVar:
 		case MonoShortInlineI: {
+			RG_NEED_BYTES (1);
 			ptr++;
 			break;
 		}
 		case MonoInlineI:
 		case MonoShortInlineR: {
+			RG_NEED_BYTES (4);
 			ptr += 4;
 			break;
 		}
@@ -4973,7 +5121,15 @@ mono_metadata_decrypt_raw_code(MonoImage* m, const unsigned char* code, unsigned
 			break;
 		}
 	}
+#undef RG_NEED_BYTES
 	return newCode;
+
+invalid_il:
+	/* 畸形 IL：不要 abort（会让整个游戏直接挂），记录下来并回退到原始字节，
+	 * 由上层在解析方法体时报 BadImageFormatException/InvalidProgramException。 */
+#undef RG_NEED_BYTES
+	g_warning ("rgdll: invalid IL body in image %s (code size %d)", m->name ? m->name : "?", (int)codesize);
+	return code;
 }
 
 static void

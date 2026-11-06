@@ -134,7 +134,8 @@ endif ()
 if (ANDROID)
 	target_link_options (mono-btls-shared PRIVATE "-Wl,-z,max-page-size=16384")
 	# ACE hardening: require a DT_NEEDED entry whose name is at least 9 characters long (liblog.so)
-	target_link_libraries (mono-btls-shared PRIVATE "-Wl,--no-as-needed,-llog")
+	# --no-as-needed 是全局状态，会影响后续库的 DT_NEEDED 记录；用 push/pop 包起来
+	target_link_libraries (mono-btls-shared PRIVATE "-Wl,--push-state,--no-as-needed,-llog,--pop-state")
 endif()
 
 if (CYGWIN)

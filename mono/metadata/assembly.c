@@ -1877,7 +1877,8 @@ commit_reference:
 		reference = (MonoAssembly *)REFERENCE_MISSING;
 	}	
 
-	if (!image->references [index]) {
+	MonoAssembly *stored = image->references [index];
+	if (!stored) {
 		if (reference != REFERENCE_MISSING){
 			mono_assembly_addref (reference);
 			if (image->assembly)
@@ -1889,13 +1890,31 @@ commit_reference:
 				    image->assembly->aname.name, image->assembly);
 		}
 		
+		stored = reference;
 		image->references [index] = reference;
 	}
 	mono_image_unlock (image);
 
-	if (image->references [index] != reference) {
-		/* Somebody loaded it before us */
-		mono_assembly_close (reference);
+	if (stored != reference) {
+		/*
+		 * 有人先我们一步加载了同一个 AssemblyRef，`reference` 是一份重复的 MonoAssembly。
+		 *
+		 * 它已经被 load hook 发布到 domain->domain_assemblies：
+		 *   - 在这里 mono_assembly_close() 会把 domain 链表指向已释放对象，
+		 *     下一次 mono_domain_assembly_search() 在 strcasecmp(ass->aname.name) 上崩溃（线上崩过的那个）；
+		 *   - 也不能"摘链表 + 双 close"：一旦发布，别的线程可能已经拿到指针，
+		 *     引用计数很容易再错一次，把 UAF 换成更隐蔽的问题。
+		 * 所以这里只丢弃、不释放：代价是每次"加载竞态"泄漏一个 MonoAssembly + 一张
+		 * MonoImage（含文件映射），属于有界泄漏。
+		 *
+		 * 这条路径只在两个线程同时解析同一个 AssemblyRef 时命中；FM_Mono 侧已经用
+		 * 递归锁 + 二次检查把 hook 路径串行化，正常构建不应再出现。
+		 * 保留 WARNING 级 trace，便于线上统计是否真的发生。
+		 */
+		if (reference != REFERENCE_MISSING && reference != NULL)
+			mono_trace (G_LOG_LEVEL_WARNING, MONO_TRACE_ASSEMBLY,
+				    "Assembly load race: duplicate %s[%p] discarded, keeping %p (bounded leak)",
+				    reference->aname.name, reference, stored);
 	}
 }
 
