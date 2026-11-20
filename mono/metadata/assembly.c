@@ -1779,7 +1779,7 @@ mono_assembly_get_assemblyref_checked (MonoImage *image, int index, MonoAssembly
 void
 mono_assembly_load_reference (MonoImage *image, int index)
 {
-	MonoAssembly *reference;
+	MonoAssembly *reference = NULL;
 	MonoAssemblyName aname;
 	MonoImageOpenStatus status = MONO_IMAGE_OK;
 	memset (&aname, 0, sizeof (MonoAssemblyName));
@@ -1900,7 +1900,7 @@ commit_reference:
 		if (reference != REFERENCE_MISSING && reference != NULL)
 			mono_trace (G_LOG_LEVEL_WARNING, MONO_TRACE_ASSEMBLY,
 				    "Assembly load race: duplicate %s[%p] discarded, keeping %p (bounded leak)",
-				    reference->aname.name, reference, stored);
+				    aname.name, reference, stored);
 	}
 }
 
