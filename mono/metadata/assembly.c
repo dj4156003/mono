@@ -1808,6 +1808,11 @@ mono_assembly_load_reference (MonoImage *image, int index)
 		mono_error_cleanup (local_error);
 		goto commit_reference;
 	}
+	
+	// Modified by zx start
+	if (aname.name == NULL || aname.name[0] == '\0')
+		goto commit_reference;
+	// Modified by zx end
 
 	if (image->assembly) {
 		if (mono_trace_is_traced (G_LOG_LEVEL_INFO, MONO_TRACE_ASSEMBLY)) {
@@ -1872,7 +1877,8 @@ commit_reference:
 		reference = (MonoAssembly *)REFERENCE_MISSING;
 	}	
 
-	if (!image->references [index]) {
+	MonoAssembly *stored = image->references [index];
+	if (!stored) {
 		if (reference != REFERENCE_MISSING){
 			mono_assembly_addref (reference);
 			if (image->assembly)
@@ -1884,13 +1890,17 @@ commit_reference:
 				    image->assembly->aname.name, image->assembly);
 		}
 		
+		stored = reference;
 		image->references [index] = reference;
 	}
 	mono_image_unlock (image);
 
-	if (image->references [index] != reference) {
-		/* Somebody loaded it before us */
-		mono_assembly_close (reference);
+	if (stored != reference) {
+
+		if (reference != REFERENCE_MISSING && reference != NULL)
+			mono_trace (G_LOG_LEVEL_WARNING, MONO_TRACE_ASSEMBLY,
+				    "Assembly load race: duplicate %s[%p] discarded, keeping %p (bounded leak)",
+				    reference->aname.name, reference, stored);
 	}
 }
 
